@@ -378,8 +378,8 @@ export const ipc = {
 
   getConfig: () => invoke<Config>("get_config"),
   saveConfig: (config: Config) => invoke<void>("save_config", { config }),
-  loadState: <T>(name: "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines") => invoke<T | null>("load_state", { name }),
-  saveState: (name: "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines", value: unknown) => invoke<void>("save_state", { name, value }),
+  loadState: <T>(name: "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner") => invoke<T | null>("load_state", { name }),
+  saveState: (name: "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner", value: unknown) => invoke<void>("save_state", { name, value }),
   pickFolder: (start?: string) => invoke<string | null>("pick_folder", { start: start ?? null }),
   revealConfig: (file: boolean) => invoke<void>("reveal_config", { file }),
   browserOpen: (pane: string, url: string, r: { x: number; y: number; w: number; h: number }) =>
@@ -410,6 +410,7 @@ export const ipc = {
   hasFullDiskAccess: () => invoke<boolean>("has_full_disk_access"),
   openFullDiskAccessSettings: () => invoke<void>("open_full_disk_access_settings"),
 
+  gitLastCommit: (cwd: string) => invoke<number | null>("git_last_commit", { cwd }),
   gitInfo: (cwd: string) => invoke<GitInfo | null>("git_info", { cwd }),
   createWorktree: (cwd: string, label: string) => invoke<string>("create_worktree", { cwd, label }),
   /** The repo's AureliaSpace worktrees (under `<repo>.worktrees/`). */

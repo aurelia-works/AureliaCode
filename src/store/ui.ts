@@ -11,7 +11,7 @@ export interface PickerTask {
 export type Mode = "agents" | "terminals";
 
 /** What the right column shows: the queue, the focused thread's changes, or its details. */
-export type RailTab = "queue" | "changes" | "details";
+export type RailTab = "queue" | "changes" | "details" | "notes";
 
 /**
  * What the left navigator shows: the workspace tree (⌘\), the project's files (⇧⌘F),
@@ -33,6 +33,12 @@ interface UiState {
   settingsOpen: boolean;
   /** Section to show when Settings next opens (then cleared). */
   settingsSection: string | null;
+  /** Quick capture box (palette: "Capture…"). */
+  captureOpen: boolean;
+  /** Roadmap screen; `roadmapProject` is the planner project shown (null = all). */
+  roadmapOpen: boolean;
+  weeklyOpen: boolean;
+  roadmapProject: string | null;
   /** ⌘P command palette. */
   paletteOpen: boolean;
   gridOpen: boolean;
@@ -71,6 +77,10 @@ export const useUi = create<UiState>((set) => ({
   single: true,
   settingsOpen: false,
   settingsSection: null,
+  captureOpen: false,
+  roadmapOpen: false,
+  weeklyOpen: false,
+  roadmapProject: null,
   paletteOpen: false,
   gridOpen: false,
   reviewOpen: false,
@@ -111,7 +121,7 @@ export async function loadUiState() {
     useUi.setState({
       mode: saved.mode === "agents" ? "agents" : "terminals",
       agentPanelOpen: saved.agentPanelOpen ?? true,
-      railTab: saved.railTab === "changes" || saved.railTab === "details" ? saved.railTab : "queue",
+      railTab: saved.railTab === "changes" || saved.railTab === "details" || saved.railTab === "notes" ? saved.railTab : "queue",
       railWidths: saved.railWidths ?? {},
       nav:
         saved.nav !== undefined

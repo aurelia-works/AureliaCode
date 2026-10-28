@@ -15,6 +15,7 @@ import { useConfig } from "../store/config";
 import { useCustomAgents } from "../store/customAgents";
 import { activeTab, focusedPaneId, paneIds, useLayout } from "../store/layout";
 import { useRuntime } from "../store/runtime";
+import { usePlanner } from "../store/planner";
 import { useUi } from "../store/ui";
 import { SearchIcon } from "./Icons";
 import { StatusGlyph, stateLabel, urgency, visualOf, type Visual } from "./StatusGlyph";
@@ -130,6 +131,9 @@ function actionItems(): Item[] {
     { id: "theme-dark", group: "Actions", label: "Theme: dark", run: () => setTheme("dark") },
     { id: "theme-light", group: "Actions", label: "Theme: light", run: () => setTheme("light") },
     { id: "theme-system", group: "Actions", label: "Theme: follow system", run: () => setTheme("system") },
+    usePlanner.getState().data.switches.roadmap && { id: "roadmap", group: "Actions", label: "Roadmap", hint: "now / next / later / shipped per project", run: () => ui.set({ roadmapOpen: true }) },
+    usePlanner.getState().data.switches.review && { id: "weekly", group: "Actions", label: "Weekly review", hint: "what the week added up to", run: () => ui.set({ weeklyOpen: true }) },
+    { id: "capture", group: "Actions", label: "Capture…", hint: "a goal for today or a task on a project", run: () => ui.set({ captureOpen: true }) },
     { id: "settings", group: "Actions", label: "Settings", keys: "⌘,", run: () => ui.set({ settingsOpen: true }) },
     ...useCustomAgents.getState().agents.map((a) => ({
       id: `agent:${a.id}`,

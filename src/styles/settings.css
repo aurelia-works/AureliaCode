@@ -412,3 +412,16 @@
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
 }
+
+.planner-counts {
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.planner-counts td {
+  padding: 2px 16px 2px 0;
+}
+.planner-counts td:last-child {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}

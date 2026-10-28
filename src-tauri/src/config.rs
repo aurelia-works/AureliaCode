@@ -417,7 +417,7 @@ fn write_json(path: &Path, value: &Value) -> Result<(), String> {
 /// Only these state files may be read/written from the frontend.
 fn state_path(name: &str) -> Result<PathBuf, String> {
     match name {
-        "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines" => Ok(app_dir().join(format!("{name}.json"))),
+        "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" => Ok(app_dir().join(format!("{name}.json"))),
         _ => Err(format!("unknown state file: {name}")),
     }
 }
@@ -455,10 +455,23 @@ pub fn save_config(mut config: Config) -> Result<(), String> {
 
 #[tauri::command]
 pub fn load_state(name: String) -> Result<Option<Value>, String> {
-    let path = state_path(&name)?;
-    match fs::read_to_string(&path) {
-        Ok(text) => Ok(serde_json::from_str(&text).ok()),
-        Err(_) => Ok(None),
+    read_state(&state_path(&name)?)
+}
+
+/// A missing file is None. A file that can't be read is an error (so the frontend never saves an empty state over it).
+/// A file that isn't valid JSON is copied to `<name>.corrupt.json` first, then treated as missing.
+fn read_state(path: &Path) -> Result<Option<Value>, String> {
+    let text = match fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("{}: {e}", path.display())),
+    };
+    match serde_json::from_str(&text) {
+        Ok(v) => Ok(Some(v)),
+        Err(_) => {
+            let _ = fs::write(path.with_extension("corrupt.json"), &text);
+            Ok(None)
+        }
     }
 }
 
@@ -493,5 +506,46 @@ pub fn project_root(cwd: String) -> String {
             Some(p) => dir = p,
             None => return start.to_string_lossy().into_owned(),
         }
+    }
+}
+
+#[cfg(test)]
+mod state_file_tests {
+    use super::*;
+
+    fn temp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("aurelia-state-test-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn missing_file_is_none() {
+        let dir = temp("missing");
+        assert_eq!(read_state(&dir.join("planner.json")).unwrap(), None);
+    }
+
+    #[test]
+    fn valid_file_is_read() {
+        let dir = temp("valid");
+        fs::write(dir.join("planner.json"), r#"{"a":1}"#).unwrap();
+        assert_eq!(read_state(&dir.join("planner.json")).unwrap().unwrap()["a"], 1);
+    }
+
+    #[test]
+    fn corrupt_file_is_kept_aside_and_reads_as_none() {
+        let dir = temp("corrupt");
+        fs::write(dir.join("planner.json"), "{ half").unwrap();
+        assert_eq!(read_state(&dir.join("planner.json")).unwrap(), None);
+        assert_eq!(fs::read_to_string(dir.join("planner.corrupt.json")).unwrap(), "{ half");
+    }
+
+    #[test]
+    fn unreadable_path_is_an_error_not_none() {
+        let dir = temp("dir");
+        // A directory where the file should be: reading it fails with something other than NotFound.
+        fs::create_dir_all(dir.join("planner.json")).unwrap();
+        assert!(read_state(&dir.join("planner.json")).is_err());
     }
 }

@@ -34,6 +34,7 @@ import { loadCustomAgents } from "./store/customAgents";
 import { loadPrompts, startPromptLinks } from "./store/prompts";
 import { loadRecents } from "./store/recents";
 import { loadTasks } from "./store/tasks";
+import { loadPlanner, watchSettled } from "./store/planner";
 import { loadUiState, useUi } from "./store/ui";
 import { startMetrics } from "./store/metrics";
 import { startUsagePolling } from "./store/usage";
@@ -70,9 +71,10 @@ function persistLayout() {
 async function boot() {
   await useConfig.getState().load();
   setHome(await homeDir().catch(() => ""));
-  await Promise.all([loadUiState(), loadTasks(), loadRecents(), loadCustomAgents(), loadPrompts()]);
+  await Promise.all([loadUiState(), loadTasks(), loadRecents(), loadCustomAgents(), loadPrompts(), loadPlanner()]);
   const saved = await ipc.loadState<SavedLayout>("layout").catch(() => null);
   useLayout.getState().hydrate(saved);
+  watchSettled();
   await planResume(saved);
   persistLayout();
 

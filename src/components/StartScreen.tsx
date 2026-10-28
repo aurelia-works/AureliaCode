@@ -21,6 +21,10 @@ import { AgentLogo } from "./AgentLogos";
 import { ArrowIcon, ArrowUpIcon, ChevronDownIcon, CloseIcon, FolderIcon, PrIcon, SparkIcon, TerminalIcon } from "./Icons";
 import { useChatTitle } from "./ProjectsSidebar";
 import { repoBadge } from "./ThreadHeader";
+import { TodayPanel } from "./planner/TodayPanel";
+import { HabitsPanel } from "./planner/HabitsPanel";
+import { BriefingCard } from "./planner/BriefingCard";
+import { usePlanner } from "../store/planner";
 
 /** Which optional CLIs are installed; resolved once per session. */
 let toolsCache: Promise<Record<string, boolean>> | undefined;
@@ -142,10 +146,10 @@ export function StartScreen({ paneId }: { paneId: string }) {
   };
 
   /** The composer: a Claude chat (⌥: a terminal) on this prompt, in a fresh worktree when asked. */
-  const begin = async (alt?: boolean) => {
-    const text = prompt.trim();
+  const begin = async (alt?: boolean, over?: { text: string; dir?: string }) => {
+    const text = (over?.text ?? prompt).trim();
     if (!text) return;
-    const dir = await startDir(expandPath(folder), worktree && !!git, text.slice(0, 40));
+    const dir = over?.dir ? await startDir(over.dir, false, text.slice(0, 40)) : await startDir(expandPath(folder), worktree && !!git, text.slice(0, 40));
     const chat = asChat !== !!alt;
     if (chat) queueFirstMessage(paneId, text);
     else queueInit(paneId, `claude ${shellQuote(text)}`);
@@ -292,6 +296,14 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 </button>
               ))}
             </div>
+            <BriefingCard />
+            <TodayPanel
+              onStart={(text, projectId) => {
+                const dir = usePlanner.getState().data.projects.find((p) => p.id === projectId)?.localRepoPath;
+                void begin(false, { text, dir: dir ? expandPath(dir) : undefined });
+              }}
+            />
+            <HabitsPanel />
             <Resume />
           </>
         )}

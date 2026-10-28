@@ -55,6 +55,13 @@ pub fn git_info(cwd: String) -> Option<GitInfo> {
     Some(GitInfo { root: root.to_string_lossy().into_owned(), branch, detached, worktree, repo: repo.to_string_lossy().into_owned() })
 }
 
+/// Unix time of the newest commit on HEAD, or None when there is no repo or no commit yet.
+#[tauri::command]
+pub fn git_last_commit(cwd: String) -> Option<i64> {
+    let (root, _) = find_repo(Path::new(&expand_path(&cwd)))?;
+    git_ok(&root, &["log", "-1", "--format=%ct"]).ok()?.parse().ok()
+}
+
 fn git(dir: &Path, args: &[&str]) -> Result<std::process::Output, String> {
     Command::new("git").arg("-C").arg(dir).args(["-c", "core.quotepath=false"]).args(args).output().map_err(|e| format!("git: {e}"))
 }

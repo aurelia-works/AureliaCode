@@ -12,6 +12,7 @@ import { RemoteSection } from "./RemoteSection";
 import { RoutinesSection } from "./RoutinesSection";
 import { ShortcutsSection } from "./ShortcutsSection";
 import { SoundsSection } from "./SoundsSection";
+import { PlannerSection } from "./PlannerSection";
 import { SubagentsSection } from "./SubagentsSection";
 import { SuggestionsSection } from "./SuggestionsSection";
 import { VoiceSection } from "./VoiceSection";
@@ -42,6 +43,7 @@ export const SECTIONS: SettingsSection[] = [
   { id: "effort", label: "Auto effort", Component: EffortSection },
   { id: "subagents", label: "Subagents", Component: SubagentsSection },
   { id: "suggestions", label: "Suggestions", Component: SuggestionsSection },
+  { id: "planner", label: "Planner", Component: PlannerSection },
   { id: "voice", label: "Voice", Component: VoiceSection },
   { id: "hud", label: "HUD", Component: HudSection },
   { id: "remote", label: "Remote", Component: RemoteSection },

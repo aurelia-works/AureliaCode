@@ -3,6 +3,7 @@ import { useUi } from "../store/ui";
 import { AureliaMark, SidebarIcon } from "./Icons";
 import { UsageStrip } from "./UsageStrip";
 import { NoticeBell } from "./Notices";
+import { FocusChip } from "./planner/FocusChip";
 
 /** A pane's short title: the command running in it, else its folder. */
 export function paneTitle(cwd: string | undefined, running: string | undefined): string {
@@ -33,6 +34,7 @@ export function TitleBar() {
         <SidebarIcon />
       </button>
       <span className="tb-sp" data-tauri-drag-region />
+      <FocusChip />
       <NoticeBell />
       <FontReset />
       <UsageStrip />

@@ -161,7 +161,14 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect }: { paneId
       <button
         className={`th-row${v ? ` ${v}` : ""}`}
         onClick={(e) => onSelect(e) || showPane(paneId)}
-        title={[label !== kind ? `${kind}: ${label}` : label, status, dir, "⌘-click to select several"].filter(Boolean).join("\n")}
+        // Middle-click closes the thread (the same safe close as the Close button); mousedown is cancelled so the OS doesn't start autoscroll.
+        onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+        onAuxClick={(e) => {
+          if (e.button !== 1) return;
+          e.preventDefault();
+          closePaneSafely(paneId);
+        }}
+        title={[label !== kind ? `${kind}: ${label}` : label, status, dir, "⌘-click to select several", "middle-click to close"].filter(Boolean).join("\n")}
         aria-current={focused ? "true" : undefined}
         aria-selected={selected}
       >

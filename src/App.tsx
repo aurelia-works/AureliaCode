@@ -1,3 +1,6 @@
+import { WeeklyPage } from "./components/planner/WeeklyPage";
+import { RoadmapPage } from "./components/planner/RoadmapPage";
+import { CaptureBox } from "./components/planner/CaptureBox";
 import { useEffect } from "react";
 import { AccountPicker } from "./components/AccountPicker";
 import { AgentsBoard } from "./components/AgentsBoard";
@@ -33,7 +36,7 @@ export function App() {
   const railWidth = useUi((s) => s.railWidths[s.railTab]);
   const mode = useUi((s) => s.mode);
   const focusKey = useLayout((s) => `${s.activeTabId}:${s.tabs.find((t) => t.id === s.activeTabId)?.focusedPaneId}`);
-  const modalOpen = useUi((s) => s.settingsOpen || !!s.accountPicker || s.gridOpen || s.reviewOpen || s.paletteOpen);
+  const modalOpen = useUi((s) => s.settingsOpen || s.captureOpen || s.roadmapOpen || s.weeklyOpen || !!s.accountPicker || s.gridOpen || s.reviewOpen || s.paletteOpen);
 
   // Belt and braces: anything that resized while the board covered the stage refits on the way back.
   useEffect(() => {
@@ -84,6 +87,9 @@ export function App() {
       <AccountPicker />
       <GridPicker />
       <CommandPalette />
+      <CaptureBox />
+      <RoadmapPage />
+      <WeeklyPage />
       <PromptFill />
       <Checkpoints />
       <NoticeStack />

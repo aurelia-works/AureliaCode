@@ -10,6 +10,7 @@ import { useMetrics } from "../store/metrics";
 import { useRuntime } from "../store/runtime";
 import { tasksForPane, useTasks } from "../store/tasks";
 import { useUi } from "../store/ui";
+import { SignalsRow } from "./planner/SignalsRow";
 import { CacheBadge } from "./CacheBadge";
 import { AgentChip, usePaneAgent } from "./AgentChip";
 import { ArrowIcon, BranchIcon, GridIcon, SparkIcon } from "./Icons";
@@ -226,6 +227,7 @@ export function AgentsBoard() {
           </button>
         </div>
       </header>
+      <SignalsRow />
       {items.length === 0 ? (
         <div className="board-empty">
           <SparkIcon width={28} height={28} />

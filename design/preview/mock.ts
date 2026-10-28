@@ -287,6 +287,28 @@ function ptyWrite(pane: string, data: string) {
   feed(ch, `\r${ESC}[2K> ${cur}`);
 }
 
+const plannerMock = {
+  version: 1,
+  importedAt: "2026-10-28T09:00:00.000Z",
+  projects: [{ id: "p1", name: "Linkra", status: "In Progress", localRepoPath: dev("web"), tasks: [] }, { id: "p2", name: "ATA", status: "In Progress", localRepoPath: dev("api-server"), tasks: [] }],
+  goalTemplate: [
+    { id: "t1", title: "Ship one focused task", category: "Build", points: 3, done: false },
+    { id: "t2", title: "Write session log", category: "Review", points: 2, done: false },
+  ],
+  dailyGoalsByDate: Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`2026-03-${10 + i}`, {}])),
+  roadmapCards: [
+    { id: "c1", lane: "now", title: "Linkra v3 import", description: "", tags: [], dueDate: "2026-11-02", project: "p1" },
+    { id: "c2", lane: "next", title: "Habit streaks", description: "", tags: [], dueDate: null, project: "p1" },
+    { id: "c3", lane: "later", title: "Calendar week view", description: "", tags: [], dueDate: null, project: "p1" },
+    { id: "c4", lane: "shipped", title: "Planner store", description: "", tags: [], dueDate: null, project: "p1" },
+    { id: "c5", lane: "next", title: "Fix platform doors", description: "", tags: [], dueDate: null, project: "p2" },
+  ],
+  focusSessions: Array.from({ length: 5 }, (_, i) => ({ id: `f${i}` })),
+  habits: [{ id: "h1", title: "Read 20 pages", frequency: "daily", customDays: [], targetStreak: 30, archivedAt: null }, { id: "h2", title: "Stretch", frequency: "weekdays", customDays: [], targetStreak: 30, archivedAt: null }],
+  habitCompletions: [-1, -2, -3].map((d, i) => { const x = new Date(Date.now() + d * 86400000); return { id: `hc${i}`, habitId: "h1", date: `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`, createdAt: "" }; }),
+  switches: {},
+};
+
 mockWindows("main");
 mockIPC(
   (cmd, args: any) => {
@@ -310,6 +332,7 @@ mockIPC(
               ],
             },
           };
+        if (args.name === "planner") return plannerMock;
         if (args.name === "recents") return { folders: [dev("web"), dev("api-server"), dev("payments"), dev("infra"), dev("docs")] };
         return null;
       case "pty_spawn":
@@ -321,6 +344,8 @@ mockIPC(
         return null;
       case "choose_effort":
         return /typo/.test(args.prompt ?? args.text ?? "") ? { level: "low", source: "rules", why: "small edit", pending: false } : { level: null, source: "keep", why: "nothing to change", pending: false };
+      case "git_last_commit":
+        return String(args.cwd).endsWith("api-server") ? Math.floor(Date.now() / 1000) - 20 * 86400 : Math.floor(Date.now() / 1000) - 8 * 86400;
       case "git_info": {
         const name = String(args.cwd).split("/").pop()!;
         return BRANCH[name] ? { root: args.cwd, branch: BRANCH[name], detached: false, worktree: name === "payments", repo: args.cwd } : null;
@@ -430,11 +455,13 @@ useMetrics.setState({
 
 if (view === "board") useUi.setState({ mode: "agents" });
 if (view === "review") useUi.setState({ reviewOpen: true });
+if (view === "weekly") useUi.setState({ weeklyOpen: true });
+if (view === "roadmap") useUi.setState({ roadmapOpen: true, roadmapProject: params.get("project") });
 if (view === "settings") useUi.setState({ settingsOpen: true, settingsSection: params.get("section") });
 if (view === "palette") useUi.setState({ paletteOpen: true });
 if (view === "files") useUi.setState({ nav: "files" });
 if (view === "threads") {
-  useUi.setState({ single: params.get("single") === "1", railTab: (params.get("rail") as "queue" | "changes" | "details") ?? "queue" });
+  useUi.setState({ single: params.get("single") === "1", railTab: (params.get("rail") as "queue" | "changes" | "details" | "notes") ?? "queue" });
   useLayout.getState().updatePane("p4", { babysit: true, babysitWakes: 2 });
   useLayout.getState().updatePane("p3", { settled: true });
   useLayout.getState().updatePane("p7", { snoozedUntil: Date.now() + 3_600_000 });

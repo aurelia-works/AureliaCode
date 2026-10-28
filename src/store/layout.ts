@@ -47,6 +47,8 @@ export interface PaneMeta {
   mode?: "chat" | "terminal";
   /** Done with for now: listed under Settled in the threads sidebar (set when its PR merges). */
   settled?: boolean;
+  /** Roadmap card this thread works on; settling the thread ships the card (store/planner.ts). */
+  cardId?: string;
   /** Epoch ms: hidden under Settled until then, or until it needs you. */
   snoozedUntil?: number;
   /** Watch this thread's PR and wake its agent on failed checks, new reviews or conflicts. */
