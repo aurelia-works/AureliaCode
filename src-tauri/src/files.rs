@@ -160,6 +160,22 @@ pub async fn pick_folder(start: Option<String>) -> Option<String> {
     (!path.is_empty()).then(|| crate::config::expand_path(&path))
 }
 
+/// Folder for a thread that has no project: `<app dir>/scratch/<name>`. Names are letters, digits and dashes only.
+fn scratch_dir(name: &str) -> Result<PathBuf, String> {
+    if name.is_empty() || name.len() > 80 || !name.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+        return Err("scratch folder names are letters, digits and dashes".into());
+    }
+    Ok(config::app_dir().join("scratch").join(name))
+}
+
+/// Creates the scratch folder and returns its path. Deleting a thread leaves it in place.
+#[tauri::command]
+pub fn make_scratch(name: String) -> Result<String, String> {
+    let dir = scratch_dir(&name)?;
+    fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    Ok(dir.to_string_lossy().into_owned())
+}
+
 /// SnapShot: lets the user drag out part of the screen (or press Space for a window) with
 /// macOS's own `screencapture`, saved under the app folder. None when they cancel.
 #[tauri::command]
@@ -194,5 +210,23 @@ mod tests {
         got.sort();
         assert_eq!(got, ["README.md", "src/a.ts"]);
         let _ = fs::remove_dir_all(&root);
+    }
+}
+
+#[cfg(test)]
+mod scratch_tests {
+    use super::scratch_dir;
+
+    #[test]
+    fn accepts_a_dated_name_and_puts_it_under_scratch() {
+        let d = scratch_dir("2026-10-28-scratch-a1b2").unwrap();
+        assert!(d.ends_with("scratch/2026-10-28-scratch-a1b2"));
+    }
+
+    #[test]
+    fn rejects_paths_and_odd_names() {
+        for bad in ["", "../x", "a/b", "a b", "ünï", &"x".repeat(81)] {
+            assert!(scratch_dir(bad).is_err(), "{bad:?} should be refused");
+        }
     }
 }

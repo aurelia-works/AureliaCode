@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+import { db } from "../../lib/db";
 import { ipc } from "../../lib/ipc";
 import { shortenPath } from "../../lib/format";
 import { useUi } from "../../store/ui";
@@ -5,6 +7,10 @@ import type { SectionProps } from "./registry";
 
 export function GeneralSection({ draft, update }: SectionProps) {
   const asChat = useUi((s) => s.claudeAsChat);
+  const [store, setStore] = useState<{ ok: boolean; threads: number; events: number; path: string } | null>(null);
+  useEffect(() => {
+    void db.health().then(setStore, () => setStore(null));
+  }, []);
   return (
     <>
       <section className="set-group">
@@ -112,6 +118,28 @@ export function GeneralSection({ draft, update }: SectionProps) {
           their recent output. Closing a pane ends its shell; one left without the app for 3 days is ended too. Applies to
           panes opened after the change.
         </p>
+      </section>
+
+      <section className="set-group">
+        <h3>Local history</h3>
+        <p className="hint">
+          {store
+            ? store.ok
+              ? `${store.threads} threads and ${store.events} events in SQLite. This survives a restart and powers search; live state is still in layout.json.`
+              : `The local store couldn't open: ${store.path}`
+            : "Opening the local store…"}
+        </p>
+        {store?.ok && (
+          <div className="field-row">
+            <code className="hint">{shortenPath(store.path)}</code>
+            <button type="button" onClick={() => void ipc.openPath(store.path).catch(() => {})}>
+              Reveal database
+            </button>
+            <button type="button" onClick={() => void ipc.openUrl("https://github.com/aurelia-works/AureliaSpace/releases").catch(() => {})}>
+              Check for updates
+            </button>
+          </div>
+        )}
       </section>
 
       <section className="set-group">

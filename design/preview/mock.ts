@@ -3,7 +3,7 @@
  * scripted Tauri IPC, then drives agent state through the real stores (useAgents.handle,
  * the same path hook events take). Nothing here ships; `npm run build` never sees it.
  *
- *   /design/preview/?theme=dark&view=board|terminals|review|settings|start|palette
+ *   /design/preview/?theme=dark&view=board|terminals|review|settings|start|palette|agentview
  */
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
@@ -136,6 +136,50 @@ const PRS: Record<string, unknown> = {
   infra: pr(9, "Move buckets to eu-west-2", { state: "MERGED", checks: "pass" }),
 };
 
+const atMin = (minutes: number) => Date.now() - minutes * 60_000;
+const workPr = (number: number, state = "OPEN") => ({ number, url: `https://github.com/you/repo/pull/${number}`, state });
+const WORK_ITEMS = [
+  {
+    id: "w1", title: "Fix the flaky focus test", description: "The roving tabindex test fails on the first run after a cold build.",
+    project: dev("web"), status: "pending", harness: "claude", model: "sonnet-5", effort: "medium", cardId: "c2",
+    createdAt: atMin(180), updatedAt: atMin(46),
+  },
+  {
+    id: "w2", title: "Add idempotency keys to refunds", description: "Every retry should carry a key so a double submit refunds once.",
+    project: dev("api-server"), status: "pending", harness: "codex", model: "gpt-5-codex", effort: "high",
+    branch: "aurelia/refund-idempotency", createdAt: atMin(320), updatedAt: atMin(22),
+  },
+  {
+    id: "w3", title: "Keyboard-accessible settings nav", description: "Roving tabindex across the settings rail; focus survives a section change.",
+    project: dev("web"), status: "working", harness: "claude", model: "opus-5-5", effort: "high", paneId: "p2",
+    branch: "feat/settings-a11y", pr: workPr(212), createdAt: atMin(240), updatedAt: atMin(2),
+  },
+  {
+    id: "w4", title: "Retry failed webhooks with backoff", description: "Three attempts, then park the event and show it in the admin log.",
+    project: dev("payments"), status: "working", harness: "codex", model: "gpt-5-codex", effort: "xhigh", paneId: "p6",
+    worktree: { path: dev("payments"), branch: "aurelia/webhook-retry" }, branch: "aurelia/webhook-retry", pr: workPr(41), createdAt: atMin(400), updatedAt: atMin(1),
+  },
+  {
+    id: "w5", title: "Backfill org_id for existing users", description: "Three migrations, then verify the new not-null constraint on a copy.",
+    project: dev("api-server"), status: "review", harness: "claude", model: "opus-5-5", effort: "high", paneId: "p1",
+    branch: "fix/user-org-null", pr: workPr(88), createdAt: atMin(600), updatedAt: atMin(9),
+  },
+  {
+    id: "w6", title: "Move buckets to eu-west-2", description: "Terraform plan is clean; waiting on the Berlin team's sign-off.",
+    project: dev("infra"), status: "review", harness: "claude", model: "sonnet-5", effort: "medium", paneId: "p5",
+    worktree: { path: dev("infra"), branch: "infra/artifacts-bucket" }, branch: "infra/artifacts-bucket", pr: workPr(9), createdAt: atMin(1_440), updatedAt: atMin(120),
+  },
+  {
+    id: "w7", title: "Rewrite the quickstart for the new CLI flags", description: "Replace --config with --profile in every example.",
+    project: dev("docs"), status: "done", harness: "claude", model: "haiku-4-5", effort: "low", paneId: "p3",
+    branch: "docs/quickstart", createdAt: atMin(2_880), updatedAt: atMin(360),
+  },
+  {
+    id: "w8", title: "Bump vite to the next minor", project: dev("web"), status: "done", branch: "main",
+    pr: workPr(198, "MERGED"), createdAt: atMin(4_320), updatedAt: atMin(1_440),
+  },
+];
+
 const leaf = (id: string) => ({ type: "pane", id });
 let sid = 0;
 const split = (dir: "row" | "column", ratio: number, a: unknown, b: unknown) => ({ type: "split", id: `s${sid++}`, dir, ratio, a, b });
@@ -151,6 +195,14 @@ const layout = {
   ],
   panes: Object.fromEntries(Object.entries(PANES).map(([id, p]) => [id, { id, ...p }])),
 };
+
+// Agent view: label a few preview panes as saved agents, so the live list shows chips.
+if (view === "agentview") {
+  Object.assign(layout.panes.p1, { customAgent: "ag1" });
+  Object.assign(layout.panes.p2, { customAgent: "ag2" });
+  Object.assign(layout.panes.p3, { customAgent: "ag3" });
+  Object.assign(layout.panes.p4, { customAgent: "ag4" });
+}
 
 const config = {
   accounts: [
@@ -184,15 +236,14 @@ const config = {
   openFilesInApp: true,
   subagents: { enabled: true, model: "opencode-go/deepseek-v4.1-flash", timeoutMinutes: 20 },
   effort: { auto: true, judge: true, floor: "low", ceiling: "max", autoModel: false },
-  remote: { enabled: false, port: 4747, allowLan: false },
+  remote: { enabled: true, port: 4747, allowLan: false, tailscaleHttps: true, httpsPort: 443 },
   claudePermissionMode: "",
   routines: [
     { id: "r1", name: "Morning triage", enabled: true, kind: "daily", time: "09:00", minutes: 60, weekdaysOnly: true, account: "work", cwd: "~/dev/api-server", prompt: "Check CI on main and the open PRs; summarise what failed and why." },
   ],
 };
 
-const inAnHour = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();
-const USAGE: Record<string, unknown> = {
+const inAnHour = (h: number) => new Date(Date.now() + h * 3600_000).toISOString();const USAGE: Record<string, unknown> = {
   claude: { fiveHour: 62, sevenDay: 41, fiveHourResetsAt: inAnHour(2.2), sevenDayResetsAt: inAnHour(80), updatedAt: Date.now() },
   "claude-b": { fiveHour: 91, sevenDay: 73, fiveHourResetsAt: inAnHour(0.7), sevenDayResetsAt: inAnHour(30), updatedAt: Date.now() },
   work: { fiveHour: 14, sevenDay: 22, fiveHourResetsAt: inAnHour(4), sevenDayResetsAt: inAnHour(120), updatedAt: Date.now() },
@@ -287,10 +338,101 @@ function ptyWrite(pane: string, data: string) {
   feed(ch, `\r${ESC}[2K> ${cur}`);
 }
 
+/** Agent view (?view=agentview): saved agents, one team, and two runs to show running and blocked. */
+const AGENTS = [
+  { id: "ag1", name: "Architect", variant: "claude:claude", color: "gold", instructions: "" },
+  { id: "ag2", name: "Second pair of eyes", variant: "claude:claude-b", color: "violet", instructions: "" },
+  { id: "ag3", name: "Codex runner", variant: "codex:oss", color: "blue", instructions: "" },
+  { id: "ag4", name: "Gemini runner", variant: "gemini:login", color: "teal", instructions: "" },
+] as const;
+const TEAMS = [{ id: "team-1", name: "Ship it", agentIds: ["ag1", "ag2", "ag3", "ag4"], leadId: "ag1", routing: "balanced", maxConcurrency: 4 }];
+const RUNS = [
+  {
+    id: "run-1",
+    teamId: "team-1",
+    task: "Ship the settings keyboard fix: tests, implementation, then review the diff",
+    plan: {
+      leadId: "ag1",
+      maxConcurrency: 4,
+      workers: [
+        { agentId: "ag2", role: "test writer", model: "claude-haiku-4-5" },
+        { agentId: "ag3", role: "builder", model: "gpt-5-codex" },
+        { agentId: "ag4", role: "verifier", model: "gemini-2.5-pro" },
+      ],
+    },
+    paneIds: ["p2", "p7", "p6"],
+    status: "running",
+    summary: "",
+    createdAt: Date.now() - 4 * 60_000,
+  },
+  {
+    id: "run-2",
+    teamId: "team-1",
+    task: "Move the artifact bucket to eu-west-2 and update the CDN origin",
+    plan: {
+      leadId: "ag1",
+      maxConcurrency: 3,
+      workers: [
+        { agentId: "ag2", role: "reviewer", model: "claude-opus-4-1" },
+        { agentId: "ag3", role: "security reviewer", model: "gpt-5-codex" },
+      ],
+    },
+    paneIds: ["p5", "p8"],
+    status: "blocked",
+    summary:
+      "OVERALL: BLOCKED\nreviewer — PASS — no secrets in the diff\nsecurity reviewer — BLOCKED — the eu-west-2 bucket policy needs a decision: keep the public read on assets/ or move it to CloudFront OAC.",
+    createdAt: Date.now() - 38 * 60_000,
+  },
+];
+
+const plannerMock = {  version: 1,
+  importedAt: "2026-10-28T09:00:00.000Z",
+  projects: [{ id: "p1", name: "Linkra", status: "In Progress", localRepoPath: dev("web"), tasks: [] }, { id: "p2", name: "ATA", status: "In Progress", localRepoPath: dev("api-server"), tasks: [] }],
+  goalTemplate: [
+    { id: "t1", title: "Ship one focused task", category: "Build", points: 3, done: false },
+    { id: "t2", title: "Write session log", category: "Review", points: 2, done: false },
+  ],
+  dailyGoalsByDate: Object.fromEntries(Array.from({ length: 11 }, (_, i) => [`2026-03-${10 + i}`, {}])),
+  roadmapCards: [
+    { id: "c1", lane: "now", title: "Linkra v3 import", description: "", tags: [], dueDate: "2026-11-02", project: "p1" },
+    { id: "c2", lane: "next", title: "Habit streaks", description: "", tags: [], dueDate: null, project: "p1" },
+    { id: "c3", lane: "later", title: "Calendar week view", description: "", tags: [], dueDate: null, project: "p1" },
+    { id: "c4", lane: "shipped", title: "Planner store", description: "", tags: [], dueDate: null, project: "p1" },
+    { id: "c5", lane: "next", title: "Fix platform doors", description: "", tags: [], dueDate: null, project: "p2" },
+  ],
+  focusSessions: Array.from({ length: 5 }, (_, i) => ({ id: `f${i}` })),
+  habits: [{ id: "h1", title: "Read 20 pages", frequency: "daily", customDays: [], targetStreak: 30, archivedAt: null }, { id: "h2", title: "Stretch", frequency: "weekdays", customDays: [], targetStreak: 30, archivedAt: null }],
+  habitCompletions: [-1, -2, -3].map((d, i) => { const x = new Date(Date.now() + d * 86400000); return { id: `hc${i}`, habitId: "h1", date: `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`, createdAt: "" }; }),
+  switches: {},
+};
+
 mockWindows("main");
 mockIPC(
   (cmd, args: any) => {
     switch (cmd) {
+      case "remote_status":
+      case "remote_unpair":
+      case "remote_reset_token":
+      case "remote_apply":
+        return {
+          enabled: true,
+          running: true,
+          port: 4747,
+          error: null,
+          links: [{ label: "Tailscale HTTPS", url: "https://jahs-mac.tail1234.ts.net/pair?k=0f3a" }],
+          qrSvg: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 21 21"><rect width="21" height="21" fill="#fff"/><path d="M1 1h7v7H1zM13 1h7v7h-7zM1 13h7v7H1z" fill="#000"/></svg>`,
+          codeExpiresIn: 840,
+          tailscale: { state: "ready", ip: "100.101.102.103", dnsName: "jahs-mac.tail1234.ts.net", httpsAvailable: false, detail: null },
+          serving: false,
+          serveError: "Serve isn't enabled on your tailnet. Turn it on here, then try again: https://login.tailscale.com/f/serve?node=abc",
+          devices: [
+            { id: "d1", name: "iPhone", pairedAt: Date.now() / 1000 - 86400 * 3, lastSeen: Date.now() / 1000 - 120 },
+            { id: "d2", name: "Phone paired before", pairedAt: Date.now() / 1000 - 86400 * 30, lastSeen: 0 },
+          ],
+          clients: 1,
+        };
+      case "remote_test":
+        return { ok: false, url: "https://jahs-mac.tail1234.ts.net", ms: null, error: "Timed out: Tailscale didn't route to this Mac." };
       case "get_config":
         return structuredClone(config);
       case "save_config":
@@ -298,7 +440,8 @@ mockIPC(
         return null;
       case "load_state":
         if (args.name === "layout") return structuredClone(layout);
-        if (args.name === "ui") return { mode: view === "board" ? "agents" : "terminals", agentPanelOpen: true, nav: "projects" };
+        if (args.name === "ui") return { mode: view === "board" ? "agents" : view === "work" ? "work" : "terminals", agentPanelOpen: true, nav: "projects" };
+        if (args.name === "work") return { items: WORK_ITEMS };
         if (args.name === "tasks")
           return {
             projects: {
@@ -310,6 +453,9 @@ mockIPC(
               ],
             },
           };
+        if (args.name === "planner") return plannerMock;
+        if (args.name === "agents" && (view === "agentview" || view === "settings")) return { agents: AGENTS, teams: TEAMS };
+        if (args.name === "teamruns" && view === "agentview") return { runs: RUNS };
         if (args.name === "recents") return { folders: [dev("web"), dev("api-server"), dev("payments"), dev("infra"), dev("docs")] };
         return null;
       case "pty_spawn":
@@ -321,10 +467,14 @@ mockIPC(
         return null;
       case "choose_effort":
         return /typo/.test(args.prompt ?? args.text ?? "") ? { level: "low", source: "rules", why: "small edit", pending: false } : { level: null, source: "keep", why: "nothing to change", pending: false };
+      case "git_last_commit":
+        return String(args.cwd).endsWith("api-server") ? Math.floor(Date.now() / 1000) - 20 * 86400 : Math.floor(Date.now() / 1000) - 8 * 86400;
       case "git_info": {
         const name = String(args.cwd).split("/").pop()!;
         return BRANCH[name] ? { root: args.cwd, branch: BRANCH[name], detached: false, worktree: name === "payments", repo: args.cwd } : null;
       }
+      case "make_scratch":
+        return `/Users/you/scratch/${args.name}`;
       case "resolve_paths":
         return args.candidates;
       case "diff_scope":
@@ -337,12 +487,47 @@ mockIPC(
         return args.cwd;
       case "git_diff":
         return { root: dev("web"), diff: DIFF, truncated: false };
+      case "git_changes":
+        return [
+          { path: "src/components/ChatPane.tsx", status: "M", staged: false, untracked: false },
+          { path: "src/lib/gitDialog.ts", status: "A", staged: false, untracked: false },
+          { path: "src/lib/new-helper.ts", status: "?", staged: false, untracked: true },
+          { path: ".env.local", status: "?", staged: false, untracked: true },
+        ];
+      case "git_commit":
+        return "a1b2c3d";
+      case "git_push":
+        return "Pushed main to origin";
+      case "git_create_pr":
+        return { number: 42, url: "https://github.com/aurelia-works/AureliaSpace/pull/42", state: "OPEN", title: args.title, draft: true };
+      case "store_threads":
+      case "store_thread_search":
+        return [
+          { id: "h1", title: "Fix composer key handling", cwd: "/Users/you/dev/web", project: "web", harness: "claude", status: "closed", updatedAt: Date.now() - 3600_000 },
+          { id: "h2", title: "DeepSeek swarm audit", cwd: "/Users/you/dev/api", project: "api", harness: "terminal", status: "open", updatedAt: Date.now() - 86400_000 },
+        ];
       case "list_dir":
+        if (String(args.path).includes("skills")) {
+          return ["ds-swarm", "ds-tdd", "ds-review-loop", "ds-principles", "ds-ship", "ds-verify-loop"].map((n) => ({
+            name: n,
+            path: `${args.path}/${n}`,
+            dir: true,
+          }));
+        }
         return ["src", "public", "package.json", "tsconfig.json", "vite.config.ts", "README.md", ".gitignore"].map((n) => ({
           name: n,
           path: `${args.path}/${n}`,
           dir: !n.includes("."),
         }));
+      case "read_text_file":
+        if (String(args.path).endsWith("/SKILL.md")) {
+          const name = String(args.path).split("/").slice(-2)[0];
+          return {
+            text: `---\nname: ${name}\ndescription: ${name === "ds-swarm" ? "Fan out N parallel workers on slices of a job." : "A DeepSeek skill from the GITHUB REPOS pack."}\n---\n\n# ${name}\n\nFollow the procedure and report PASS, ISSUES or BLOCKED with evidence.`,
+            mtimeMs: 0,
+          };
+        }
+        return { text: "", mtimeMs: 0 };
       case "has_full_disk_access":
       case "which":
       case "voice_installed":
@@ -429,12 +614,15 @@ useMetrics.setState({
 });
 
 if (view === "board") useUi.setState({ mode: "agents" });
+if (view === "work") useUi.setState({ mode: "work" });
 if (view === "review") useUi.setState({ reviewOpen: true });
+if (view === "weekly") useUi.setState({ weeklyOpen: true });
+if (view === "roadmap") useUi.setState({ roadmapOpen: true, roadmapProject: params.get("project") });
 if (view === "settings") useUi.setState({ settingsOpen: true, settingsSection: params.get("section") });
 if (view === "palette") useUi.setState({ paletteOpen: true });
 if (view === "files") useUi.setState({ nav: "files" });
 if (view === "threads") {
-  useUi.setState({ single: params.get("single") === "1", railTab: (params.get("rail") as "queue" | "changes" | "details") ?? "queue" });
+  useUi.setState({ single: params.get("single") === "1", railTab: (params.get("rail") as "queue" | "changes" | "details" | "notes") ?? "queue" });
   useLayout.getState().updatePane("p4", { babysit: true, babysitWakes: 2 });
   useLayout.getState().updatePane("p3", { settled: true });
   useLayout.getState().updatePane("p7", { snoozedUntil: Date.now() + 3_600_000 });
@@ -472,5 +660,34 @@ if (view === "chat") {
       },
     },
   });
+}
+if (view === "commit") {
+  const { createElement } = await import("react");
+  const { createRoot } = await import("react-dom/client");
+  const { GitDialog } = await import("../../src/components/GitDialog.tsx");
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;inset:0;z-index:70;background:var(--bg);";
+  document.body.append(host);
+  createRoot(host).render(createElement(GitDialog, { mode: "commit", dir: dev("web"), onClose: () => {}, onDone: () => {} }));
+}
+if (view === "history") {
+  const { createElement } = await import("react");
+  const { createRoot } = await import("react-dom/client");
+  const { HistoryPanel } = await import("../../src/components/HistoryPanel.tsx");
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;inset:0;z-index:70;background:var(--bg);";
+  document.body.append(host);
+  createRoot(host).render(createElement(HistoryPanel));
+}
+if (view === "agentview") {
+  useUi.setState({ mode: "agents" });
+  const { createElement } = await import("react");
+  const { createRoot } = await import("react-dom/client");
+  const { AgentView } = await import("../../src/components/AgentView.tsx");
+  const host = document.createElement("div");
+  host.className = "agent-view-host";
+  host.style.cssText = "position:fixed;inset:0;z-index:70;background:var(--bg);";
+  document.body.append(host);
+  createRoot(host).render(createElement(AgentView));
 }
 (window as any).__ready = true;

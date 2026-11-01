@@ -31,3 +31,12 @@ test("drops relative folders", () => {
   assert.equal(parsePromptLink("aureliaspace://new?prompt=hi&cwd=..%2Fx")?.cwd, undefined);
   assert.equal(parsePromptLink("aureliaspace://new?prompt=hi&cwd=~%2Fcode")?.cwd, "~/code");
 });
+
+test("buildPromptLink round-trips through parsePromptLink", async () => {
+  const { buildPromptLink } = await import("./promptLink.ts");
+  const link = buildPromptLink("  Fix the build & rerun: 100% \n done ", { cwd: "~/dev/web", account: "work" })!;
+  assert.ok(link.startsWith("aureliaspace://new?"));
+  assert.deepEqual(parsePromptLink(link), { prompt: "Fix the build & rerun: 100% \n done", cwd: "~/dev/web", account: "work" });
+  assert.equal(buildPromptLink("   "), null);
+  assert.equal(buildPromptLink("x".repeat(20_001)), null);
+});

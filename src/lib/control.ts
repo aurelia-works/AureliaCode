@@ -4,11 +4,15 @@ import { visualOf } from "../components/StatusGlyph";
 import { paneTitle } from "../components/TitleBar";
 import { useAgents } from "../store/agents";
 import { useConfig } from "../store/config";
+import { useCustomAgents } from "../store/customAgents";
 import { paneIds, useLayout } from "../store/layout";
 import { useRuntime } from "../store/runtime";
+import { useTasks, type Task, type TaskStatus } from "../store/tasks";
+import { useTeamRuns } from "../store/teamRuns";
 import { openInBrowserPane } from "./browser";
 import { sendPrompt } from "./effort";
 import { expandPath } from "./format";
+import { ipc } from "./ipc";
 import { shellQuote } from "./launch";
 import { enqueue } from "./outbox";
 import { useUi } from "../store/ui";
@@ -28,6 +32,132 @@ interface Request {
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
+
+/** MCP-facing status names map onto the task store's three states. */
+const TASK_STATUS: Record<string, TaskStatus> = {
+  todo: "todo",
+  pending: "todo",
+  open: "todo",
+  doing: "doing",
+  "in-progress": "doing",
+  in_progress: "doing",
+  active: "doing",
+  review: "doing",
+  done: "done",
+  complete: "done",
+  completed: "done",
+};
+
+function taskStatus(v: unknown): TaskStatus {
+  const status = TASK_STATUS[str(v).toLowerCase()];
+  if (!status) throw new Error(`unknown task status "${str(v)}" (todo, doing or done)`);
+  return status;
+}
+
+/** A task by id, in a named project or anywhere. */
+function findTask(id: string, project?: string) {
+  const projects = useTasks.getState().projects;
+  for (const key of project ? [project] : Object.keys(projects)) {
+    const task = (projects[key] ?? []).find((t) => t.id === id);
+    if (task) return { project: key, task };
+  }
+  return undefined;
+}
+
+const taskRow = (project: string, task: Task) => ({
+  id: task.id,
+  project,
+  title: task.title,
+  status: task.status,
+  pane: task.paneId,
+  createdAt: task.createdAt,
+});
+
+/** The project a task belongs to: explicit, else the calling pane's git root (or cwd). */
+async function taskProject(params: Record<string, unknown>, from: string): Promise<string> {
+  const explicit = str(params.project);
+  if (explicit) return explicit;
+  const layout = useLayout.getState();
+  const cwd = layout.panes[from]?.cwd ?? useAgents.getState().sessions[from]?.cwd;
+  if (!cwd) throw new Error("project is required when the calling pane has no folder");
+  return ipc.projectRoot(cwd).catch(() => cwd);
+}
+
+async function taskAdd(from: string, params: Record<string, unknown>) {
+  const title = str(params.title).trim();
+  if (!title) throw new Error("title is required");
+  const project = await taskProject(params, from);
+  const pane = str(params.pane) || undefined;
+  const status = params.status === undefined ? "todo" : taskStatus(params.status);
+  useTasks.getState().add(project, title, pane);
+  const list = useTasks.getState().projects[project] ?? [];
+  const task = list[list.length - 1];
+  if (status !== "todo") useTasks.getState().setStatus(project, task.id, status);
+  return taskRow(project, { ...task, status });
+}
+
+function taskList(params: Record<string, unknown>) {
+  const projects = useTasks.getState().projects;
+  const only = str(params.project);
+  const status = params.status === undefined ? undefined : taskStatus(params.status);
+  const rows = (only ? [[only, projects[only] ?? []] as const] : Object.entries(projects)).flatMap(([project, list]) =>
+    list.filter((t) => !status || t.status === status).map((t) => taskRow(project, t)),
+  );
+  return rows.slice(0, 400);
+}
+
+function taskUpdate(params: Record<string, unknown>) {
+  const id = str(params.id);
+  if (!id) throw new Error("id is required");
+  const found = findTask(id, str(params.project) || undefined);
+  if (!found) throw new Error(`no task ${id}`);
+  const { project } = found;
+  const tasks = useTasks.getState();
+  if (params.title !== undefined) tasks.rename(project, id, str(params.title));
+  if (params.status !== undefined) tasks.setStatus(project, id, taskStatus(params.status));
+  if (params.pane !== undefined) tasks.attach(project, id, str(params.pane) || undefined);
+  const next = (useTasks.getState().projects[project] ?? []).find((t) => t.id === id)!;
+  return taskRow(project, next);
+}
+
+function teamStatus(params: Record<string, unknown>) {
+  const runId = str(params.run);
+  const teamId = str(params.team);
+  const runs = useTeamRuns.getState().runs.filter((r) => (!runId || r.id === runId) && (!teamId || r.teamId === teamId));
+  if (runId && !runs.length) throw new Error(`no team run ${runId}`);
+  const teams = useCustomAgents.getState().teams;
+  const agents = useCustomAgents.getState().agents;
+  return runs.slice(0, 50).map((r) => ({
+    run: r.id,
+    team: teams.find((t) => t.id === r.teamId)?.name ?? r.teamId,
+    task: r.task,
+    status: r.status,
+    createdAt: r.createdAt,
+    summary: r.summary,
+    lead: agents.find((a) => a.id === r.plan.leadId)?.name ?? r.plan.leadId,
+    panes: r.paneIds,
+    workers: r.plan.workers.map((w) => ({
+      agent: agents.find((a) => a.id === w.agentId)?.name ?? w.agentId,
+      role: w.role,
+      model: w.model,
+    })),
+  }));
+}
+
+function teamFinish(params: Record<string, unknown>, from: string) {
+  const run = str(params.run);
+  if (!run) throw new Error("run is required");
+  const record = useTeamRuns.getState().runs.find((r) => r.id === run);
+  if (!record) throw new Error(`no team run ${run}`);
+  if (record.paneIds[0] !== from) throw new Error("only the lead pane can finish this team run");
+  if (record.status !== "running") throw new Error(`that team run is already ${record.status}`);
+  const status = str(params.status);
+  if (!["done", "blocked", "failed"].includes(status)) throw new Error("status must be done, blocked or failed");
+  const summary = str(params.summary).trim();
+  if (!summary) throw new Error("summary is required: the merged PASS/ISSUES/BLOCKED report");
+  useTeamRuns.getState().finish(run, status as "done" | "blocked" | "failed", summary);
+  return teamStatus({ run });
+}
 
 function listPanes(from: string) {
   const { tabs, panes } = useLayout.getState();
@@ -122,6 +252,16 @@ async function answer(req: Request): Promise<unknown> {
       return { pane: openPane(req.from, p) };
     case "open_url":
       return { pane: openInBrowserPane(useLayout.getState().panes[req.from] ? req.from : undefined, str(p.url)), url: str(p.url) };
+    case "task_add":
+      return { task: await taskAdd(req.from, p) };
+    case "task_list":
+      return taskList(p);
+    case "task_update":
+      return { task: taskUpdate(p) };
+    case "team_status":
+      return teamStatus(p);
+    case "team_finish":
+      return teamFinish(p, req.from);
     default:
       throw new Error(`unknown method ${req.method}`);
   }

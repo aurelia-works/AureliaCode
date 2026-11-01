@@ -2,7 +2,9 @@ import { create } from "zustand";
 import { useConfig } from "../store/config";
 import { activeTab, paneIds, useLayout } from "../store/layout";
 import { toast } from "../store/ui";
+import { snapshot } from "./closed";
 import { ipc } from "./ipc";
+import { recordClosed } from "./reopen";
 
 /** Editor panes with unsaved changes, and a pending jump for a file that is already open. */
 interface EditorsState {
@@ -69,13 +71,30 @@ function confirmDiscard(key: string, ids: string[]) {
 
 export function closePaneSafely(paneId: string) {
   if (!confirmDiscard(paneId, [paneId])) return false;
+  const meta = useLayout.getState().panes[paneId];
+  const snap = meta ? snapshot(meta as unknown as Record<string, unknown>) : null;
   useLayout.getState().closePane(paneId);
+  recordClosed([snap]);
   return true;
 }
 
 export function closeTabSafely(tabId: string) {
   const tab = useLayout.getState().tabs.find((t) => t.id === tabId);
   if (!tab || !confirmDiscard(tabId, paneIds(tab.root))) return false;
+  const panes = useLayout.getState().panes;
+  const snaps = paneIds(tab.root).map((id) => (panes[id] ? snapshot(panes[id] as unknown as Record<string, unknown>) : null));
   useLayout.getState().closeTab(tabId);
+  recordClosed(snaps);
+  return true;
+}
+
+/** Closes several threads as one action: one "Closed 5 threads" undo and one ⌘⇧T step bring them all back. */
+export function closePanesSafely(ids: string[]) {
+  const layout = useLayout.getState();
+  const live = ids.filter((id) => layout.panes[id]);
+  if (!live.length || !confirmDiscard(live.join(","), live)) return false;
+  const snaps = live.map((id) => snapshot(layout.panes[id] as unknown as Record<string, unknown>));
+  for (const id of live) useLayout.getState().closePane(id);
+  recordClosed(snaps);
   return true;
 }

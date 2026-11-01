@@ -13,8 +13,38 @@ export interface RemoteStatus {
   /** Pairing links a phone can open, best first. */
   links: { label: string; url: string }[];
   qrSvg: string | null;
-  tailscale: boolean;
+  /** Seconds until the one-time code in the links expires. */
+  codeExpiresIn: number;
+  tailscale: TailscaleInfo;
+  /** `tailscale serve` forwards HTTPS to the remote. */
+  serving: boolean;
+  serveError: string | null;
+  devices: PairedDevice[];
   clients: number;
+}
+
+export interface TailscaleInfo {
+  state: "notInstalled" | "notRunning" | "loggedOut" | "stopped" | "ready";
+  ip: string | null;
+  dnsName: string | null;
+  /** HTTPS certificates are on for the tailnet. */
+  httpsAvailable: boolean;
+  detail: string | null;
+}
+
+export interface PairedDevice {
+  id: string;
+  name: string;
+  /** Unix seconds. */
+  pairedAt: number;
+  lastSeen: number;
+}
+
+export interface RemoteTest {
+  ok: boolean;
+  url: string | null;
+  ms: number | null;
+  error: string | null;
 }
 
 export interface Checkpoint {
@@ -83,7 +113,7 @@ export interface Config {
   /** Composer prompts pick their own effort: rules, then a Haiku 5.5 judge (src-tauri/src/effort.rs). */
   effort: { auto: boolean; judge: boolean; floor: EffortLevel; ceiling: EffortLevel; autoModel: boolean };
   /** Phone remote (src-tauri/src/remote.rs): off by default; LAN off = this Mac and Tailscale only. */
-  remote: { enabled: boolean; port: number; allowLan: boolean };
+  remote: { enabled: boolean; port: number; allowLan: boolean; tailscaleHttps: boolean; httpsPort: number; keepRunning: boolean };
   terminal: {
     fontFamily: string;
     fontSize: number;
@@ -183,6 +213,24 @@ export interface WorktreeEntry {
   dirty: boolean;
 }
 
+/** A worktree's branch and whether merging it would lose work (src-tauri/src/git.rs). */
+export interface GitChange {
+  path: string;
+  /** For a rename/copy, the path it came from. */
+  oldPath?: string;
+  /** M, A, D, R, C, U or ? for untracked. */
+  status: string;
+  staged: boolean;
+  untracked: boolean;
+}
+
+export interface WorktreeStatus {
+  dirty: boolean;
+  branch: string;
+  /** The worktree has unresolved merge conflicts. */
+  conflicts: boolean;
+}
+
 export interface DirEntry {
   name: string;
   path: string;
@@ -270,6 +318,7 @@ export interface SlashCommand {
   argumentHint?: string;
   builtin?: boolean;
 }
+
 
 /** Claude Code's `/context` for a chat: what fills its window. */
 export interface ContextUsage {
@@ -367,6 +416,8 @@ export const ipc = {
   /** After saving `remote` settings: starts, restarts or stops the server. */
   remoteApply: () => invoke<RemoteStatus>("remote_apply"),
   remoteResetToken: () => invoke<RemoteStatus>("remote_reset_token"),
+  remoteUnpair: (id: string) => invoke<RemoteStatus>("remote_unpair", { id }),
+  remoteTest: () => invoke<RemoteTest>("remote_test"),
   remoteSnapshot: (snapshot: unknown) => invoke<void>("remote_snapshot", { snapshot }),
   takePromptLinks: () => invoke<string[]>("take_prompt_links"),
   snapCapture: () => invoke<string | null>("snap_capture"),
@@ -378,8 +429,9 @@ export const ipc = {
 
   getConfig: () => invoke<Config>("get_config"),
   saveConfig: (config: Config) => invoke<void>("save_config", { config }),
-  loadState: <T>(name: "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines") => invoke<T | null>("load_state", { name }),
-  saveState: (name: "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines", value: unknown) => invoke<void>("save_state", { name, value }),
+  loadState: <T>(name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills") => invoke<T | null>("load_state", { name }),
+  saveState: (name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills", value: unknown) => invoke<void>("save_state", { name, value }),
+  makeScratch: (name: string) => invoke<string>("make_scratch", { name }),
   pickFolder: (start?: string) => invoke<string | null>("pick_folder", { start: start ?? null }),
   revealConfig: (file: boolean) => invoke<void>("reveal_config", { file }),
   browserOpen: (pane: string, url: string, r: { x: number; y: number; w: number; h: number }) =>
@@ -388,6 +440,10 @@ export const ipc = {
   browserVisible: (pane: string, visible: boolean) => invoke<void>("browser_visible", { pane, visible }),
   browserNavigate: (pane: string, url: string) => invoke<void>("browser_navigate", { pane, url }),
   browserAction: (pane: string, action: "back" | "forward" | "reload") => invoke<void>("browser_action", { pane, action }),
+  /** Runs a script in a browser pane (element picker). External pages get no IPC. */
+  browserEval: (pane: string, script: string) => invoke<void>("browser_eval", { pane, script }),
+  /** Captures the visible page area and returns the PNG path. */
+  browserScreenshot: (pane: string, x: number, y: number, w: number, h: number) => invoke<string>("browser_screenshot", { pane, x, y, w, h }),
   browserClose: (pane: string) => invoke<void>("browser_close", { pane }),
   discordSet: (presence: { clientId: string; details: string; state?: string; startedAt?: number } | null) =>
     invoke<void>("discord_set", { presence }),
@@ -410,6 +466,7 @@ export const ipc = {
   hasFullDiskAccess: () => invoke<boolean>("has_full_disk_access"),
   openFullDiskAccessSettings: () => invoke<void>("open_full_disk_access_settings"),
 
+  gitLastCommit: (cwd: string) => invoke<number | null>("git_last_commit", { cwd }),
   gitInfo: (cwd: string) => invoke<GitInfo | null>("git_info", { cwd }),
   createWorktree: (cwd: string, label: string) => invoke<string>("create_worktree", { cwd, label }),
   /** The repo's AureliaSpace worktrees (under `<repo>.worktrees/`). */
@@ -420,6 +477,16 @@ export const ipc = {
   /** The working tree against the thread's last checkpoint ("turn") or its branch's base ("branch"). */
   diffScope: (cwd: string, pane: string, scope: "turn" | "branch") => invoke<Diff>("diff_scope", { cwd, pane, scope }),
   prStatus: (cwd: string) => invoke<PrInfo | null>("pr_status", { cwd }),
+  /** Stages everything, commits and returns the short SHA. */
+  gitChanges: (cwd: string) => invoke<GitChange[]>("git_changes", { cwd }),
+  gitCommit: (cwd: string, message: string, paths: string[]) => invoke<string>("git_commit", { cwd, message, paths }),
+  /** Pushes the branch checked out in `cwd`, setting its upstream. */
+  gitPush: (cwd: string) => invoke<string>("git_push", { cwd }),
+  /** Creates a PR with `gh` and returns it in the same shape as prStatus. */
+  gitCreatePr: (cwd: string, title: string, body: string, draft: boolean) => invoke<PrInfo>("git_create_pr", { cwd, title, body, draft }),
+  gitWorktreeStatus: (path: string) => invoke<WorktreeStatus>("git_worktree_status", { path }),
+  /** Merges a clean worktree's branch into the main checkout; aborts on conflict. */
+  gitMergeWorktree: (path: string) => invoke<string>("git_merge_worktree", { path }),
 
   fetchUsage: (account: string, force = false) => invoke<Usage | null>("fetch_usage", { account, force }),
 

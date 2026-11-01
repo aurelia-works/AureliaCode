@@ -1,8 +1,12 @@
 import { useAgents, waitingAgents } from "../store/agents";
 import { activeTab, focusedPaneId, paneIds, useLayout } from "../store/layout";
-import { useUi, type NavView } from "../store/ui";
+import { toast, useUi, type NavView } from "../store/ui";
 import { openInBrowserPane } from "./browser";
 import { closePaneSafely, closeTabSafely } from "./openFile";
+import { reopenLastClosed } from "./reopen";
+import { navigate } from "../store/navHistory";
+import { newScratchTab } from "./scratch";
+import { hasUndo, runUndo } from "../store/undo";
 import { toggleHud } from "./hudBridge";
 import { clearTerminal, getEntry, jumpBlock, showPane } from "./terminals";
 import { toggleVoice } from "./voice";
@@ -59,7 +63,7 @@ export interface ShortcutHelp {
 export const shortcutHelp: ShortcutHelp[] = [
   { keys: "⌘P", label: "Command palette: jump to any pane, run any action" },
   { keys: "⌘T", label: "New tab (start screen)" },
-  { keys: "⇧⌘1 / ⇧⌘2 / ⇧⌘3", label: "Agents / Terminals / Review mode" },
+  { keys: "⇧⌘1 / ⇧⌘2 / ⇧⌘3 / ⇧⌘4", label: "Agents / Terminals / Review / Work" },
   { keys: "⌘D / ⇧⌘D", label: "Split right / down" },
   { keys: "Drag header", label: "Move a pane: drop on an edge to dock it there, in the middle to swap (Esc cancels)" },
   { keys: "⌘W / ⇧⌘W", label: "Close pane / tab" },
@@ -68,6 +72,8 @@ export const shortcutHelp: ShortcutHelp[] = [
   { keys: "⌘E / ⇧⌘E", label: "Claude pane as account (split / tab)" },
   { keys: "⌘G", label: "New grid tab (2–16 panes)" },
   { keys: "⌘J", label: "Jump to agent waiting on you" },
+  { keys: "⇧⌘4", label: "Work board (durable items across projects)" },
+  { keys: "⇧⌘Y", label: "Thread history (search SQLite)" },
   { keys: "⇧⌘R", label: "Review changes, send comments to Claude" },
   { keys: "⇧⌘F", label: "Navigator: files" },
   { keys: "⌥⌘F", label: "Search the project (ripgrep)" },
@@ -111,17 +117,23 @@ export function installShortcuts(): () => void {
     const cwd = pane ? layout.panes[pane]?.cwd : undefined;
 
     // In an editor pane its own bindings win (⌘D next match, ⌘G find next, ⌘L select line,
-    // ⌘I select syntax, ⌘K…); the app's versions of these are a click away in its header.
-    if (document.activeElement?.closest(".cm-editor") && !shift && !alt && ["KeyD", "KeyG", "KeyL", "KeyI", "KeyK"].includes(e.code)) return;
+    // ⌘I select syntax, ⌘K…, ⌘[ / ⌘] indent); the app's versions are a click away.
+    if (document.activeElement?.closest(".cm-editor") && !shift && !alt && ["KeyD", "KeyG", "KeyL", "KeyI", "KeyK", "BracketLeft", "BracketRight"].includes(e.code)) return;
 
     let action: (() => void) | undefined;
     switch (e.code) {
+      case "KeyZ":
+        // Undo a close, settle or snooze while its toast is up; in a text field ⌘Z stays the field's own undo.
+        if (!shift && !alt && ui.prefs.undo && hasUndo() && !isTextField(document.activeElement)) action = () => void runUndo();
+        break;
       case "KeyT":
-        if (!shift && !alt) action = () => layout.newTab({ cwd, launcher: true });
+        if (shift && !alt && ui.prefs.reopen) action = () => void reopenLastClosed();
+        else if (!shift && !alt) action = () => layout.newTab({ cwd, launcher: true });
         else if (alt && !shift) action = () => toggleNav("thread");
         break;
       case "KeyN":
         if (!shift && !alt) action = () => layout.newTab({ cwd, launcher: true });
+        else if (alt && !shift && ui.prefs.noProject) action = () => void newScratchTab().catch((err) => toast(String(err), true));
         break;
       case "KeyM":
         if (shift && !alt) action = () => toggleNav("problems");
@@ -144,6 +156,7 @@ export function installShortcuts(): () => void {
       case "BracketLeft":
       case "BracketRight":
         if (shift) action = () => layout.cycleTab(e.code === "BracketLeft" ? -1 : 1);
+        else if (!alt && ui.prefs.backForward) action = () => void navigate(e.code === "BracketLeft" ? -1 : 1);
         break;
       case "KeyE":
         if (!alt) action = () => ui.set({ accountPicker: { target: shift ? "tab" : "split" } });
@@ -181,6 +194,9 @@ export function installShortcuts(): () => void {
       case "KeyH":
         if (shift && !alt) action = () => toggleHud();
         break;
+      case "KeyY":
+        if (shift && !alt) action = () => ui.set({ historyOpen: true });
+        break;
       case "KeyV":
         if (alt && !shift && pane) action = () => toggleVoice(pane);
         break;
@@ -203,9 +219,9 @@ export function installShortcuts(): () => void {
         action = () => ui.set({ fontDelta: 0 });
         break;
       default:
-        if (shift && !alt && /^Digit[1-3]$/.test(e.code)) {
+        if (shift && !alt && /^Digit[1-4]$/.test(e.code)) {
           const n = Number(e.code.slice(5));
-          action = () => (n === 3 ? ui.set({ reviewOpen: true }) : ui.set({ mode: n === 1 ? "agents" : "terminals", reviewOpen: false }));
+          action = () => (n === 3 ? ui.set({ reviewOpen: true }) : ui.set({ mode: n === 1 ? "agents" : n === 2 ? "terminals" : "work", reviewOpen: false }));
         } else if (/^Digit[1-9]$/.test(e.code) && !shift && !alt) {
           const n = Number(e.code.slice(5));
           action = () => layout.activateTabIndex(n === 9 ? -1 : n - 1);

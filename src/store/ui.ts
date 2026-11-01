@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { ipc } from "../lib/ipc";
+import { DEFAULT_PREFS, normalizePrefs, type ThreadPrefs } from "../lib/prefs";
 
 /** A task the account picker will hand to the new Claude pane as its first prompt. */
 export interface PickerTask {
@@ -8,10 +9,10 @@ export interface PickerTask {
   title: string;
 }
 
-export type Mode = "agents" | "terminals";
+export type Mode = "agents" | "work" | "terminals";
 
 /** What the right column shows: the queue, the focused thread's changes, or its details. */
-export type RailTab = "queue" | "changes" | "details";
+export type RailTab = "queue" | "changes" | "details" | "notes";
 
 /**
  * What the left navigator shows: the workspace tree (⌘\), the project's files (⇧⌘F),
@@ -33,10 +34,25 @@ interface UiState {
   settingsOpen: boolean;
   /** Section to show when Settings next opens (then cleared). */
   settingsSection: string | null;
+  /** Quick capture box (palette: "Capture…"). */
+  captureOpen: boolean;
+  /** Roadmap screen; `roadmapProject` is the planner project shown (null = all). */
+  roadmapOpen: boolean;
+  weeklyOpen: boolean;
+  /** Switches for the thread-handling features (Settings → Threads & keys). */
+  prefs: ThreadPrefs;
+  /** Thread being renamed in the list (F2), and thread whose menu is open (right-click, ⇧F10). */
+  renameThread: string | null;
+  threadMenu: string | null;
+  /** Composer drafts set aside with ⌘S (lib/stash.ts). */
+  stash: string[];
+  roadmapProject: string | null;
   /** ⌘P command palette. */
   paletteOpen: boolean;
   gridOpen: boolean;
   reviewOpen: boolean;
+  /** Durable thread history search (SQLite). */
+  historyOpen: boolean;
   /** "split" | "tab" — where the account picker will open the new Claude pane. */
   accountPicker: null | { target: "split" | "tab"; task?: PickerTask };
   /** Give new Claude panes their own git worktree. */
@@ -71,9 +87,18 @@ export const useUi = create<UiState>((set) => ({
   single: true,
   settingsOpen: false,
   settingsSection: null,
+  captureOpen: false,
+  roadmapOpen: false,
+  weeklyOpen: false,
+  prefs: DEFAULT_PREFS,
+  renameThread: null,
+  threadMenu: null,
+  stash: [],
+  roadmapProject: null,
   paletteOpen: false,
   gridOpen: false,
   reviewOpen: false,
+  historyOpen: false,
   accountPicker: null,
   useWorktree: false,
   reviewWhenDone: false,
@@ -103,15 +128,17 @@ interface SavedUi {
   reviewWhenDone?: boolean;
   claudeAsChat?: boolean;
   fontDelta?: number;
+  prefs?: unknown;
+  stash?: unknown;
 }
 
 export async function loadUiState() {
   const saved = await ipc.loadState<SavedUi>("ui").catch(() => null);
   if (saved) {
     useUi.setState({
-      mode: saved.mode === "agents" ? "agents" : "terminals",
+      mode: saved.mode === "agents" || saved.mode === "work" ? saved.mode : "terminals",
       agentPanelOpen: saved.agentPanelOpen ?? true,
-      railTab: saved.railTab === "changes" || saved.railTab === "details" ? saved.railTab : "queue",
+      railTab: saved.railTab === "changes" || saved.railTab === "details" || saved.railTab === "notes" ? saved.railTab : "queue",
       railWidths: saved.railWidths ?? {},
       nav:
         saved.nav !== undefined
@@ -126,6 +153,8 @@ export async function loadUiState() {
       reviewWhenDone: saved.reviewWhenDone ?? false,
       claudeAsChat: saved.claudeAsChat ?? true,
       fontDelta: saved.fontDelta ?? 0,
+      prefs: normalizePrefs(saved.prefs),
+      stash: Array.isArray(saved.stash) ? saved.stash.filter((x): x is string => typeof x === "string").slice(-10) : [],
     });
   }
   let last = "";
@@ -141,6 +170,8 @@ export async function loadUiState() {
       reviewWhenDone: s.reviewWhenDone,
       claudeAsChat: s.claudeAsChat,
       fontDelta: s.fontDelta,
+      prefs: s.prefs,
+      stash: s.stash,
     });
     if (next !== last) {
       last = next;

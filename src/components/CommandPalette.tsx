@@ -6,7 +6,16 @@ import { openInBrowserPane } from "../lib/browser";
 import { basename, shortenPath } from "../lib/format";
 import { handOff } from "../lib/handoff";
 import { toggleHud } from "../lib/hudBridge";
-import { closePaneSafely } from "../lib/openFile";
+import { closePaneSafely, closeTabSafely } from "../lib/openFile";
+import { reopenLastClosed } from "../lib/reopen";
+import { newScratchTab } from "../lib/scratch";
+import { paletteQuery, prNumberRef } from "../lib/threadTools";
+import { retitleThread } from "./ProjectsSidebar";
+import { navigate } from "../store/navHistory";
+import { copyText } from "../lib/copyText";
+import { copyPromptLink } from "../lib/copyPromptLink";
+import { paneDir } from "../store/git";
+import { usePrs } from "../store/prs";
 import { jumpToWaiting } from "../lib/shortcuts";
 import { clearTerminal, showPane } from "../lib/terminals";
 import { toggleVoice, useVoice } from "../lib/voice";
@@ -15,7 +24,9 @@ import { useConfig } from "../store/config";
 import { useCustomAgents } from "../store/customAgents";
 import { activeTab, focusedPaneId, paneIds, useLayout } from "../store/layout";
 import { useRuntime } from "../store/runtime";
-import { useUi } from "../store/ui";
+import { usePlanner } from "../store/planner";
+import { toast, useUi } from "../store/ui";
+import { openAgentView } from "./AgentView";
 import { SearchIcon } from "./Icons";
 import { StatusGlyph, stateLabel, urgency, visualOf, type Visual } from "./StatusGlyph";
 
@@ -74,6 +85,12 @@ function paneItems(): Item[] {
   return out.sort((a, b) => (a.state === "shell" ? 9 : urgency[a.state as Visual]) - (b.state === "shell" ? 9 : urgency[b.state as Visual]));
 }
 
+/** The PR on the folder a pane is in, if one is known. */
+const panePrOf = (id: string) => {
+  const d = paneDir(id);
+  return d ? usePrs.getState().byDir[d] ?? undefined : undefined;
+};
+
 function actionItems(): Item[] {
   const ui = useUi.getState();
   const layout = useLayout.getState();
@@ -83,7 +100,29 @@ function actionItems(): Item[] {
   const setTheme = (theme: "system" | "light" | "dark") => cfg && void useConfig.getState().save({ ...cfg, theme });
   const items: (Item | false)[] = [
     { id: "agents", group: "Actions", label: "Agents board", keys: "⇧⌘1", run: () => ui.set({ mode: "agents", reviewOpen: false }) },
+    {
+      id: "agent-view",
+      group: "Actions",
+      label: "Agent view",
+      hint: "live panes and team runs on one screen",
+      run: () => {
+        ui.set({ mode: "agents", reviewOpen: false });
+        openAgentView(false);
+      },
+    },
+    {
+      id: "run-team",
+      group: "Actions",
+      label: "Run team…",
+      hint: "a lead and up to three workers on one task",
+      run: () => {
+        ui.set({ mode: "agents", reviewOpen: false });
+        openAgentView(true);
+      },
+    },
     { id: "terminals", group: "Actions", label: "Terminals", keys: "⇧⌘2", run: () => ui.set({ mode: "terminals", reviewOpen: false }) },
+    { id: "work", group: "Actions", label: "Work board", keys: "⇧⌘4", run: () => ui.set({ mode: "work", reviewOpen: false }) },
+    { id: "history", group: "Actions", label: "Thread history…", hint: "search open and closed threads in SQLite", keys: "⇧⌘Y", run: () => ui.set({ historyOpen: true }) },
     { id: "review", group: "Actions", label: "Review uncommitted changes", keys: "⇧⌘3", run: () => ui.set({ reviewOpen: true }) },
     { id: "jump", group: "Actions", label: "Jump to the agent waiting longest", keys: "⌘J", run: () => void jumpToWaiting() },
     { id: "launch", group: "Actions", label: "Launch agents…", hint: "Claude accounts, Codex, Gemini, more", keys: "⇧⌘E", run: () => ui.set({ accountPicker: { target: "tab" } }) },
@@ -105,7 +144,7 @@ function actionItems(): Item[] {
     !!pane && { id: "split-r", group: "Actions", label: "Split right", keys: "⌘D", run: () => layout.splitPane(pane, "row") },
     !!pane && { id: "split-d", group: "Actions", label: "Split down", keys: "⇧⌘D", run: () => layout.splitPane(pane, "column") },
     !!pane && { id: "close-pane", group: "Actions", label: "Close pane", keys: "⌘W", run: () => closePaneSafely(pane) },
-    !!tab && { id: "close-tab", group: "Actions", label: "Close tab", keys: "⇧⌘W", run: () => layout.closeTab(tab.id) },
+    !!tab && { id: "close-tab", group: "Actions", label: "Close tab", keys: "⇧⌘W", run: () => closeTabSafely(tab.id) },
     !!pane && { id: "suggest", group: "Actions", label: "Suggest a shell command", keys: "⌘I", run: () => (ui.set({ mode: "terminals", suggestPaneId: pane }), showPane(pane)) },
     !!pane && { id: "compose", group: "Actions", label: "Compose a prompt (auto effort)", keys: "⌘L", run: () => (ui.set({ mode: "terminals", composerPaneId: pane }), showPane(pane)) },
     { id: "browser", group: "Actions", label: "Open browser pane", keys: "⇧⌘B", run: () => openInBrowserPane(pane, "") },
@@ -122,7 +161,7 @@ function actionItems(): Item[] {
     { id: "nav-problems", group: "Actions", label: "Problems (tsc, cargo check)", keys: "⇧⌘M", run: () => ui.set({ nav: "problems" }) },
     { id: "nav-thread", group: "Actions", label: "Thread: read this Claude conversation", keys: "⌥⌘T", run: () => ui.set({ nav: "thread" }) },
     { id: "rail", group: "Actions", label: "Toggle Queue rail", keys: "⌘B", run: () => ui.set({ agentPanelOpen: !ui.agentPanelOpen }) },
-    { id: "hud", group: "Actions", label: "Toggle floating HUD", keys: "⇧⌘H", run: toggleHud },
+    { id: "hud", group: "Actions", label: "Toggle floating HUD", keys: "⇧⌘Y", run: toggleHud },
     useVoice.getState().installed && !!pane && { id: "voice", group: "Actions", label: "Dictate into the focused pane", keys: "⌥⌘V", run: () => toggleVoice(pane) },
     { id: "font+", group: "Actions", label: "Bigger text", keys: "⌘+", run: () => ui.set({ fontDelta: Math.min(ui.fontDelta + 1, 16) }) },
     { id: "font-", group: "Actions", label: "Smaller text", keys: "⌘-", run: () => ui.set({ fontDelta: Math.max(ui.fontDelta - 1, -6) }) },
@@ -130,6 +169,17 @@ function actionItems(): Item[] {
     { id: "theme-dark", group: "Actions", label: "Theme: dark", run: () => setTheme("dark") },
     { id: "theme-light", group: "Actions", label: "Theme: light", run: () => setTheme("light") },
     { id: "theme-system", group: "Actions", label: "Theme: follow system", run: () => setTheme("system") },
+    usePlanner.getState().data.switches.roadmap && { id: "roadmap", group: "Actions", label: "Roadmap", hint: "now / next / later / shipped per project", run: () => ui.set({ roadmapOpen: true }) },
+    usePlanner.getState().data.switches.review && { id: "weekly", group: "Actions", label: "Weekly review", hint: "what the week added up to", run: () => ui.set({ weeklyOpen: true }) },
+    useUi.getState().prefs.prCopy && !!pane && !!panePrOf(pane) && { id: "pr-link", group: "Actions", label: "Copy PR link", hint: `PR ${prNumberRef(panePrOf(pane)!.number)}`, run: () => copyText(panePrOf(pane)!.url, "PR link copied") },
+    useUi.getState().prefs.prCopy && !!pane && !!panePrOf(pane) && { id: "pr-number", group: "Actions", label: "Copy PR number", hint: prNumberRef(panePrOf(pane)!.number), run: () => copyText(prNumberRef(panePrOf(pane)!.number), `Copied ${prNumberRef(panePrOf(pane)!.number)}`) },
+    useUi.getState().prefs.regenTitle && !!pane && layout.panes[pane]?.mode === "chat" && { id: "retitle", group: "Actions", label: "Retitle this thread from its latest message", run: () => retitleThread(pane) },
+    useUi.getState().prefs.backForward && { id: "nav-back", group: "Actions", label: "Back to the previous thread", keys: "⌘[", run: () => void navigate(-1) },
+    useUi.getState().prefs.backForward && { id: "nav-forward", group: "Actions", label: "Forward to the next thread", keys: "⌘]", run: () => void navigate(1) },
+    useUi.getState().prefs.promptLinks && !!pane && { id: "prompt-link", group: "Actions", label: "Copy prompt link for this thread", hint: "reopens its first message as a draft", run: () => copyPromptLink(pane) },
+    useUi.getState().prefs.noProject && { id: "scratch", group: "Actions", label: "New thread without a project", keys: "⌥⌘N", hint: "its own scratch folder", run: () => void newScratchTab().catch((e) => toast(String(e), true)) },
+    useUi.getState().prefs.reopen && { id: "reopen", group: "Actions", label: "Reopen closed thread", keys: "⇧⌘T", run: () => void reopenLastClosed() },
+    { id: "capture", group: "Actions", label: "Capture…", hint: "a goal for today or a task on a project", run: () => ui.set({ captureOpen: true }) },
     { id: "settings", group: "Actions", label: "Settings", keys: "⌘,", run: () => ui.set({ settingsOpen: true }) },
     ...useCustomAgents.getState().agents.map((a) => ({
       id: `agent:${a.id}`,
@@ -153,6 +203,7 @@ function actionItems(): Item[] {
 /** ⌘P: one box to reach any pane (by folder, account, state) or run any action. */
 export function CommandPalette() {
   const open = useUi((s) => s.paletteOpen);
+  const prefs = useUi((s) => s.prefs);
   const [q, setQ] = useState("");
   const [index, setIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -166,10 +217,13 @@ export function CommandPalette() {
   }, [open]);
 
   const results = useMemo(() => {
-    const scored = all.map((it) => ({ it, s: score(`${it.label} ${it.hint ?? ""}`, q.trim()) })).filter((x) => x.s !== null);
-    if (q.trim()) scored.sort((a, b) => a.s! - b.s!);
+    // ">" at the start: actions only, no panes.
+    const { actionsOnly, text } = prefs.paletteActions ? paletteQuery(q) : { actionsOnly: false, text: q.trim() };
+    const pool = actionsOnly ? all.filter((it) => it.group === "Actions") : all;
+    const scored = pool.map((it) => ({ it, s: score(`${it.label} ${it.hint ?? ""}`, text) })).filter((x) => x.s !== null);
+    if (text) scored.sort((a, b) => a.s! - b.s!);
     return scored.map((x) => x.it).slice(0, 60);
-  }, [all, q]);
+  }, [all, q, prefs.paletteActions]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
@@ -204,7 +258,7 @@ export function CommandPalette() {
               setQ(e.target.value);
               setIndex(0);
             }}
-            placeholder="Jump to a pane or run an action…"
+            placeholder={prefs.paletteActions ? "Jump to a pane or run an action… (> for actions only)" : "Jump to a pane or run an action…"}
             spellCheck={false}
             role="combobox"
             aria-expanded

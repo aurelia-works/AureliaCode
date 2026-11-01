@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { ipc } from "../lib/ipc";
+import type { Routing } from "../lib/router";
 import { uid } from "./layout";
 
 /** Named swatches; the hue sits on the agent's avatar and its pane chip. */
@@ -24,12 +25,18 @@ export interface CustomAgent {
   worktree?: boolean;
 }
 
-/** A saved lineup of agents that open together in one tab. */
+/** A saved lineup of agents that open together in one tab, or work as a team. */
 export interface AgentTeam {
   id: string;
   name: string;
   /** Agent ids in pane order; the same agent may appear more than once. */
   agentIds: string[];
+  /** Whose pane leads a team run. Defaults to the first member. */
+  leadId?: string;
+  /** How a team run picks worker models. Old teams default to "balanced". */
+  routing?: Routing;
+  /** Panes at once in a run, lead included. Old teams default to 4. */
+  maxConcurrency?: number;
 }
 
 interface CustomAgentsState {
@@ -51,11 +58,15 @@ export const useCustomAgents = create<CustomAgentsState>((set, get) => ({
     set((s) => ({ agents: exists ? s.agents.map((a) => (a.id === id ? next : a)) : [...s.agents, next] }));
     return id;
   },
-  // Deleting an agent also takes it out of every team.
+  // Deleting an agent also takes it out of every team (and its lead slot).
   remove: (id) =>
     set((s) => ({
       agents: s.agents.filter((a) => a.id !== id),
-      teams: s.teams.map((t) => ({ ...t, agentIds: t.agentIds.filter((x) => x !== id) })),
+      teams: s.teams.map((t) => ({
+        ...t,
+        agentIds: t.agentIds.filter((x) => x !== id),
+        ...(t.leadId === id ? { leadId: undefined } : {}),
+      })),
     })),
   saveTeam(team) {
     const id = team.id ?? uid("team");
@@ -69,6 +80,19 @@ export const useCustomAgents = create<CustomAgentsState>((set, get) => ({
 
 export const customAgentById = (id: string | undefined) => (id ? useCustomAgents.getState().agents.find((a) => a.id === id) : undefined);
 
+const ROUTINGS: Routing[] = ["manual", "cheap", "balanced", "best"];
+
+/** Old teams have none of the run fields: fill them in, and drop a lead that is no longer a member. */
+function normalizeTeam(t: AgentTeam): AgentTeam {
+  const n = Number(t.maxConcurrency);
+  return {
+    ...t,
+    routing: ROUTINGS.includes(t.routing as Routing) ? t.routing : "balanced",
+    maxConcurrency: Number.isFinite(n) ? Math.max(1, Math.min(8, n)) : 4,
+    leadId: t.leadId && t.agentIds.includes(t.leadId) ? t.leadId : undefined,
+  };
+}
+
 /** Loads agents.json (agents and teams), then saves on every change. */
 export async function loadCustomAgents() {
   const saved = await ipc.loadState<{ agents: CustomAgent[]; teams?: AgentTeam[] }>("agents").catch(() => null);
@@ -79,7 +103,7 @@ export async function loadCustomAgents() {
   if (Array.isArray(saved?.teams)) {
     const ids = new Set(useCustomAgents.getState().agents.map((a) => a.id));
     const teams = saved.teams.filter((t) => t && typeof t.id === "string" && Array.isArray(t.agentIds));
-    useCustomAgents.setState({ teams: teams.map((t) => ({ ...t, agentIds: t.agentIds.filter((x) => ids.has(x)) })) });
+    useCustomAgents.setState({ teams: teams.map((t) => normalizeTeam({ ...t, agentIds: t.agentIds.filter((x) => ids.has(x)) })) });
   }
   let timer: ReturnType<typeof setTimeout> | undefined;
   useCustomAgents.subscribe((s, prev) => {

@@ -1,10 +1,11 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { answerApproval, branchChat, chatPicks, rewindChat, ensureChat, refreshContext, interruptChat, restartChat, sendChat, setChatMode, setChatOptions, useChat, type Approval } from "../lib/chat";
+import { steerChat, answerApproval, branchChat, chatPicks, rewindChat, ensureChat, refreshContext, interruptChat, restartChat, sendChat, setChatMode, setChatOptions, useChat, type Approval } from "../lib/chat";
 import type { ChatItem, Segment } from "../lib/chatModel";
 import { fileStats, latestTodos, segments, toolSummary, turnEdits } from "../lib/chatModel";
 import { isLocalUrl, openInBrowserPane } from "../lib/browser";
 import { basename, formatCost, formatDuration, formatTokens } from "../lib/format";
 import { appendText, drafts, registerComposer } from "../lib/chatComposer";
+import { BROWSER_PICK } from "../lib/browserPick";
 import { toolPhrase } from "../lib/toolPhrase";
 import { ipc, type ChatImage, type CliModel, type RuleFile, type RuleKind, type SlashCommand } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
@@ -13,7 +14,9 @@ import { cyclePermissionMode, MODES, modeKey } from "../lib/permissionMode";
 import { riskOf } from "../lib/risk";
 import { CHAT_FIND } from "../lib/shortcuts";
 import { focusedPaneId, useLayout } from "../store/layout";
-import { useUi } from "../store/ui";
+import { toggleStash } from "../lib/stash";
+import { followUpAction } from "../lib/threadTools";
+import { toast, useUi } from "../store/ui";
 import { useConfig } from "../store/config";
 import { AgentLogo } from "./AgentLogos";
 import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, FileIcon, GaugeIcon, PenIcon, PlusIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
@@ -913,17 +916,19 @@ function DenyWithReason({ paneId, id, label, placeholder }: { paneId: string; id
  */
 function QuestionBar({ paneId, approval }: { paneId: string; approval: Approval }) {
   const questions = (Array.isArray(approval.input.questions) ? approval.input.questions : []) as {
+    id?: string;
     question: string;
     header?: string;
     multiSelect?: boolean;
     options?: { label: string; description?: string }[];
   }[];
+  const keyOf = (q: { id?: string; question: string }) => q.id ?? q.question;
   const [picked, setPicked] = useState<Record<string, string[]>>({});
   const [other, setOther] = useState<Record<string, string>>({});
   const answerOf = (q: string) => [...(picked[q] ?? []), ...(other[q]?.trim() ? [other[q].trim()] : [])].join(", ");
-  const ready = questions.every((q) => answerOf(q.question));
+  const ready = questions.every((q) => answerOf(keyOf(q)));
   const submit = () => {
-    const answers = Object.fromEntries(questions.map((q) => [q.question, answerOf(q.question)]));
+    const answers = Object.fromEntries(questions.map((q) => [keyOf(q), answerOf(keyOf(q))]));
     answerApproval(paneId, approval.id, true, false, { ...approval.input, answers });
   };
   const toggle = (q: string, label: string, multi: boolean) =>
@@ -934,8 +939,10 @@ function QuestionBar({ paneId, approval }: { paneId: string; approval: Approval 
 
   return (
     <div className="chat-approval chat-questions" role="dialog" aria-label="Claude has a question">
-      {questions.map((q) => (
-        <div key={q.question} className="chat-question">
+      {questions.map((q) => {
+        const key = keyOf(q);
+        return (
+        <div key={key} className="chat-question">
           <div className="chat-question-text">
             {q.question}
             {q.multiSelect && <span className="chat-approval-more"> · pick any</span>}
@@ -945,12 +952,12 @@ function QuestionBar({ paneId, approval }: { paneId: string; approval: Approval 
               <button
                 key={o.label}
                 type="button"
-                className={(picked[q.question] ?? []).includes(o.label) ? "on" : ""}
-                aria-pressed={(picked[q.question] ?? []).includes(o.label)}
+                className={(picked[key] ?? []).includes(o.label) ? "on" : ""}
+                aria-pressed={(picked[key] ?? []).includes(o.label)}
                 title={o.description}
                 onClick={() => {
-                  toggle(q.question, o.label, !!q.multiSelect);
-                  if (!q.multiSelect) setOther((x) => ({ ...x, [q.question]: "" }));
+                  toggle(key, o.label, !!q.multiSelect);
+                  if (!q.multiSelect) setOther((x) => ({ ...x, [key]: "" }));
                 }}
               >
                 {o.label}
@@ -958,10 +965,10 @@ function QuestionBar({ paneId, approval }: { paneId: string; approval: Approval 
             ))}
             <input
               placeholder="Other…"
-              value={other[q.question] ?? ""}
+              value={other[key] ?? ""}
               onChange={(e) => {
-                setOther((x) => ({ ...x, [q.question]: e.target.value }));
-                if (!q.multiSelect) setPicked((p) => ({ ...p, [q.question]: [] }));
+                setOther((x) => ({ ...x, [key]: e.target.value }));
+                if (!q.multiSelect) setPicked((p) => ({ ...p, [key]: [] }));
               }}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && ready) submit();
@@ -969,7 +976,8 @@ function QuestionBar({ paneId, approval }: { paneId: string; approval: Approval 
             />
           </div>
         </div>
-      ))}
+        );
+      })}
       <div className="chat-approval-actions">
         <button type="button" className="primary" disabled={!ready} onClick={submit}>
           Answer
@@ -1045,6 +1053,7 @@ function modelName(id?: string): string | undefined {
 const cap = (s?: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
 function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
+  const prefs = useUi((s) => s.prefs);
   const [text, setText] = useState(() => drafts.get(paneId)?.text ?? "");
   const [images, setImages] = useState<ChatImage[]>(() => drafts.get(paneId)?.images ?? []);
   useEffect(() => {
@@ -1133,6 +1142,16 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
     [paneId],
   );
 
+  // A browser element picked beside this chat becomes a reference in the draft.
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ pane: string; text: string }>).detail;
+      if (d?.pane === paneId && d.text) setText((cur) => appendText(cur, d.text));
+    };
+    window.addEventListener(BROWSER_PICK, on);
+    return () => window.removeEventListener(BROWSER_PICK, on);
+  }, [paneId]);
+
   // Only the focused pane takes the keyboard (a restored layout may hold several chats).
   useEffect(() => {
     if (focusedPaneId() === paneId) ref.current?.focus();
@@ -1146,15 +1165,35 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
     el.style.height = `${Math.min(el.scrollHeight, line * MAX_ROWS + 8)}px`;
   }, [text]);
 
-  const send = () => {
+  /** Enter sends; ⌘Enter does the opposite of the Queue/Steer mode for this one message. */
+  const send = (opposite = false) => {
     const t = text.trim();
     if (!t && !images.length) return;
+    // Steer: stop the running turn and send once it has ended, so the new message is a normal turn.
+    const steer = prefs.steerKey && followUpAction(busy, prefs.followUp, opposite) === "steer";
     setText("");
     setImages([]);
     setHist(null);
-    sendChat(paneId, t, images);
+    void (steer ? steerChat(paneId, t, images) : sendChat(paneId, t, images));
   };
   const empty = !text.trim() && !images.length;
+  /** ⌘⌥Enter: send, then open a fresh start tab in the same folder so the next task can begin while this one runs. */
+  const sendBackground = () => {
+    if (empty) return;
+    send();
+    useLayout.getState().newTab({ cwd: pane?.cwd, launcher: true });
+  };
+  /** ⌘S: set the draft aside, or bring the last one back into an empty box. */
+  const stashKey = () => {
+    // The stash is text-only. Restoring a draft while an image is attached would send
+    // an unrelated prompt with that image, so refuse until the image is sent/removed.
+    if (images.length) return toast("Stashing images isn't supported yet; send or remove the image first", true);
+    const r = toggleStash(useUi.getState().stash, text);
+    if (r.did === "nothing") return toast("No stashed draft");
+    useUi.getState().set({ stash: r.list });
+    setText(r.text);
+    toast(r.did === "stashed" ? "Draft stashed. ⌘S in an empty box brings it back" : "Draft restored");
+  };
 
   // The model the CLI runs, once it runs the picked family; the pick until then.
   const runningName = modelName(running);
@@ -1192,12 +1231,18 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
             const el = ref.current!;
             const edge = e.key === "ArrowUp" ? !el.value.slice(0, el.selectionStart).includes("\n") : !el.value.slice(el.selectionEnd).includes("\n");
             if ((edge && (hist || !text)) && recall(e.key === "ArrowUp" ? -1 : 1)) e.preventDefault();
+          } else if (e.key === "Enter" && e.metaKey && e.altKey && prefs.background && e.target === ref.current) {
+            e.preventDefault();
+            sendBackground();
+          } else if (e.key.toLowerCase() === "s" && e.metaKey && !e.altKey && !e.shiftKey && prefs.stash && e.target === ref.current) {
+            e.preventDefault();
+            stashKey();
           } else if (e.key === "." && e.metaKey && busy) {
             e.preventDefault();
             interruptChat(paneId);
           } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.target === ref.current) {
             e.preventDefault();
-            send();
+            send(e.metaKey);
           } else if (e.key === "Tab" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.target === ref.current) {
             // Claude Code's own mode cycle.
             e.preventDefault();
@@ -1299,12 +1344,23 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           )}
           <span className="chat-card-gap" />
           <ContextRing paneId={paneId} />
+          {busy && prefs.steerKey && (
+            <button
+              type="button"
+              className="opt tog"
+              aria-pressed={prefs.followUp === "steer"}
+              title={`While Claude works, Enter ${prefs.followUp === "steer" ? "stops the turn and sends now" : "queues for after the turn"}. ⌘Enter does the other. Click to switch.`}
+              onClick={() => useUi.getState().set({ prefs: { ...prefs, followUp: prefs.followUp === "steer" ? "queue" : "steer" } })}
+            >
+              {prefs.followUp === "steer" ? "Steer" : "Queue"}
+            </button>
+          )}
           {busy && empty ? (
             <button type="button" className="chat-send stop" onClick={() => interruptChat(paneId)} title="Stop this turn (Esc or ⌘.)" aria-label="Stop">
               <StopIcon />
             </button>
           ) : (
-            <button type="button" className="chat-send" onClick={send} disabled={empty} title={busy ? "Queue for after this turn (Enter)" : "Send (Enter)"} aria-label="Send">
+            <button type="button" className="chat-send" onClick={() => send()} disabled={empty} title={busy ? (prefs.steerKey && prefs.followUp === "steer" ? "Stop this turn and send now (Enter)" : "Queue for after this turn (Enter)") : "Send (Enter)"} aria-label="Send">
               <ArrowUpIcon />
             </button>
           )}

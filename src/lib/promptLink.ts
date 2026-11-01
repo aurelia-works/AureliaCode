@@ -29,3 +29,16 @@ export function parsePromptLink(raw: string): PromptLink | null {
     ...(account ? { account } : {}),
   };
 }
+
+/**
+ * The link that reopens `prompt` as a draft: `aureliaspace://new?prompt=…`. Null when the text is empty or longer
+ * than a link may carry. A folder or account is added only when asked for; opening such a link still asks first.
+ */
+export function buildPromptLink(prompt: string, opts: { cwd?: string; account?: string } = {}): string | null {
+  const text = prompt.trim();
+  if (!text || text.length > MAX_PROMPT) return null;
+  const q = new URLSearchParams({ prompt: text });
+  if (opts.cwd) q.set("cwd", opts.cwd);
+  if (opts.account) q.set("account", opts.account);
+  return `aureliaspace://new?${q.toString()}`;
+}

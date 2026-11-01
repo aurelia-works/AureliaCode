@@ -150,6 +150,23 @@ export interface LaunchPlanItem {
 }
 
 /**
+ * Runs one non-interactive command in a fresh terminal pane, with the variant's env and
+ * Keychain secrets. Used by the home route's skill runner (`opencode run "<prompt>"`).
+ */
+export function launchSkillAgent(variant: AgentVariant, cwd: string | undefined, prompt: string) {
+  const layout = useLayout.getState();
+  const id = layout.newTab({
+    cwd,
+    agent: variant.id,
+    env: Object.keys(variant.env).length ? variant.env : undefined,
+    secretEnv: variant.secrets.length ? Object.fromEntries(variant.secrets.map((x) => [x.env, x.key.id])) : undefined,
+  });
+  queueInit(id, `${variant.tool.bin} run ${shellQuote(prompt)}`);
+  if (cwd) useRecents.getState().record(cwd);
+  return id;
+}
+
+/**
  * Opens one independent pane per requested agent. A single agent can split the focused pane;
  * several always get their own tab laid out as a near-square grid.
  */

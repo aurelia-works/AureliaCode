@@ -254,11 +254,18 @@ pub struct RemoteConfig {
     pub port: u16,
     /// Also accept phones on the local network; off = this Mac and Tailscale only.
     pub allow_lan: bool,
+    /// Serve the remote at https://<mac>.<tailnet>.ts.net through `tailscale serve`.
+    pub tailscale_https: bool,
+    /// The HTTPS port `tailscale serve` listens on (443 = no port in the address).
+    pub https_port: u16,
+    /// Hide the window instead of quitting when the close button is pressed, so agents and
+    /// the phone remote keep running. Click the dock icon to bring it back.
+    pub keep_running: bool,
 }
 
 impl Default for RemoteConfig {
     fn default() -> Self {
-        Self { enabled: false, port: 4747, allow_lan: false }
+        Self { enabled: false, port: 4747, allow_lan: false, tailscale_https: false, https_port: 443, keep_running: false }
     }
 }
 
@@ -414,10 +421,35 @@ fn write_json(path: &Path, value: &Value) -> Result<(), String> {
     fs::rename(&tmp, path).map_err(|e| e.to_string())
 }
 
+/// Atomic JSON write for files only this user may read (pairing tokens, remote devices).
+/// The temp file is created 0600 before any bytes are written, so there is no window where
+/// it is world-readable, and a crash leaves either the old file or the complete new one.
+pub(crate) fn write_private_json(path: &Path, value: &Value) -> Result<(), String> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(&tmp)
+        .map_err(|e| e.to_string())?;
+    file.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
+    fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
+    Ok(())
+}
+
 /// Only these state files may be read/written from the frontend.
 fn state_path(name: &str) -> Result<PathBuf, String> {
     match name {
-        "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines" => Ok(app_dir().join(format!("{name}.json"))),
+        "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" => Ok(app_dir().join(format!("{name}.json"))),
         _ => Err(format!("unknown state file: {name}")),
     }
 }
@@ -455,10 +487,23 @@ pub fn save_config(mut config: Config) -> Result<(), String> {
 
 #[tauri::command]
 pub fn load_state(name: String) -> Result<Option<Value>, String> {
-    let path = state_path(&name)?;
-    match fs::read_to_string(&path) {
-        Ok(text) => Ok(serde_json::from_str(&text).ok()),
-        Err(_) => Ok(None),
+    read_state(&state_path(&name)?)
+}
+
+/// A missing file is None. A file that can't be read is an error (so the frontend never saves an empty state over it).
+/// A file that isn't valid JSON is copied to `<name>.corrupt.json` first, then treated as missing.
+fn read_state(path: &Path) -> Result<Option<Value>, String> {
+    let text = match fs::read_to_string(path) {
+        Ok(t) => t,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => return Err(format!("{}: {e}", path.display())),
+    };
+    match serde_json::from_str(&text) {
+        Ok(v) => Ok(Some(v)),
+        Err(_) => {
+            let _ = fs::write(path.with_extension("corrupt.json"), &text);
+            Ok(None)
+        }
     }
 }
 
@@ -493,5 +538,46 @@ pub fn project_root(cwd: String) -> String {
             Some(p) => dir = p,
             None => return start.to_string_lossy().into_owned(),
         }
+    }
+}
+
+#[cfg(test)]
+mod state_file_tests {
+    use super::*;
+
+    fn temp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("aurelia-state-test-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn missing_file_is_none() {
+        let dir = temp("missing");
+        assert_eq!(read_state(&dir.join("planner.json")).unwrap(), None);
+    }
+
+    #[test]
+    fn valid_file_is_read() {
+        let dir = temp("valid");
+        fs::write(dir.join("planner.json"), r#"{"a":1}"#).unwrap();
+        assert_eq!(read_state(&dir.join("planner.json")).unwrap().unwrap()["a"], 1);
+    }
+
+    #[test]
+    fn corrupt_file_is_kept_aside_and_reads_as_none() {
+        let dir = temp("corrupt");
+        fs::write(dir.join("planner.json"), "{ half").unwrap();
+        assert_eq!(read_state(&dir.join("planner.json")).unwrap(), None);
+        assert_eq!(fs::read_to_string(dir.join("planner.corrupt.json")).unwrap(), "{ half");
+    }
+
+    #[test]
+    fn unreadable_path_is_an_error_not_none() {
+        let dir = temp("dir");
+        // A directory where the file should be: reading it fails with something other than NotFound.
+        fs::create_dir_all(dir.join("planner.json")).unwrap();
+        assert!(read_state(&dir.join("planner.json")).is_err());
     }
 }

@@ -4,6 +4,7 @@ import { useAgents } from "../store/agents";
 import { getConfig } from "../store/config";
 import { onPanesClosed, useLayout, type PaneMeta } from "../store/layout";
 import { addNotice, addUser, applyLine, emptyTranscript, endTurn, toolSummary, type Transcript } from "./chatModel";
+import { workAfterTurn } from "./workBridge";
 import { cacheSafe } from "./effort";
 import { ipc, type ChatEvent, type ChatImage, type CliModel, type ChatUsage, type ContextUsage, type SlashCommand } from "./ipc";
 import { startPermissionMode } from "./startMode";
@@ -115,6 +116,7 @@ function reduce(paneId: string, s: ChatSession, ev: ChatEvent): ChatSession {
         forkIds.delete(paneId);
         queueMicrotask(() => useLayout.getState().updatePane(paneId, { claudeSession: forked, chatFork: undefined }));
       }
+      workAfterTurn(paneId, ev.outcome);
       const u = ev.usage;
       const tokens = u ? u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheWriteTokens : 0;
       // Kept on the pane so a restart (app, account switch, edit) carries on counting.
@@ -448,6 +450,27 @@ export async function setChatMode(paneId: string, mode: string) {
   patch(paneId, (s) => ({ ...s, mode }));
   useLayout.getState().updatePane(paneId, { chatPermission: mode });
   await ipc.chatSetMode(paneId, mode).catch(() => {});
+}
+
+const isBusy = (paneId: string) => {
+  const st = useChat.getState().byPane[paneId]?.status;
+  return st === "working" || st === "waiting";
+};
+
+/**
+ * Steer: stop the running turn, wait until it has really ended, then send. Sending while the interrupt is still in
+ * flight would race it at the CLI and could mark the new turn as interrupted. After `timeoutMs` it sends anyway (queued).
+ */
+const steering = new Set<string>();
+export async function steerChat(paneId: string, text: string, images: ChatImage[] = [], timeoutMs = 5000) {
+  // A second steer while one is stopping the turn joins it: it queues behind instead of interrupting again.
+  if (steering.has(paneId)) return sendChat(paneId, text, images);
+  steering.add(paneId);
+  interruptChat(paneId);
+  const t0 = Date.now();
+  while (isBusy(paneId) && Date.now() - t0 < timeoutMs) await new Promise((r) => setTimeout(r, 60));
+  steering.delete(paneId);
+  return sendChat(paneId, text, images);
 }
 
 export function interruptChat(paneId: string) {

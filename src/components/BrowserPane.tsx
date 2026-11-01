@@ -2,6 +2,7 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ipc } from "../lib/ipc";
 import { normalizeUrl } from "../lib/browser";
+import { BROWSER_PICK, parsePickUrl, pickPrompt, pickerScript } from "../lib/browserPick";
 import { onPanesClosed, useLayout } from "../store/layout";
 import { useUi } from "../store/ui";
 
@@ -27,6 +28,7 @@ export function BrowserPane({ paneId }: { paneId: string }) {
   const covered = useUi((s) => s.mode !== "terminals" || s.settingsOpen || !!s.accountPicker || s.gridOpen || s.reviewOpen);
   const [draft, setDraft] = useState(storeUrl);
   const [loading, setLoading] = useState(false);
+  const [picking, setPicking] = useState(false);
   const created = useRef(false);
   const current = useRef(""); // URL the webview is known to be showing
   const show = visible && !covered;
@@ -54,6 +56,26 @@ export function BrowserPane({ paneId }: { paneId: string }) {
       setLoading(e.payload.loading);
       setDraft(e.payload.url);
       useLayout.getState().updatePane(paneId, { browser: { url: e.payload.url } });
+    });
+    return () => void un.then((f) => f());
+  }, [paneId]);
+
+  // Element picker: the page sends one payload through a custom scheme; capture the
+  // visible page and hand the reference to the focused chat composer.
+  useEffect(() => {
+    const un = listen<{ pane: string; url: string }>("browser-pick", (e) => {
+      if (e.payload.pane !== paneId) return;
+      const pick = parsePickUrl(e.payload.url);
+      setPicking(false);
+      if (!pick) return;
+      const r = rectOf();
+      const send = (shot?: string) => {
+        const withShot = shot ? { ...pick, shot } : pick;
+        window.dispatchEvent(new CustomEvent(BROWSER_PICK, { detail: { pane: paneId, pick: withShot, text: pickPrompt(withShot) } }));
+      };
+      // x/y are offsets inside the webview; the Rust side adds the webview's window position.
+      if (r) ipc.browserScreenshot(paneId, 0, 0, r.w, r.h).then(send, () => send());
+      else send();
     });
     return () => void un.then((f) => f());
   }, [paneId]);
@@ -126,6 +148,20 @@ export function BrowserPane({ paneId }: { paneId: string }) {
           onChange={(e) => setDraft(e.target.value)}
           onFocus={(e) => e.target.select()}
         />
+        <button
+          type="button"
+          className={`icon-btn${picking ? " on" : ""}`}
+          title={picking ? "Cancel picking" : "Pick an element (click it on the page)"}
+          disabled={!storeUrl}
+          aria-pressed={picking}
+          onClick={() => {
+            const next = !picking;
+            setPicking(next);
+            ipc.browserEval(paneId, pickerScript(next)).catch(() => setPicking(false));
+          }}
+        >
+          ⌖
+        </button>
         <button
           type="button"
           className="icon-btn"

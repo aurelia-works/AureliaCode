@@ -1,6 +1,7 @@
 import { useConfig } from "../store/config";
 import { focusedPaneId, useLayout, type NewPaneOpts } from "../store/layout";
 import { useTasks } from "../store/tasks";
+import { useWork } from "../store/work";
 import { toast, useUi, type PickerTask } from "../store/ui";
 import { queueFirstMessage } from "./chat";
 import { ipc } from "./ipc";
@@ -64,6 +65,16 @@ export async function launchClaude({ account, where, worktree, task, review }: L
     tasks.attach(task.project, task.id, paneId);
     tasks.setStatus(task.project, task.id, "doing");
     tasks.setReview(task.project, task.id, review ? "pending" : undefined);
+    // The work board is the durable view of the same task; keep its thread link in step.
+    const work = useWork.getState();
+    if (work.items.some((i) => i.id === task.id)) {
+      work.attachThread(task.id, { paneId, harness: "claude" });
+      if (worktree && cwd && base && cwd !== base) {
+        const info = await ipc.gitInfo(cwd).catch(() => null);
+        if (info?.worktree) work.attachWorktree(task.id, { path: cwd, branch: info.branch });
+      }
+      work.setStatus(task.id, "working");
+    }
   }
   if (cwd !== base) toast(`New worktree: ${cwd}`);
   return paneId;
