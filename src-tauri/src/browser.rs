@@ -40,6 +40,9 @@ fn prune_snaps(dir: &Path) {
             Some((time, path))
         })
         .collect();
+    // Keep a week of evidence: a recent chat can still reference its screenshot.
+    let cutoff = std::time::SystemTime::now().checked_sub(std::time::Duration::from_secs(7 * 24 * 3600));
+    files.retain(|(time, _)| cutoff.is_some_and(|c| *time < c));
     if files.len() <= MAX_SNAPS {
         return;
     }
