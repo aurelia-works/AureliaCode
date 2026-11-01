@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { useChat } from "../lib/chat";
 import { basename } from "../lib/format";
-import { closePaneSafely } from "../lib/openFile";
+import { closePaneSafely, closePanesSafely } from "../lib/openFile";
+import { patchThreads } from "../lib/threadActions";
+import { dropPlan, pinKeyBefore, zoneOf, type Zone } from "../lib/threadDrop";
+import { copyText } from "../lib/copyText";
+import { prNumberRef, retitle } from "../lib/threadTools";
+import { cleanTitle, pinPatch, settlePatch, splitPinned, stepFocus } from "../lib/threadOrder";
 import { showPane } from "../lib/terminals";
 import { useAgents } from "../store/agents";
 import { paneDir, useGit } from "../store/git";
@@ -122,13 +127,101 @@ function ago(at: number | undefined, now: number) {
 }
 
 function Lead({ v, pane, running }: { v: Visual | undefined; pane: PaneMeta | undefined; running: boolean }) {
-  if (v === "needs_input") return <span className="dot-needs" aria-label="needs you" />;
-  if (v) return <JellyIcon className={v === "working" || v === "starting" ? "working" : v === "done" ? "done" : "idle"} aria-label={stateLabel[v]} />;
+  // Chat panes have their own live status even when no hook session is attached.
+  const chat = useChat((s) => (pane ? s.byPane[pane.id] : undefined));
+  const cv: Visual | undefined = chat
+    ? chat.status === "waiting"
+      ? "needs_input"
+      : chat.status === "working"
+        ? "working"
+        : chat.status === "idle"
+          ? "idle"
+          : undefined
+    : undefined;
+  const state = v ?? cv;
+  if (state === "needs_input") return <span className="dot-needs" aria-label="needs you" />;
+  if (state) return <JellyIcon className={state === "working" || state === "starting" ? "working" : state === "done" ? "done" : "idle"} aria-label={stateLabel[state]} />;
   if (pane?.browser) return <GlobeIcon className="th-ico" />;
   return <TerminalIcon className={`th-ico${running ? " busy" : ""}`} />;
 }
 
-function PaneRow({ paneId, focused, snoozed, selected, now, onSelect }: { paneId: string; focused: boolean; snoozed: boolean; selected: boolean; now: number; onSelect: (e: MouseEvent) => boolean }) {
+/** Gives a chat thread a title taken from its latest substantive message. No model call, so it is free. */
+export function retitleThread(paneId: string) {
+  const items = useChat.getState().byPane[paneId]?.transcript.items ?? [];
+  const t = retitle(items as { kind: string; text?: string }[]);
+  if (!t) return toast("Nothing in this thread to title it from", true);
+  useLayout.getState().updatePane(paneId, { title: t });
+  toast(`Titled "${t}"`);
+}
+
+/** Right-click or ⇧F10 on a thread. */
+function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned: boolean; away: boolean; onSnooze: () => void }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const prefs = useUi((s) => s.prefs);
+  const pr = usePrs((s) => {
+    const d = paneDir(paneId);
+    return d ? s.byDir[d] : undefined;
+  });
+  const isChat = useLayout((s) => s.panes[paneId]?.mode === "chat");
+  const close = () => {
+    useUi.getState().set({ threadMenu: null });
+    // Keys keep working in the list: focus goes back to the thread row (if it still exists).
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-thread="${paneId}"] .th-row`)?.focus());
+  };
+  useEffect(() => {
+    ref.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const out = (e: globalThis.MouseEvent) => ref.current && !ref.current.contains(e.target as Node) && close();
+    window.addEventListener("mousedown", out);
+    return () => window.removeEventListener("mousedown", out);
+  }, []);
+  const item = (label: string, run: () => void, key?: string) => (
+    <button
+      role="menuitem"
+      onClick={() => {
+        close();
+        run();
+      }}
+    >
+      <span>{label}</span>
+      {key && <span className="snooze-when">{key}</span>}
+    </button>
+  );
+  const move = (e: React.KeyboardEvent) => {
+    if (e.key === "Escape") {
+      e.stopPropagation();
+      close();
+      return;
+    }
+    if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+    e.preventDefault();
+    e.stopPropagation();
+    const items = [...(ref.current?.querySelectorAll<HTMLButtonElement>("button") ?? [])];
+    const i = items.indexOf(document.activeElement as HTMLButtonElement);
+    items[stepFocus(items.length, i, e.key)]?.focus();
+  };
+  return (
+    <div ref={ref} className="snooze-menu thread-menu" role="menu" aria-label="Thread actions" onKeyDown={move}>
+      {prefs.pin && !away && item(pinned ? "Unpin" : "Pin", () => patchThreads([paneId], pinPatch(!pinned, Date.now()), pinned ? "Unpinned" : "Pinned"))}
+      {item("Rename", () => useUi.getState().set({ renameThread: paneId }), "F2")}
+      {prefs.regenTitle && isChat && item("Retitle from latest message", () => retitleThread(paneId))}
+      {prefs.prCopy && pr && item(`Copy PR link (${prNumberRef(pr.number)})`, () => copyText(pr.url, "PR link copied"))}
+      {prefs.prCopy && pr && item("Copy PR number", () => copyText(prNumberRef(pr.number), `Copied ${prNumberRef(pr.number)}`))}
+      {!away && item("Snooze…", onSnooze)}
+      {away ? item("Wake", () => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")) : item("Settle", () => patchThreads([paneId], settlePatch(), "Settled"))}
+      {item("Close", () => closePaneSafely(paneId))}
+    </div>
+  );
+}
+
+interface RowDnd {
+  start(): void;
+  end(): void;
+  /** Dropped on this row (reorders when it is pinned). */
+  drop(): void;
+  dragging: boolean;
+}
+
+function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { paneId: string; focused: boolean; snoozed: boolean; selected: boolean; now: number; onSelect: (e: MouseEvent) => boolean; dnd?: RowDnd }) {
   const pane = useLayout((s) => s.panes[paneId]);
   const agent = useAgents((s) => s.sessions[paneId]);
   const running = useRuntime((s) => s.panes[paneId]?.running);
@@ -147,7 +240,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect }: { paneId
   const isClaude = !!agent || !!account;
   const v: Visual | undefined = agent ? visualOf(agent) : isClaude ? "starting" : undefined;
   const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher ? "New thread" : custom ? custom.name : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
-  const label = title ?? kind;
+  const label = pane?.title ?? title ?? kind;
   const dir = paneDir(paneId);
   const repo = basename(git?.repo ?? dir) || "~";
   const attention = prAttention(pr, pane?.prSeenFeedback);
@@ -155,16 +248,42 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect }: { paneId
   const when = snoozed && pane?.snoozedUntil ? `until ${clock(pane.snoozedUntil)}` : v === "working" ? "now" : ago(agent?.updatedAt, now);
   const update = useLayout.getState().updatePane;
   const away = pane?.settled || snoozed;
+  const prefs = useUi((s) => s.prefs);
+  const renaming = useUi((s) => s.renameThread === paneId);
+  const menuOpen = useUi((s) => s.threadMenu === paneId);
 
   return (
-    <div className={`nav-thread${focused ? " on" : ""}${away ? " away" : ""}${selected ? " selected" : ""}`}>
+    <div
+      className={`nav-thread${focused ? " on" : ""}${away ? " away" : ""}${selected ? " selected" : ""}${dnd?.dragging ? " dragging" : ""}`}
+      data-thread={paneId}
+      draggable={!!dnd && !renaming && !menu && !menuOpen}
+      onDragStart={(e) => {
+        if (!dnd) return;
+        // A private type, so a text box never accepts the drop as text.
+        e.dataTransfer.setData("application/x-aurelia-thread", paneId);
+        e.dataTransfer.effectAllowed = "move";
+        dnd.start();
+      }}
+      onDragEnd={() => dnd?.end()}
+      onDragOver={(e) => dnd && e.preventDefault()}
+      onDrop={(e) => {
+        if (!dnd) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dnd.drop();
+      }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        useUi.getState().set({ threadMenu: paneId });
+      }}
+    >
       <button
         className={`th-row${v ? ` ${v}` : ""}`}
         onClick={(e) => onSelect(e) || showPane(paneId)}
         // Middle-click closes the thread (the same safe close as the Close button); mousedown is cancelled so the OS doesn't start autoscroll.
-        onMouseDown={(e) => e.button === 1 && e.preventDefault()}
+        onMouseDown={(e) => e.button === 1 && prefs.middleClick && e.preventDefault()}
         onAuxClick={(e) => {
-          if (e.button !== 1) return;
+          if (e.button !== 1 || !prefs.middleClick) return;
           e.preventDefault();
           closePaneSafely(paneId);
         }}
@@ -175,6 +294,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect }: { paneId
         <span className="th-t">
           <Lead v={v} pane={pane} running={!!running} />
           <span className="th-title">{label}</span>
+          {prefs.pin && pane?.pinned !== undefined && <span className="th-pin" title="Pinned" aria-label="Pinned">📌</span>}
           {pane?.babysit && (
             <span className="th-babysit" title={`Babysitting its PR: woken ${pane.babysitWakes ?? 0} times (turn it off in Details)`}>
               ◉
@@ -201,7 +321,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect }: { paneId
                 Clean up
               </button>
             )}
-            <button className="nav-act" title="Back to the active threads" onClick={() => update(paneId, { settled: false, snoozedUntil: undefined })}>
+            <button className="nav-act" title="Back to the active threads" onClick={() => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")}>
               Wake
             </button>
             <button className="nav-act" title="Close this thread for good (Settle only files it away)" onClick={() => closePaneSafely(paneId)}>
@@ -210,10 +330,15 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect }: { paneId
           </>
         ) : (
           <>
+            {prefs.pin && (
+              <button className="nav-act" title={pane?.pinned !== undefined ? "Unpin" : "Pin above the other threads"} onClick={() => patchThreads([paneId], pinPatch(pane?.pinned === undefined, Date.now()), pane?.pinned === undefined ? "Pinned" : "Unpinned")}>
+                {pane?.pinned !== undefined ? "Unpin" : "Pin"}
+              </button>
+            )}
             <button className="nav-act" title="Snooze: out of the way until a time you pick, or until it needs you" onClick={() => setMenu(!menu)}>
               Snooze
             </button>
-            <button className="nav-act" title="Settle: done for now, move it under Settled" onClick={() => update(paneId, { settled: true })}>
+            <button className="nav-act" title="Settle: done for now, move it under Settled" onClick={() => patchThreads([paneId], settlePatch(), "Settled")}>
               Settle
             </button>
           </>
@@ -222,12 +347,38 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect }: { paneId
           <SnoozeMenu
             onClose={() => setMenu(false)}
             onPick={(until) => {
-              update(paneId, { snoozedUntil: until });
+              patchThreads([paneId], { snoozedUntil: until }, "Snoozed");
               setMenu(false);
             }}
           />
         )}
       </span>
+      {renaming && (
+        // Outside the row's <button>: an input inside a button mis-handles focus and Space in WebKit.
+        <input
+          className="th-rename"
+          autoFocus
+          defaultValue={pane?.title ?? label}
+          aria-label="Thread name"
+          onFocus={(e) => e.currentTarget.select()}
+          onKeyDown={(e) => {
+            e.stopPropagation();
+            if (e.key === "Enter") {
+              update(paneId, { title: cleanTitle(e.currentTarget.value) });
+              useUi.getState().set({ renameThread: null });
+            } else if (e.key === "Escape") useUi.getState().set({ renameThread: null });
+          }}
+          onBlur={() => useUi.getState().set({ renameThread: null })}
+        />
+      )}
+      {menuOpen && (
+        <ThreadMenu
+          paneId={paneId}
+          pinned={pane?.pinned !== undefined}
+          away={!!away}
+          onSnooze={() => setMenu(true)}
+        />
+      )}
     </div>
   );
 }
@@ -266,7 +417,7 @@ function PhoneStatus() {
   );
 }
 
-type Group = { key: "needs" | "work" | "recent"; label: string; ids: string[] };
+type Group = { key: "pinned" | "needs" | "work" | "recent"; label: string; ids: string[] };
 
 /** Every open pane as a thread, grouped by what it needs: you, time, or nothing. Snoozed and settled ones fold away below. */
 export function ProjectsSidebar() {
@@ -283,6 +434,7 @@ export function ProjectsSidebar() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkMenu, setBulkMenu] = useState(false);
   const [removed, setRemoved] = useState(0);
+  const prefs = useUi((s) => s.prefs);
   // Snoozes end and ages tick on the clock, so re-check once a minute.
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -308,15 +460,17 @@ export function ProjectsSidebar() {
   const visible = all.filter(shown);
   const snoozedIds = visible.filter((id) => snoozed(id) && !panes[id]?.settled);
   const settledIds = visible.filter((id) => panes[id]?.settled);
-  const active = visible.filter((id) => !snoozed(id) && !panes[id]?.settled);
+  const activeAll = visible.filter((id) => !snoozed(id) && !panes[id]?.settled);
+  const { pinned: pinnedIds, rest: active } = prefs.pin ? splitPinned(activeAll, panes) : { pinned: [] as string[], rest: activeAll };
   const st = (id: string) => (sessions[id] ? visualOf(sessions[id]) : undefined);
   const groups: Group[] = [
+    { key: "pinned", label: "Pinned", ids: pinnedIds },
     { key: "needs", label: "Needs you", ids: active.filter((id) => st(id) === "needs_input") },
     { key: "work", label: "Working", ids: active.filter((id) => st(id) === "working" || st(id) === "starting" || (!sessions[id] && (panes[id]?.account || panes[id]?.mode === "chat"))) },
     { key: "recent", label: "Recent", ids: [] },
   ];
   const grouped = new Set(groups.flatMap((g) => g.ids));
-  groups[2].ids = active.filter((id) => !grouped.has(id)).sort((a, b) => (sessions[b]?.updatedAt ?? 0) - (sessions[a]?.updatedAt ?? 0));
+  groups[3].ids = active.filter((id) => !grouped.has(id)).sort((a, b) => (sessions[b]?.updatedAt ?? 0) - (sessions[a]?.updatedAt ?? 0));
 
   const live = [...selected].filter((id) => panes[id]);
   const select = (id: string) => (e: MouseEvent) => {
@@ -328,7 +482,7 @@ export function ProjectsSidebar() {
     return true;
   };
   const bulk = (patch: Partial<PaneMeta>) => {
-    for (const id of live) useLayout.getState().updatePane(id, patch);
+    patchThreads(live, patch, patch.settled === true ? "Settled" : patch.snoozedUntil !== undefined ? "Snoozed" : "Woke");
     setSelected(new Set());
     setBulkMenu(false);
   };
@@ -337,7 +491,56 @@ export function ProjectsSidebar() {
     setSelected(new Set());
     for (const r of roots) await cleanUpWorktree(r);
   };
-  const row = (id: string) => <PaneRow key={id} paneId={id} focused={id === focusedId} snoozed={snoozed(id)} selected={live.includes(id)} now={now} onSelect={select(id)} />;
+  // Drag a thread between sections: pin, settle, wake. The target section shows what a drop would do.
+  const [drag, setDrag] = useState<{ id: string; over: Zone | null } | null>(null);
+  const zoneId = (id: string): Zone => zoneOf({ pinned: panes[id]?.pinned, settled: panes[id]?.settled, snoozed: snoozed(id) && !panes[id]?.settled });
+  const planFor = (to: Zone) => (drag ? dropPlan(zoneId(drag.id), to, Date.now()) : null);
+  const finishDrop = (to: Zone, beforeId: string | null = null) => {
+    if (!drag) return;
+    const from = zoneId(drag.id);
+    let plan = dropPlan(from, to, Date.now());
+    if (to === "pinned") {
+      const order = pinnedIds.map((id) => ({ id, pinned: panes[id]!.pinned! }));
+      const key = pinKeyBefore(order, drag.id, beforeId, Date.now());
+      if (from === "pinned") plan = beforeId === drag.id ? null : { patch: { pinned: key }, verb: "Moved", label: "Move" };
+      else if (plan) plan = { ...plan, patch: { ...plan.patch, pinned: key } };
+    }
+    setDrag(null);
+    if (plan) patchThreads([drag.id], plan.patch, plan.verb);
+  };
+  const zoneProps = (to: Zone) =>
+    prefs.dragSections && drag
+      ? {
+          onDragOver: (e: React.DragEvent) => {
+            if (!planFor(to) && !(to === "pinned" && zoneId(drag.id) === "pinned")) return;
+            e.preventDefault();
+            e.stopPropagation();
+            if (drag.over !== to) setDrag({ ...drag, over: to });
+          },
+          onDrop: (e: React.DragEvent) => {
+            e.preventDefault();
+            e.stopPropagation();
+            finishDrop(to);
+          },
+        }
+      : {};
+  const overLabel = (to: Zone) => (drag?.over === to ? (to === "pinned" && zoneId(drag.id) === "pinned" ? "Move" : planFor(to)?.label) : undefined);
+  const row = (id: string) => (
+    <PaneRow
+      key={id}
+      paneId={id}
+      focused={id === focusedId}
+      snoozed={snoozed(id)}
+      selected={live.includes(id)}
+      now={now}
+      onSelect={select(id)}
+      dnd={
+        prefs.dragSections && !filter.trim()
+          ? { start: () => setDrag({ id, over: null }), end: () => setDrag(null), drop: () => finishDrop(zoneId(id), id), dragging: drag?.id === id }
+          : undefined
+      }
+    />
+  );
   const set = useUi.getState().set;
 
   return (
@@ -349,7 +552,7 @@ export function ProjectsSidebar() {
             <button className="nav-act" onClick={() => setBulkMenu(!bulkMenu)}>
               Snooze
             </button>
-            <button className="nav-act" onClick={() => bulk({ settled: true })}>
+            <button className="nav-act" onClick={() => bulk(settlePatch())}>
               Settle
             </button>
             <button className="nav-act" onClick={() => bulk({ settled: false, snoozedUntil: undefined })}>
@@ -364,8 +567,9 @@ export function ProjectsSidebar() {
               className="nav-act"
               title="Close these threads for good"
               onClick={() => {
-                for (const id of live) closePaneSafely(id);
-                setSelected(new Set());
+                // Keep the selection when the unsaved-edits guard refuses, so the
+                // "close again to discard" retry still has the same threads.
+                if (closePanesSafely(live)) setSelected(new Set());
               }}
             >
               Close
@@ -414,21 +618,48 @@ export function ProjectsSidebar() {
           aria-label="Filter threads"
         />
       )}
-      <div className="side-list" role="tree" aria-label="Threads">
-        {groups.map(
-          (g) =>
-            g.ids.length > 0 && (
-              <section key={g.key} className={`grp ${g.key}`}>
-                <h3>
-                  {g.label}
-                  <span className="n num">{g.ids.length}</span>
-                </h3>
-                {g.ids.map(row)}
-              </section>
-            ),
-        )}
+      <div
+        className="side-list"
+        role="tree"
+        aria-label="Threads"
+        {...zoneProps("active")}
+        onKeyDown={(e) => {
+          // Keys inside an open thread menu or a text box belong to those, not to the list.
+          if (!prefs.sidebarKeys || e.target instanceof HTMLInputElement || (e.target as HTMLElement).closest("[role=menu]")) return;
+          const row = (e.target as HTMLElement).closest<HTMLElement>("[data-thread]");
+          const rows = [...e.currentTarget.querySelectorAll<HTMLElement>(".th-row")];
+          if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
+            e.preventDefault();
+            const i = rows.indexOf(row?.querySelector(".th-row") as HTMLElement);
+            rows[stepFocus(rows.length, i, e.key)]?.focus();
+          } else if (e.key === "F2" && row) {
+            e.preventDefault();
+            useUi.getState().set({ renameThread: row.dataset.thread! });
+          } else if ((e.key === "ContextMenu" || (e.key === "F10" && e.shiftKey)) && row) {
+            e.preventDefault();
+            useUi.getState().set({ threadMenu: row.dataset.thread! });
+          }
+        }}
+      >
+        {groups.map((g) => {
+          const zone: Zone = g.key === "pinned" ? "pinned" : "active";
+          // While dragging, an empty Pinned strip shows up so there is somewhere to drop.
+          const showEmptyPinned = g.key === "pinned" && g.ids.length === 0 && prefs.pin && prefs.dragSections && !!drag;
+          if (g.ids.length === 0 && !showEmptyPinned) return null;
+          return (
+            <section key={g.key} className={`grp ${g.key}${drag?.over === zone ? " drop-over" : ""}`} {...(g.key === "pinned" ? zoneProps("pinned") : {})}>
+              <h3>
+                {g.label}
+                <span className="n num">{g.ids.length}</span>
+                {overLabel(zone) && g.key === "pinned" && <span className="drop-label">{overLabel(zone)}</span>}
+              </h3>
+              {g.ids.map(row)}
+              {showEmptyPinned && <p className="drop-hint">Drop here to pin</p>}
+            </section>
+          );
+        })}
         {(away === "snoozed" || filter.trim()) && snoozedIds.length > 0 && (
-          <section className="grp">
+          <section className="grp" {...zoneProps("snoozed")}>
             <h3>
               Snoozed<span className="n num">{snoozedIds.length}</span>
             </h3>
@@ -436,9 +667,10 @@ export function ProjectsSidebar() {
           </section>
         )}
         {(away === "settled" || filter.trim()) && settledIds.length > 0 && (
-          <section className="grp">
+          <section className={`grp${drag?.over === "settled" ? " drop-over" : ""}`} {...zoneProps("settled")}>
             <h3>
               Settled<span className="n num">{settledIds.length}</span>
+              {overLabel("settled") && <span className="drop-label">{overLabel("settled")}</span>}
             </h3>
             {settledIds.map(row)}
           </section>
@@ -449,8 +681,13 @@ export function ProjectsSidebar() {
         <button className={`bk${away === "snoozed" ? " on" : ""}`} onClick={() => setAway(away === "snoozed" ? null : "snoozed")} aria-pressed={away === "snoozed"}>
           Snoozed<span className="num">{snoozedIds.length}</span>
         </button>
-        <button className={`bk${away === "settled" ? " on" : ""}`} onClick={() => setAway(away === "settled" ? null : "settled")} aria-pressed={away === "settled"}>
-          Settled<span className="num">{settledIds.length}</span>
+        <button
+          className={`bk${away === "settled" ? " on" : ""}${drag?.over === "settled" ? " drop-over" : ""}`}
+          onClick={() => setAway(away === "settled" ? null : "settled")}
+          aria-pressed={away === "settled"}
+          {...zoneProps("settled")}
+        >
+          Settled<span className="num">{overLabel("settled") ?? settledIds.length}</span>
         </button>
         {spare.length > 0 && (
           <div className="bk leftover" title={spare.map((w) => `${w.branch}${w.dirty ? " (uncommitted changes)" : ""}`).join("\n")}>

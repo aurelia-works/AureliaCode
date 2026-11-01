@@ -27,9 +27,12 @@ tokio = { version = "1", features = ["net", "sync", "time", "macros"] }
 qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 if-addrs = "0.13"
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+# Durable threads, work items and events. Bundled SQLite keeps the app self-contained.
+rusqlite = { version = "0.32", features = ["bundled"] }
 
 [profile.release]
 codegen-units = 1
 lto = true
 opt-level = "s"
-strip = true
+# Keep the symbol table so crash reports and panic.log backtraces name functions.
+strip = "debuginfo"

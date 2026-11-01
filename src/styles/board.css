@@ -300,3 +300,284 @@
   align-items: center;
   gap: 3px;
 }
+
+/* ---------- Work board (⇧⌘4): the durable graph, four columns across projects ---------- */
+
+.wb-filter {
+  height: 28px;
+  max-width: 220px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+.wb-filter:hover {
+  background: var(--surface-2);
+}
+
+.wb-new {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.wb-new input {
+  width: 150px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.wb-new input:focus {
+  outline: none;
+  border-color: var(--focus);
+}
+
+.wb-new .btn {
+  height: 28px;
+}
+
+.wk-scroll {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(210px, 1fr));
+  gap: var(--sp-3);
+  align-items: start;
+  overflow: auto;
+  padding: 0 var(--sp-5) var(--sp-5);
+}
+@media (max-width: 900px) {
+  .wk-scroll {
+    grid-template-columns: repeat(2, minmax(210px, 1fr));
+  }
+}
+
+.wk-col {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 140px;
+  padding: 8px;
+  border-radius: var(--r-lg);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 45%, var(--bg));
+  transition: border-color var(--t-fast), background var(--t-fast);
+}
+.wk-col.over {
+  border-color: var(--focus);
+  background: var(--hover);
+}
+.wk-col.no-drop {
+  opacity: 0.55;
+}
+.wk-col-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 2px var(--sp-2);
+  padding: 2px 0 6px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.wk-col.working .wk-col-head {
+  color: var(--work);
+}
+.wk-col.review .wk-col-head {
+  color: var(--attn);
+}
+.wk-col.done .wk-col-head {
+  color: var(--ok);
+}
+.wk-col-head::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.wk-count {
+  padding: 0 6px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  letter-spacing: 0;
+  text-transform: none;
+}
+.wk-col-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+.wk-empty {
+  margin: 2px 4px 6px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.wk-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 9px 10px 8px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  cursor: grab;
+  transition: border-color var(--t-fast), box-shadow var(--t-fast), opacity var(--t-fast);
+}
+.wk-card:hover {
+  border-color: var(--border-strong);
+}
+.wk-card.review {
+  border-color: var(--attn-line);
+  background: linear-gradient(170deg, var(--attn-soft), transparent 60%), var(--surface);
+}
+.wk-card.done {
+  background: color-mix(in srgb, var(--surface) 55%, var(--bg));
+}
+.wk-card.dragging {
+  opacity: 0.45;
+}
+.wk-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.wk-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.wk-card.done .wk-title {
+  color: var(--text-dim);
+}
+.wk-project {
+  margin-left: auto;
+  flex: none;
+  max-width: 42%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.wk-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.wk-badges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.wk-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font: 10.5px/1 var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wk-badge.harness {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-family: var(--font-ui);
+  font-weight: 600;
+}
+.wk-badge.harness.claude {
+  color: var(--attn);
+  border-color: var(--attn-line);
+  background: var(--attn-soft);
+}
+.wk-badge.harness.codex {
+  color: var(--work);
+  border-color: color-mix(in srgb, var(--work) 45%, transparent);
+  background: var(--work-soft);
+}
+.wk-badge.quiet {
+  color: var(--text-faint);
+}
+.wk-badge.branch {
+  max-width: 60%;
+}
+.wk-badge.pr {
+  cursor: pointer;
+  color: var(--text-dim);
+}
+.wk-badge.pr:hover {
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+.wk-badge.pr.merged {
+  color: var(--ok);
+  border-color: color-mix(in srgb, var(--ok) 45%, transparent);
+  background: var(--ok-soft);
+}
+.wk-badge.pr.closed {
+  color: var(--err);
+  border-color: color-mix(in srgb, var(--err) 45%, transparent);
+  background: var(--err-soft);
+}
+.wk-card-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+.wk-meta {
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.wk-age {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--text-faint);
+}
+.wk-act.btn {
+  height: 22px;
+  padding: 0 8px;
+  font-size: 11px;
+}
+.wk-act.btn.primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+
+.wk-load-error {
+  margin: 0 var(--sp-5) var(--sp-3);
+}

@@ -1,7 +1,8 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useLayout } from "../store/layout";
+import { useUi } from "../store/ui";
 import { focusChat, insertIntoChat } from "./chatComposer";
-import { insertAtPrompt } from "./terminals";
+import { insertAtPrompt, showPane } from "./terminals";
 
 /** Backslash-escapes a path for zsh, the way Terminal.app and iTerm do on drop. */
 export function shellEscape(path: string) {
@@ -21,7 +22,8 @@ function setHovered(el: HTMLElement | null) {
 function paneAt(position: { x: number; y: number }): HTMLElement | null {
   const ratio = window.devicePixelRatio || 1;
   const el = document.elementFromPoint(position.x / ratio, position.y / ratio);
-  return el?.closest<HTMLElement>("[data-pane-id]") ?? null;
+  // A pane, or a thread row in the sidebar (when Settings → Threads & keys allows it).
+  return el?.closest<HTMLElement>(useUi.getState().prefs.dropFiles ? "[data-pane-id], [data-thread]" : "[data-pane-id]") ?? null;
 }
 
 /**
@@ -38,9 +40,12 @@ export async function installFileDrop() {
       setHovered(null);
     } else if (p.type === "drop") {
       setHovered(null);
-      const paneId = paneAt(p.position)?.dataset.paneId;
+      const target = paneAt(p.position);
+      const paneId = target?.dataset.paneId ?? target?.dataset.thread;
       if (!paneId || p.paths.length === 0) return;
-      useLayout.getState().focusPane(paneId);
+      // A thread row opens its thread first, so the files land in the composer you can see.
+      if (target?.dataset.thread) showPane(paneId);
+      else useLayout.getState().focusPane(paneId);
       // A chat takes them quoted, not escaped: Claude reads them, images included.
       if (useLayout.getState().panes[paneId]?.mode === "chat") {
         insertIntoChat(paneId, p.paths.map((f) => (/\s/.test(f) ? `"${f}"` : f)).join(" ") + " ");

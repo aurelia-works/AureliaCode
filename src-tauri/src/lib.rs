@@ -14,6 +14,9 @@ mod ide;
 mod integration;
 mod orchestrator;
 mod links;
+mod pairing;
+mod tailscale;
+pub mod panic_log;
 mod privacy;
 mod pr;
 mod pty;
@@ -21,6 +24,7 @@ mod ptyhost;
 mod remote;
 mod rules;
 mod review;
+mod store;
 mod subagents;
 mod suggest;
 mod transcript;
@@ -141,12 +145,16 @@ pub fn run() {
         .plugin(no_webview_context_menu())
         .manage(pty::PtyState::default())
         .manage(chat::ChatState::default())
+        .manage(store::Db::default())
         .manage(discord::DiscordState::default())
         .setup(|app| {
             if let Err(e) = integration::install() {
                 eprintln!("[aurelia] failed to install shell integration: {e}");
             }
             config::load(); // writes the default config on first run
+            if let Err(e) = store::init(app.handle()) {
+                eprintln!("[aurelia] local store: {e}");
+            }
             integration::watch_events(app.handle().clone());
             voice::listen(app.handle().clone());
             remote::init(app.handle());
@@ -168,6 +176,7 @@ pub fn run() {
             browser::browser_close,
             discord::discord_set,
             files::pick_folder,
+            files::make_scratch,
             privacy::has_full_disk_access,
             privacy::open_full_disk_access_settings,
             chat::chat_spawn,
@@ -184,6 +193,16 @@ pub fn run() {
             chat::chat_answer,
             chat::chat_kill,
             chat::chat_history,
+            store::store_thread_upsert,
+            store::store_threads,
+            store::store_thread_delete,
+            store::store_thread_search,
+            store::store_event_append,
+            store::store_events,
+            store::store_import_threads,
+            store::store_health,
+            browser::browser_eval,
+            browser::browser_screenshot,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_write_binary,
@@ -196,6 +215,8 @@ pub fn run() {
             remote::remote_status,
             remote::remote_apply,
             remote::remote_reset_token,
+            remote::remote_unpair,
+            remote::remote_test,
             remote::remote_snapshot,
             links::take_prompt_links,
             control::control_reply,
@@ -218,6 +239,12 @@ pub fn run() {
             git::list_worktrees,
             git::remove_worktree,
             git::git_diff,
+            git::git_changes,
+            git::git_commit,
+            git::git_push,
+            git::git_create_pr,
+            git::git_worktree_status,
+            git::git_merge_worktree,
             pr::pr_status,
             checkpoints::diff_scope,
             checkpoints::checkpoint_create,
@@ -258,9 +285,28 @@ pub fn run() {
         if let RunEvent::Opened { urls } = &event {
             links::opened(handle, urls.iter().map(|u| u.to_string()));
         }
+        if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { api, .. }, .. } = &event {
+            if label == "main" {
+                let cfg = config::load();
+                if cfg.remote.enabled && cfg.remote.keep_running {
+                    // Hide, don't quit: the agents and the phone remote stay up.
+                    api.prevent_close();
+                    if let Some(window) = handle.get_window("main") {
+                        let _ = window.hide();
+                    }
+                }
+            }
+        }
         if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } = &event {
             if label == "main" {
                 hud::close(handle);
+            }
+        }
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Reopen { .. } = event {
+            if let Some(window) = handle.get_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
             }
         }
         if let RunEvent::Exit = event {

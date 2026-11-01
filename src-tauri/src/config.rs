@@ -254,11 +254,18 @@ pub struct RemoteConfig {
     pub port: u16,
     /// Also accept phones on the local network; off = this Mac and Tailscale only.
     pub allow_lan: bool,
+    /// Serve the remote at https://<mac>.<tailnet>.ts.net through `tailscale serve`.
+    pub tailscale_https: bool,
+    /// The HTTPS port `tailscale serve` listens on (443 = no port in the address).
+    pub https_port: u16,
+    /// Hide the window instead of quitting when the close button is pressed, so agents and
+    /// the phone remote keep running. Click the dock icon to bring it back.
+    pub keep_running: bool,
 }
 
 impl Default for RemoteConfig {
     fn default() -> Self {
-        Self { enabled: false, port: 4747, allow_lan: false }
+        Self { enabled: false, port: 4747, allow_lan: false, tailscale_https: false, https_port: 443, keep_running: false }
     }
 }
 
@@ -414,10 +421,35 @@ fn write_json(path: &Path, value: &Value) -> Result<(), String> {
     fs::rename(&tmp, path).map_err(|e| e.to_string())
 }
 
+/// Atomic JSON write for files only this user may read (pairing tokens, remote devices).
+/// The temp file is created 0600 before any bytes are written, so there is no window where
+/// it is world-readable, and a crash leaves either the old file or the complete new one.
+pub(crate) fn write_private_json(path: &Path, value: &Value) -> Result<(), String> {
+    use std::io::Write;
+    use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    let text = serde_json::to_string_pretty(value).map_err(|e| e.to_string())?;
+    let mut file = fs::OpenOptions::new()
+        .create(true)
+        .truncate(true)
+        .write(true)
+        .mode(0o600)
+        .open(&tmp)
+        .map_err(|e| e.to_string())?;
+    file.write_all(text.as_bytes()).map_err(|e| e.to_string())?;
+    file.sync_all().map_err(|e| e.to_string())?;
+    fs::rename(&tmp, path).map_err(|e| e.to_string())?;
+    let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
+    Ok(())
+}
+
 /// Only these state files may be read/written from the frontend.
 fn state_path(name: &str) -> Result<PathBuf, String> {
     match name {
-        "layout" | "tasks" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" => Ok(app_dir().join(format!("{name}.json"))),
+        "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" => Ok(app_dir().join(format!("{name}.json"))),
         _ => Err(format!("unknown state file: {name}")),
     }
 }

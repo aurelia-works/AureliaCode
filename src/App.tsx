@@ -1,6 +1,8 @@
+import { UndoToast } from "./components/UndoToast";
 import { WeeklyPage } from "./components/planner/WeeklyPage";
 import { RoadmapPage } from "./components/planner/RoadmapPage";
 import { CaptureBox } from "./components/planner/CaptureBox";
+import { HistoryPanel } from "./components/HistoryPanel";
 import { useEffect } from "react";
 import { AccountPicker } from "./components/AccountPicker";
 import { AgentsBoard } from "./components/AgentsBoard";
@@ -18,6 +20,7 @@ import { SettingsPage } from "./components/settings/SettingsPage";
 import { ThreadHeader } from "./components/ThreadHeader";
 import { TitleBar } from "./components/TitleBar";
 import { Toast } from "./components/Toast";
+import { WorkBoard } from "./components/WorkBoard";
 import { fitAllTerminals, focusTerminal } from "./lib/terminals";
 import { activeTab, useLayout } from "./store/layout";
 import { useUi } from "./store/ui";
@@ -35,8 +38,9 @@ export function App() {
   const railTab = useUi((s) => s.railTab);
   const railWidth = useUi((s) => s.railWidths[s.railTab]);
   const mode = useUi((s) => s.mode);
+  const historyOpen = useUi((s) => s.historyOpen);
   const focusKey = useLayout((s) => `${s.activeTabId}:${s.tabs.find((t) => t.id === s.activeTabId)?.focusedPaneId}`);
-  const modalOpen = useUi((s) => s.settingsOpen || s.captureOpen || s.roadmapOpen || s.weeklyOpen || !!s.accountPicker || s.gridOpen || s.reviewOpen || s.paletteOpen);
+  const modalOpen = useUi((s) => s.settingsOpen || s.captureOpen || s.roadmapOpen || s.weeklyOpen || !!s.accountPicker || s.gridOpen || s.reviewOpen || s.paletteOpen || s.historyOpen);
 
   // Belt and braces: anything that resized while the board covered the stage refits on the way back.
   useEffect(() => {
@@ -53,7 +57,7 @@ export function App() {
 
   // Keyboard focus follows the focused pane.
   useEffect(() => {
-    if (modalOpen || useUi.getState().mode === "agents") return;
+    if (modalOpen || useUi.getState().mode !== "terminals") return;
     const id = requestAnimationFrame(() => {
       const pane = activeTab()?.focusedPaneId;
       if (!pane) return;
@@ -71,7 +75,7 @@ export function App() {
         {nav && <Navigator view={nav} />}
         <main className="stage">
           <ThreadHeader />
-          <div className={`tabs-area${mode === "agents" ? " mode-hidden" : ""}`}>
+          <div className={`tabs-area${mode !== "terminals" ? " mode-hidden" : ""}`}>
             {tabs.map((tab) => (
               <div key={tab.id} className={`tab-content${tab.id === activeTabId ? "" : " hidden"}`}>
                 <LayoutView node={tab.root} zoom={single ? tab.focusedPaneId : undefined} />
@@ -79,14 +83,28 @@ export function App() {
             ))}
           </div>
           {mode === "agents" && <AgentsBoard />}
+          {mode === "work" && (
+            <WorkBoard
+              // The launch path stays where it is: Start opens the existing picker with the item
+              // as its task. The owner wires that to the thread/worktree creation next.
+              onStart={(item) =>
+                useUi.getState().set({ accountPicker: { target: "tab", task: { project: item.project, id: item.id, title: item.title } } })
+              }
+              onReview={(item) => {
+                if (item.paneId && useLayout.getState().panes[item.paneId]) useLayout.getState().focusPane(item.paneId);
+                useUi.getState().set({ reviewOpen: true });
+              }}
+            />
+          )}
         </main>
-        {agentPanelOpen && mode !== "agents" && <RightPanel />}
+        {agentPanelOpen && mode === "terminals" && <RightPanel />}
       </div>
       <DiffReview />
       <SettingsPage />
       <AccountPicker />
       <GridPicker />
       <CommandPalette />
+      {historyOpen && <HistoryPanel />}
       <CaptureBox />
       <RoadmapPage />
       <WeeklyPage />
@@ -94,6 +112,7 @@ export function App() {
       <Checkpoints />
       <NoticeStack />
       <Toast />
+      <UndoToast />
       <PaneDragGhost />
     </div>
   );

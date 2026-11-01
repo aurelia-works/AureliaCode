@@ -34,6 +34,10 @@ import { loadCustomAgents } from "./store/customAgents";
 import { loadPrompts, startPromptLinks } from "./store/prompts";
 import { loadRecents } from "./store/recents";
 import { loadTasks } from "./store/tasks";
+import { flushTeamRuns, loadTeamRuns, startTeamRunWatch } from "./store/teamRuns";
+import { startNavHistory } from "./store/navHistory";
+import { startThreadStore } from "./lib/threadStore";
+import { flushWork, useWork } from "./store/work";
 import { loadPlanner, watchSettled } from "./store/planner";
 import { loadUiState, useUi } from "./store/ui";
 import { startMetrics } from "./store/metrics";
@@ -44,10 +48,12 @@ import "./styles/base.css";
 import "./styles/chrome.css";
 import "./styles/panes.css";
 import "./styles/board.css";
+import "./styles/agentview.css";
 import "./styles/overlays.css";
 import "./styles/notices.css";
 import "./styles/settings.css";
 import "./styles/deep.css";
+import "./styles/skills.css";
 
 function applyTheme() {
   const cfg = useConfig.getState().config;
@@ -71,12 +77,24 @@ function persistLayout() {
 async function boot() {
   await useConfig.getState().load();
   setHome(await homeDir().catch(() => ""));
-  await Promise.all([loadUiState(), loadTasks(), loadRecents(), loadCustomAgents(), loadPrompts(), loadPlanner()]);
+  await Promise.all([loadUiState(), loadTasks(), loadRecents(), loadCustomAgents(), loadPrompts(), loadPlanner(), loadTeamRuns()]);
+  // After tasks, so the first run on this build can migrate them into the work graph.
+  await useWork.getState().load();
   const saved = await ipc.loadState<SavedLayout>("layout").catch(() => null);
   useLayout.getState().hydrate(saved);
   watchSettled();
+  startNavHistory();
   await planResume(saved);
+  startTeamRunWatch();
   persistLayout();
+  startThreadStore();
+  // Debounced stores write one last time when the window goes away.
+  const flush = () => {
+    void flushWork();
+    void flushTeamRuns();
+  };
+  window.addEventListener("beforeunload", flush);
+  window.addEventListener("pagehide", flush);
 
   applyTheme();
   onSystemThemeChange(applyTheme);

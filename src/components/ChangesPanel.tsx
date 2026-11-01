@@ -4,10 +4,11 @@ import { parseDiff, type DiffFile } from "../lib/diff";
 import { ipc, type Diff } from "../lib/ipc";
 import { openFile } from "../lib/openFile";
 import { useAgents } from "../store/agents";
-import { paneDir } from "../store/git";
+import { paneDir, useGit } from "../store/git";
 import { useLayout } from "../store/layout";
 import { usePrs } from "../store/prs";
-import { useUi } from "../store/ui";
+import { toast, useUi } from "../store/ui";
+import { GitDialog, type GitDialogMode } from "./GitDialog";
 import { RerunIcon } from "./Icons";
 
 type Scope = "turn" | "branch" | "uncommitted";
@@ -155,37 +156,103 @@ export function ChangesPanel() {
   );
 }
 
-/** Under a chat's diff: babysit its PR, or ask Claude to open one or to commit and push. */
+/** Under a chat's diff: babysit its PR, or commit / open one with a real dialog. */
 function PrActions({ paneId }: { paneId: string }) {
   const pane = useLayout((s) => s.panes[paneId]);
   const pr = usePrs((s) => {
     const d = paneDir(paneId);
     return d ? s.byDir[d] : undefined;
   });
+  const dir = paneDir(paneId);
+  const info = useGit((s) => (dir ? s.info[dir] : null));
   const busy = useChat((s) => s.byPane[paneId]?.status === "working");
+  const [gitBusy, setGitBusy] = useState(false);
+  const [dialog, setDialog] = useState<GitDialogMode | null>(null);
+  const [mergeArmed, setMergeArmed] = useState(false);
   if (pane?.mode !== "chat") return null;
   const ask = (text: string) => void sendChat(paneId, text);
+
+  const pushOnly = async () => {
+    if (!dir) return;
+    setGitBusy(true);
+    try {
+      toast(await ipc.gitPush(dir));
+    } catch (e) {
+      toast(String(e), true);
+    } finally {
+      setGitBusy(false);
+    }
+  };
+
+  const merge = async () => {
+    if (!dir) return;
+    if (!mergeArmed) {
+      setMergeArmed(true);
+      window.setTimeout(() => setMergeArmed(false), 4000);
+      return;
+    }
+    setMergeArmed(false);
+    setGitBusy(true);
+    try {
+      toast(await ipc.gitMergeWorktree(dir));
+    } catch (e) {
+      toast(String(e), true);
+    } finally {
+      setGitBusy(false);
+    }
+  };
+
   return (
-    <div className="pact">
-      {pr?.state === "OPEN" && (
-        <button
-          className="btn"
-          aria-pressed={!!pane.babysit}
-          title="Watch this PR and wake the thread on failed checks, new reviews or conflicts"
-          onClick={() => useLayout.getState().updatePane(paneId, { babysit: !pane.babysit, babysitWakes: 0 })}
-        >
-          {pane.babysit ? "Babysitting" : "Babysit PR"}
+    <>
+      <div className="pact">
+        {pr?.state === "OPEN" && (
+          <button
+            className="btn"
+            aria-pressed={!!pane.babysit}
+            title="Watch this PR and wake the thread on failed checks, new reviews or conflicts"
+            onClick={() => useLayout.getState().updatePane(paneId, { babysit: !pane.babysit, babysitWakes: 0 })}
+          >
+            {pane.babysit ? "Babysitting" : "Babysit PR"}
+          </button>
+        )}
+        <span className="sp" />
+        {!pr && (
+          <button className="btn" disabled={gitBusy || busy} title="Create a draft pull request from this branch" onClick={() => setDialog("pr")}>
+            Open PR
+          </button>
+        )}
+        <button className="btn solid" disabled={gitBusy || !dir} title="Choose files, write a message, commit and push" onClick={() => setDialog("commit")}>
+          {gitBusy ? "Working…" : "Commit & push"}
         </button>
-      )}
-      <span className="sp" />
-      {!pr && (
-        <button className="btn" disabled={busy} title="Ask Claude to push the branch and open a pull request" onClick={() => ask("Push this branch and open a pull request for it.")}>
-          Open PR
+        <button className="btn" disabled={gitBusy || !dir} title="Push the current branch without committing" onClick={() => void pushOnly()}>
+          Push
         </button>
+        {info?.worktree && (
+          <button
+            className={`btn${mergeArmed ? " solid" : ""}`}
+            disabled={gitBusy}
+            title={mergeArmed ? "Click again to merge this worktree's branch" : "Merge this worktree's branch into the main checkout"}
+            onClick={() => void merge()}
+          >
+            {mergeArmed ? "Confirm merge" : "Merge worktree"}
+          </button>
+        )}
+        <button className="link-btn" disabled={busy} title="Ask the agent to do it instead" onClick={() => ask("Commit these changes with a clear message and push.")}>
+          Ask agent
+        </button>
+      </div>
+      {dialog && dir && (
+        <GitDialog
+          mode={dialog}
+          dir={dir}
+          defaultTitle={pane.title}
+          onClose={() => setDialog(null)}
+          onDone={(r) => {
+            setDialog(null);
+            toast(r.text, r.error);
+          }}
+        />
       )}
-      <button className="btn solid" disabled={busy} title="Ask Claude to commit these changes and push" onClick={() => ask("Commit these changes with a clear message and push.")}>
-        Commit and push
-      </button>
-    </div>
+    </>
   );
 }

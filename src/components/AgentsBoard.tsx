@@ -11,6 +11,7 @@ import { useRuntime } from "../store/runtime";
 import { tasksForPane, useTasks } from "../store/tasks";
 import { useUi } from "../store/ui";
 import { SignalsRow } from "./planner/SignalsRow";
+import { AgentView, openAgentView, useAgentViewOpen } from "./AgentView";
 import { CacheBadge } from "./CacheBadge";
 import { AgentChip, usePaneAgent } from "./AgentChip";
 import { ArrowIcon, BranchIcon, GridIcon, SparkIcon } from "./Icons";
@@ -174,10 +175,13 @@ export function AgentsBoard() {
   const [sel, setSel] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const replyRef = useRef<HTMLInputElement>(null);
+  const showAgentView = useAgentViewOpen((s) => s.open);
 
   useEffect(() => {
     rootRef.current?.focus();
   }, []);
+
+  if (showAgentView) return <AgentView onBack={() => useAgentViewOpen.setState({ open: false })} />;
 
   const items: Item[] = tabs.flatMap((t, tab) =>
     paneIds(t.root)
@@ -219,6 +223,12 @@ export function AgentsBoard() {
           <Spend items={items} />
         </div>
         <div className="board-actions">
+          <button className="btn" onClick={() => openAgentView(false)} title="Every live pane and team run on one screen">
+            Agent view
+          </button>
+          <button className="btn" onClick={() => openAgentView(true)} title="Start a lead and its workers on one task">
+            <SparkIcon width={12} height={12} /> Run team
+          </button>
           <button className="btn" onClick={() => useUi.getState().set({ gridOpen: true })} title="New grid tab (⌘G)">
             <GridIcon width={12} height={12} /> Grid
           </button>

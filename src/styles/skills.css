@@ -1,0 +1,179 @@
+/* The DeepSeek skill pack on the home route (components/SkillsPanel.tsx). */
+.start-skills {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--surface) 70%, transparent);
+}
+
+.start-skills-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.start-skills-head h2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--text);
+}
+
+.start-skills-head h2 svg {
+  color: var(--attn);
+}
+
+.start-skills-sub {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.start-skills-search {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.start-skills-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--pane-bg);
+  color: var(--text);
+  font-size: 12px;
+}
+
+.start-skills-search input:focus {
+  outline: none;
+  border-color: var(--focus);
+}
+
+.start-skills-all {
+  padding: 0 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.start-skills-all:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.start-skills-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 132px;
+  overflow: auto;
+}
+
+.start-skill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.start-skill:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.start-skill.on {
+  color: var(--text);
+  border-color: var(--text-faint);
+  background: var(--surface-2);
+}
+
+.start-skill.swarm {
+  color: var(--attn);
+  border-color: color-mix(in oklab, var(--attn) 45%, var(--border));
+}
+
+.start-skill.swarm.on {
+  background: color-mix(in oklab, var(--attn) 12%, var(--surface-2));
+  border-color: var(--attn);
+}
+
+.start-skill-tag {
+  padding: 0 5px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--attn) 18%, transparent);
+  color: var(--attn);
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.start-skills-empty {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.start-skills-run {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.start-skills-desc {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.start-skills-desc b {
+  color: var(--text);
+  font-weight: 550;
+}
+
+.start-skills-go {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11px;
+}
+
+.start-skills-go:hover:not(:disabled) {
+  border-color: var(--text-faint);
+  background: var(--surface-3);
+}
+
+.start-skills-go:disabled {
+  opacity: 0.45;
+}

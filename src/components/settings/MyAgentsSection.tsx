@@ -2,6 +2,7 @@ import { useState } from "react";
 import { agentVariants, launchCustomAgent, launchTeam, PROVIDERS, variantOf } from "../../lib/agents";
 import { shortenPath } from "../../lib/format";
 import { ipc } from "../../lib/ipc";
+import type { Routing } from "../../lib/router";
 import { AGENT_COLORS, useCustomAgents, type AgentTeam, type CustomAgent } from "../../store/customAgents";
 import { useUi } from "../../store/ui";
 import { AgentAvatar, AgentChip } from "../AgentChip";
@@ -100,6 +101,13 @@ export function MyAgentsSection({ draft: config, notify }: SectionProps) {
 
 const MAX_TEAM = 16;
 
+const ROUTING_CHOICES: { id: Routing; label: string; hint: string }[] = [
+  { id: "balanced", label: "Balanced", hint: "review wants the strongest model, mechanical work the cheapest" },
+  { id: "cheap", label: "Cheap", hint: "always the cheapest model that can do the work" },
+  { id: "best", label: "Best", hint: "always the strongest model" },
+  { id: "manual", label: "Manual", hint: "use the harness default; no automatic pick" },
+];
+
 /** Saved lineups: several agents that open together as a grid in a new tab. */
 function TeamsGroup({ agents, notify }: { agents: CustomAgent[]; notify(msg: string): void }) {
   const teams = useCustomAgents((s) => s.teams);
@@ -122,7 +130,11 @@ function TeamsGroup({ agents, notify }: { agents: CustomAgent[]; notify(msg: str
     if (!edit.agentIds.length) return notify("Add at least one agent to the team.");
     // Keep members grouped in the order the agents are listed.
     const ordered = agents.flatMap((a) => edit.agentIds.filter((x) => x === a.id));
-    useCustomAgents.getState().saveTeam({ ...edit, agentIds: ordered });
+    useCustomAgents.getState().saveTeam({
+      ...edit,
+      agentIds: ordered,
+      leadId: edit.leadId && ordered.includes(edit.leadId) ? edit.leadId : undefined,
+    });
     notify(`${edit.name.trim()} saved.`);
     setEdit(null);
   };
@@ -146,6 +158,9 @@ function TeamsGroup({ agents, notify }: { agents: CustomAgent[]; notify(msg: str
                     const a = byId(id);
                     return a ? <AgentChip key={i} agent={a} /> : null;
                   })}
+                </span>
+                <span className="hint team-config">
+                  {t.routing ?? "balanced"} · {t.maxConcurrency ?? 4} at once
                 </span>
                 {removing === t.id ? (
                   <span className="acct-confirm">
@@ -213,6 +228,46 @@ function TeamsGroup({ agents, notify }: { agents: CustomAgent[]; notify(msg: str
               </div>
             </div>
           ))}
+          <label className="field">
+            <span>Lead</span>
+            <select
+              value={edit.leadId ?? edit.agentIds[0] ?? ""}
+              disabled={!edit.agentIds.length}
+              onChange={(e) => setEdit({ ...edit, leadId: e.target.value || undefined })}
+            >
+              {agents
+                .filter((a) => count(a.id) > 0)
+                .map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+            </select>
+          </label>
+          <label className="field">
+            <span>Model routing</span>
+            <select value={edit.routing ?? "balanced"} onChange={(e) => setEdit({ ...edit, routing: e.target.value as Routing })}>
+              {ROUTING_CHOICES.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="hint">
+            {ROUTING_CHOICES.find((r) => r.id === (edit.routing ?? "balanced"))?.hint}. The lead runs the goal, hands out slices and
+            writes the final report; workers get their own slice, harness and model.
+          </p>
+          <label className="field">
+            <span>At once</span>
+            <select value={edit.maxConcurrency ?? 4} onChange={(e) => setEdit({ ...edit, maxConcurrency: Number(e.target.value) })}>
+              {[1, 2, 3, 4].map((n) => (
+                <option key={n} value={n}>
+                  {n === 1 ? "Lead only" : `${n} panes (lead + ${n - 1} worker${n === 2 ? "" : "s"})`}
+                </option>
+              ))}
+            </select>
+          </label>
           <div className="acct-form-actions">
             <button onClick={() => setEdit(null)}>Cancel</button>
             <button className="primary" onClick={save}>
@@ -221,7 +276,7 @@ function TeamsGroup({ agents, notify }: { agents: CustomAgent[]; notify(msg: str
           </div>
         </div>
       ) : (
-        <button className="acct-add" onClick={() => setEdit({ name: "", agentIds: [] })}>
+        <button className="acct-add" onClick={() => setEdit({ name: "", agentIds: [], routing: "balanced", maxConcurrency: 4 })}>
           + New team
         </button>
       )}

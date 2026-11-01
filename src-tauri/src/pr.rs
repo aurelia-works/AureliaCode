@@ -5,6 +5,7 @@ use crate::config::expand_path;
 use crate::which;
 use serde::Serialize;
 use serde_json::Value;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
 #[derive(Serialize, Debug, PartialEq)]
@@ -70,26 +71,28 @@ fn summarise(v: &Value) -> Option<PrInfo> {
     })
 }
 
-/// The PR for the branch checked out in `cwd`, or None when it has none (or gh is missing
+/// The PR for the branch checked out in `dir`, or None when it has none (or gh is missing
 /// or signed out: a thread just shows no PR then).
+pub(crate) fn view_pr(dir: &Path) -> Result<Option<PrInfo>, String> {
+    let Some(gh) = which::locate("gh") else { return Ok(None) };
+    let out = Command::new(gh)
+        .current_dir(dir)
+        .args(["pr", "view", "--json", "number,url,title,state,isDraft,reviewDecision,mergeable,statusCheckRollup,reviews,comments"])
+        .env("GH_PROMPT_DISABLED", "1")
+        .output()
+        .map_err(|e| format!("gh: {e}"))?;
+    if !out.status.success() {
+        return Ok(None);
+    }
+    let v: Value = serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())?;
+    Ok(summarise(&v))
+}
+
 #[tauri::command]
 pub async fn pr_status(cwd: String) -> Result<Option<PrInfo>, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let Some(gh) = which::locate("gh") else { return Ok(None) };
-        let out = Command::new(gh)
-            .current_dir(expand_path(&cwd))
-            .args(["pr", "view", "--json", "number,url,title,state,isDraft,reviewDecision,mergeable,statusCheckRollup,reviews,comments"])
-            .env("GH_PROMPT_DISABLED", "1")
-            .output()
-            .map_err(|e| format!("gh: {e}"))?;
-        if !out.status.success() {
-            return Ok(None);
-        }
-        let v: Value = serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())?;
-        Ok(summarise(&v))
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || view_pr(&PathBuf::from(expand_path(&cwd))))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[cfg(test)]

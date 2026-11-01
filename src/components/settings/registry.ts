@@ -12,7 +12,9 @@ import { RemoteSection } from "./RemoteSection";
 import { RoutinesSection } from "./RoutinesSection";
 import { ShortcutsSection } from "./ShortcutsSection";
 import { SoundsSection } from "./SoundsSection";
+import { ThreadsSection } from "./ThreadsSection";
 import { PlannerSection } from "./PlannerSection";
+import { SkillsSection } from "./SkillsSection";
 import { SubagentsSection } from "./SubagentsSection";
 import { SuggestionsSection } from "./SuggestionsSection";
 import { VoiceSection } from "./VoiceSection";
@@ -38,11 +40,13 @@ export const SECTIONS: SettingsSection[] = [
   { id: "appearance", label: "Appearance", Component: AppearanceSection },
   { id: "accounts", label: "Accounts", Component: AccountsSection },
   { id: "my-agents", label: "My agents", Component: MyAgentsSection },
+  { id: "skills", label: "Skills", Component: SkillsSection },
   { id: "agents", label: "Agent keys", Component: AgentsSection },
   { id: "routines", label: "Routines", Component: RoutinesSection },
   { id: "effort", label: "Auto effort", Component: EffortSection },
   { id: "subagents", label: "Subagents", Component: SubagentsSection },
   { id: "suggestions", label: "Suggestions", Component: SuggestionsSection },
+  { id: "threads", label: "Threads & keys", Component: ThreadsSection },
   { id: "planner", label: "Planner", Component: PlannerSection },
   { id: "voice", label: "Voice", Component: VoiceSection },
   { id: "hud", label: "HUD", Component: HudSection },

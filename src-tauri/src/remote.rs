@@ -12,8 +12,10 @@
 //!   (`remote_snapshot`) that is relayed to every phone as is.
 //!
 //! Access: requests are accepted only from this Mac, Tailscale (100.64.0.0/10) and, with
-//! `allow_lan`, private LAN addresses, and must carry the pairing cookie, which a phone
-//! gets by opening the QR code's `/pair?k=<token>` link once.
+//! `allow_lan`, private LAN addresses, and must carry a paired phone's cookie, which a phone
+//! gets by opening the QR code's one-time `/pair?k=<code>` link (pairing.rs).
+//! With Tailscale HTTPS on, `tailscale serve` proxies https://<mac>.ts.net to this server,
+//! which then listens on this Mac only (unless LAN is allowed too).
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
 use axum::extract::{ConnectInfo, Query, State};
@@ -100,6 +102,9 @@ struct Remote {
     host: Mutex<Option<Arc<dyn Host>>>,
     server: Mutex<Option<Running>>,
     error: Mutex<Option<String>>,
+    /// The HTTPS port `tailscale serve` forwards to us, while it does.
+    serving: Mutex<Option<u16>>,
+    serve_error: Mutex<Option<String>>,
     next_id: AtomicU64,
     clients: AtomicUsize,
 }
@@ -110,6 +115,8 @@ static REMOTE: LazyLock<Remote> = LazyLock::new(|| Remote {
     host: Default::default(),
     server: Default::default(),
     error: Default::default(),
+    serving: Default::default(),
+    serve_error: Default::default(),
     next_id: AtomicU64::new(1),
     clients: AtomicUsize::new(0),
 });
@@ -262,7 +269,6 @@ fn settle(pane: &str, redraw: bool) {
 
 struct Ctx {
     host: Arc<dyn Host>,
-    token: String,
     allow_lan: bool,
     stop: watch::Receiver<bool>,
 }
@@ -288,18 +294,16 @@ fn allowed(ip: IpAddr, lan: bool) -> bool {
     }
 }
 
-fn same(a: &str, b: &str) -> bool {
-    a.len() == b.len() && a.bytes().zip(b.bytes()).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
-}
-
-fn paired(ctx: &Ctx, headers: &HeaderMap) -> bool {
+/// The paired phone's token from the cookie, if it's still paired.
+fn paired(headers: &HeaderMap) -> Option<String> {
     headers
         .get_all(header::COOKIE)
         .iter()
         .filter_map(|v| v.to_str().ok())
         .flat_map(|v| v.split(';'))
         .filter_map(|kv| kv.trim().strip_prefix(COOKIE)?.strip_prefix('='))
-        .any(|v| same(v, &ctx.token))
+        .find(|v| crate::pairing::check(v))
+        .map(String::from)
 }
 
 fn page(status: StatusCode, title: &str, body: &str) -> Response {
@@ -319,14 +323,24 @@ fn unpaired() -> Response {
     page(StatusCode::UNAUTHORIZED, "Pair this phone", "On your Mac, open AureliaSpace → Settings → Remote and scan the QR code with this phone's camera.")
 }
 
-async fn pair(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr>, Query(q): Query<HashMap<String, String>>) -> Response {
+async fn pair(
+    State(ctx): State<Shared>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: HeaderMap,
+    Query(q): Query<HashMap<String, String>>,
+) -> Response {
     if !allowed(addr.ip(), ctx.allow_lan) {
         return forbidden();
     }
-    if !q.get("k").is_some_and(|k| same(k, &ctx.token)) {
-        return page(StatusCode::FORBIDDEN, "Link expired", "This pairing link is no longer valid. Scan the current QR code in Settings → Remote.");
-    }
-    let cookie = format!("{COOKIE}={}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Strict", ctx.token);
+    let ua = headers.get(header::USER_AGENT).and_then(|v| v.to_str().ok()).unwrap_or("");
+    let Some(token) = q.get("k").and_then(|k| crate::pairing::redeem(k, ua)) else {
+        if paired(&headers).is_some() {
+            // Already paired (the link was opened twice): just go in.
+            return (StatusCode::FOUND, [(header::LOCATION, "/")]).into_response();
+        }
+        return page(StatusCode::FORBIDDEN, "Link expired", "Pairing links work once and for 15 minutes. Scan the current QR code in Settings → Remote.");
+    };
+    let cookie = format!("{COOKIE}={token}; Path=/; Max-Age=31536000; HttpOnly; SameSite=Strict");
     (StatusCode::FOUND, [(header::SET_COOKIE, cookie), (header::LOCATION, "/".to_string())]).into_response()
 }
 
@@ -338,10 +352,10 @@ async fn ws(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr
     let host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
     let origin = headers.get(header::ORIGIN).and_then(|v| v.to_str().ok()).unwrap_or("");
     let origin_host = origin.split_once("://").map(|(_, h)| h).unwrap_or("");
-    if !paired(&ctx, &headers) || origin_host != host {
+    let Some(token) = paired(&headers).filter(|_| origin_host == host) else {
         return StatusCode::UNAUTHORIZED.into_response();
-    }
-    upgrade.on_upgrade(move |socket| session(ctx, socket))
+    };
+    upgrade.on_upgrade(move |socket| session(ctx, socket, token))
 }
 
 const MANIFEST: &str = r##"{"name":"AureliaSpace","short_name":"Aurelia","start_url":"/","display":"standalone","background_color":"#08090c","theme_color":"#08090c","icons":[{"src":"/icon.png","sizes":"256x256","type":"image/png"}]}"##;
@@ -357,7 +371,7 @@ async fn files(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketA
         "/remote.webmanifest" => return ([(header::CONTENT_TYPE, "application/manifest+json")], MANIFEST).into_response(),
         _ => {}
     }
-    if !paired(&ctx, &headers) {
+    if paired(&headers).is_none() {
         return unpaired();
     }
     let file = if path == "/" { "remote.html" } else { path.trim_start_matches('/') };
@@ -381,12 +395,13 @@ fn size_of(v: &Value) -> Option<(u16, u16)> {
 }
 
 /// One phone: the pane list, and at most one open pane at a time.
-async fn session(ctx: Shared, socket: WebSocket) {
+async fn session(ctx: Shared, socket: WebSocket, token: String) {
     let n = REMOTE.clients.fetch_add(1, Ordering::SeqCst) + 1;
     ctx.host.clients(n);
     let (mut sink, mut incoming) = socket.split();
     let mut snapshot = REMOTE.snapshot.subscribe();
     let mut stop = ctx.stop.clone();
+    let mut revoked = crate::pairing::REVOKED.subscribe();
     let mut open: Option<(String, u64, mpsc::Receiver<Out>)> = None;
     let mut ping = tokio::time::interval(PING);
 
@@ -401,6 +416,11 @@ async fn session(ctx: Shared, socket: WebSocket) {
             };
             let msg: Option<Message> = tokio::select! {
                 _ = stop.changed() => break,
+                _ = revoked.changed() => {
+                    // Unpaired in Settings: this phone's session ends now.
+                    if !crate::pairing::check(&token) { break }
+                    None
+                }
                 _ = ping.tick() => Some(Message::Ping(Vec::new().into())),
                 changed = snapshot.changed() => {
                     if changed.is_err() { break }
@@ -481,17 +501,30 @@ fn handle(ctx: &Ctx, v: &Value, open: &mut Option<(String, u64, mpsc::Receiver<O
     }
 }
 
-/// Starts serving on `port` (stopping a running server first).
-fn start(host: Arc<dyn Host>, port: u16, allow_lan: bool, token: String) -> Result<u16, String> {
+/// Answers the Settings "Test connection" check without pairing.
+async fn healthz(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr>) -> Response {
+    if !allowed(addr.ip(), ctx.allow_lan) {
+        return forbidden();
+    }
+    ([(header::CACHE_CONTROL, "no-store")], HEALTH).into_response()
+}
+
+const HEALTH: &str = "aurelia-remote ok";
+
+/// Starts serving on `port` (stopping a running server first). `local_only` listens on
+/// this Mac only (Tailscale HTTPS reaches it through `tailscale serve`).
+fn start(host: Arc<dyn Host>, port: u16, allow_lan: bool, local_only: bool) -> Result<u16, String> {
     stop();
     *REMOTE.host.lock().unwrap() = Some(host.clone());
-    let listener = std::net::TcpListener::bind(("0.0.0.0", port)).map_err(|e| format!("port {port}: {e}"))?;
+    let addr = if local_only { "127.0.0.1" } else { "0.0.0.0" };
+    let listener = std::net::TcpListener::bind((addr, port)).map_err(|e| format!("port {port}: {e}"))?;
     listener.set_nonblocking(true).map_err(|e| e.to_string())?;
     let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     let (stop_tx, stop_rx) = watch::channel(false);
-    let ctx = Arc::new(Ctx { host, token, allow_lan, stop: stop_rx.clone() });
+    let ctx = Arc::new(Ctx { host, allow_lan, stop: stop_rx.clone() });
     let app = Router::new()
         .route("/pair", get(pair))
+        .route("/healthz", get(healthz))
         .route("/ws", get(ws))
         .fallback(files)
         .with_state(ctx)
@@ -521,27 +554,6 @@ fn running_port() -> Option<u16> {
 }
 
 // ---------------------------------------------------------------- the app's side
-
-fn token_path() -> std::path::PathBuf {
-    crate::config::app_dir().join("remote-token")
-}
-
-fn new_token() -> String {
-    use std::io::Read;
-    let mut bytes = [0u8; 24];
-    std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut bytes)).expect("no /dev/urandom");
-    let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
-    let path = token_path();
-    let _ = std::fs::create_dir_all(crate::config::app_dir());
-    let _ = std::fs::write(&path, &token);
-    use std::os::unix::fs::PermissionsExt;
-    let _ = std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600));
-    token
-}
-
-fn token() -> String {
-    std::fs::read_to_string(token_path()).ok().map(|t| t.trim().to_string()).filter(|t| t.len() >= 32).unwrap_or_else(new_token)
-}
 
 struct AppHost(tauri::AppHandle);
 
@@ -590,7 +602,7 @@ fn mime(path: &str) -> &'static str {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct Link {
     pub label: String,
@@ -604,29 +616,19 @@ pub struct RemoteStatus {
     running: bool,
     port: Option<u16>,
     error: Option<String>,
-    /// Addresses a phone can use, best first; each is a pairing link.
+    /// Addresses a phone can use, best first; each is a one-time pairing link.
     links: Vec<Link>,
     /// The first link as a QR code.
     qr_svg: Option<String>,
-    tailscale: bool,
+    /// Seconds until the pairing code in the links expires.
+    code_expires_in: u64,
+    tailscale: crate::tailscale::Info,
+    /// `tailscale serve` is forwarding HTTPS to this server.
+    serving: bool,
+    /// Why turning Tailscale HTTPS on or off failed.
+    serve_error: Option<String>,
+    devices: Vec<crate::pairing::DeviceView>,
     clients: usize,
-}
-
-/// This Mac's Tailscale address and MagicDNS name, if Tailscale is up.
-fn tailscale() -> (Option<String>, Option<String>) {
-    let ip = if_addrs::get_if_addrs().ok().into_iter().flatten().find_map(|i| match i.ip() {
-        IpAddr::V4(v4) if !i.is_loopback() && v4.octets()[0] == 100 && (64..128).contains(&v4.octets()[1]) => Some(v4.to_string()),
-        _ => None,
-    });
-    let name = ip.as_ref().and_then(|_| {
-        let cli = ["/Applications/Tailscale.app/Contents/MacOS/Tailscale", "/opt/homebrew/bin/tailscale", "/usr/local/bin/tailscale"]
-            .into_iter()
-            .find(|p| std::path::Path::new(p).exists())?;
-        let out = std::process::Command::new(cli).args(["status", "--json"]).output().ok()?;
-        let v: Value = serde_json::from_slice(&out.stdout).ok()?;
-        v["Self"]["DNSName"].as_str().map(|n| n.trim_end_matches('.').to_string()).filter(|n| !n.is_empty())
-    });
-    (ip, name)
 }
 
 fn lan_ips() -> Vec<String> {
@@ -647,26 +649,47 @@ fn qr(text: &str) -> Option<String> {
     Some(code.render::<svg::Color>().min_dimensions(220, 220).quiet_zone(true).dark_color(svg::Color("#000")).light_color(svg::Color("#fff")).build())
 }
 
+/// Addresses a phone can reach, best first, without the pairing path.
+fn bases(cfg: &crate::config::RemoteConfig, port: u16, ts: &crate::tailscale::Info, serving: Option<u16>) -> Vec<Link> {
+    let mut out = Vec::new();
+    let mut add = |label: &str, url: String| out.push(Link { label: label.into(), url });
+    if let (Some(https_port), Some(name)) = (serving, &ts.dns_name) {
+        let p = if https_port == 443 { String::new() } else { format!(":{https_port}") };
+        add("Tailscale HTTPS", format!("https://{name}{p}"));
+    }
+    // Always offer the plain Tailscale route as a fallback. It is the only way in when
+    // `tailscale serve` is configured but not running; the request allowlist still
+    // rejects anything that is not loopback or Tailscale (or opted-in LAN).
+    if let Some(ip) = &ts.ip {
+        add("Tailscale", format!("http://{ip}:{port}"));
+    }
+    if let Some(name) = &ts.dns_name {
+        add("Tailscale name", format!("http://{name}:{port}"));
+    }
+    if cfg.allow_lan {
+        for ip in lan_ips() {
+            add("Same Wi-Fi", format!("http://{ip}:{port}"));
+        }
+    }
+    out
+}
+
+fn serving() -> Option<u16> {
+    *REMOTE.serving.lock().unwrap()
+}
+
 fn status() -> RemoteStatus {
     let cfg = crate::config::load().remote;
     let port = running_port();
-    let (ts_ip, ts_name) = tailscale();
-    let mut links = Vec::new();
-    if let Some(port) = port {
-        let k = token();
-        let mut add = |label: &str, host: &str| links.push(Link { label: label.into(), url: format!("http://{host}:{port}/pair?k={k}") });
-        if let Some(ip) = &ts_ip {
-            add("Tailscale", ip);
-        }
-        if let Some(name) = &ts_name {
-            add("Tailscale name", name);
-        }
-        if cfg.allow_lan {
-            for ip in lan_ips() {
-                add("Same Wi-Fi", &ip);
-            }
-        }
-    }
+    let ts = crate::tailscale::info();
+    let serving = serving();
+    let (code, code_expires_in) = crate::pairing::code();
+    let links: Vec<Link> = port
+        .map(|port| bases(&cfg, port, &ts, serving))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|l| Link { url: format!("{}/pair?k={code}", l.url), ..l })
+        .collect();
     RemoteStatus {
         enabled: cfg.enabled,
         running: port.is_some(),
@@ -674,48 +697,163 @@ fn status() -> RemoteStatus {
         error: REMOTE.error.lock().unwrap().clone(),
         qr_svg: links.first().and_then(|l| qr(&l.url)),
         links,
-        tailscale: ts_ip.is_some(),
+        code_expires_in,
+        tailscale: ts,
+        serving: serving.is_some(),
+        serve_error: REMOTE.serve_error.lock().unwrap().clone(),
+        devices: crate::pairing::devices(),
         clients: REMOTE.clients.load(Ordering::SeqCst),
     }
 }
 
-/// Starts, restarts or stops the server to match the config.
+/// Turns `tailscale serve` on or off to match the config. Slow (runs the CLI): never call
+/// it on the main thread.
+fn apply_serve(cfg: &crate::config::RemoteConfig, port: Option<u16>) {
+    let want = match port {
+        Some(local) if cfg.enabled && cfg.tailscale_https => Some((cfg.https_port, local)),
+        _ => None,
+    };
+    let current = serving();
+    let mut error = None;
+    if let Some(old) = current {
+        if want.map(|(h, _)| h) != Some(old) {
+            if let Err(e) = crate::tailscale::serve_off(old) {
+                error = Some(e);
+            }
+            *REMOTE.serving.lock().unwrap() = None;
+        }
+    }
+    if let Some((https, local)) = want {
+        match crate::tailscale::serve_on(https, local) {
+            Ok(()) => *REMOTE.serving.lock().unwrap() = Some(https),
+            Err(e) => error = Some(e),
+        }
+    }
+    *REMOTE.serve_error.lock().unwrap() = error;
+    crate::tailscale::invalidate();
+}
+
+/// Starts, restarts or stops the server (and Tailscale Serve) to match the config.
 fn apply(app: &tauri::AppHandle) {
     let cfg = crate::config::load().remote;
+    // Never bind to loopback just because Tailscale Serve is configured: if Serve is not
+    // running (certs off, port conflict, daemon restart), the phone would have no route
+    // at all. The request allowlist still restricts access to loopback and Tailscale
+    // addresses unless LAN is explicitly enabled.
+    let local_only = false;
     let error = if cfg.enabled {
-        start(Arc::new(AppHost(app.clone())), cfg.port, cfg.allow_lan, token()).err()
+        start(Arc::new(AppHost(app.clone())), cfg.port, cfg.allow_lan, local_only).err()
     } else {
         stop();
         None
     };
     *REMOTE.error.lock().unwrap() = error;
+    apply_serve(&cfg, running_port());
 }
 
 pub fn init(app: &tauri::AppHandle) {
     *REMOTE.host.lock().unwrap() = Some(Arc::new(AppHost(app.clone())));
     if crate::config::load().remote.enabled {
-        apply(app);
+        // Off the main thread: `tailscale serve` can take seconds.
+        let app = app.clone();
+        std::thread::spawn(move || apply(&app));
     }
 }
 
 #[tauri::command]
 pub async fn remote_status() -> RemoteStatus {
-    tauri::async_runtime::spawn_blocking(status).await.map_err(|e| e.to_string()).unwrap()
+    tauri::async_runtime::spawn_blocking(status).await.unwrap_or_else(|e| RemoteStatus {
+        enabled: false,
+        running: false,
+        port: None,
+        error: Some(e.to_string()),
+        links: Vec::new(),
+        qr_svg: None,
+        code_expires_in: 0,
+        tailscale: Default::default(),
+        serving: false,
+        serve_error: None,
+        devices: Vec::new(),
+        clients: 0,
+    })
 }
 
 /// After Settings saved the remote options.
 #[tauri::command]
 pub async fn remote_apply(app: tauri::AppHandle) -> RemoteStatus {
-    apply(&app);
+    let _ = tauri::async_runtime::spawn_blocking(move || apply(&app)).await;
     remote_status().await
 }
 
-/// New pairing token: every paired phone has to scan the new code.
+/// Unpairs every phone; each has to scan the new code.
 #[tauri::command]
-pub async fn remote_reset_token(app: tauri::AppHandle) -> RemoteStatus {
-    new_token();
-    apply(&app);
+pub async fn remote_reset_token() -> RemoteStatus {
+    crate::pairing::unpair_all();
     remote_status().await
+}
+
+#[tauri::command]
+pub async fn remote_unpair(id: String) -> RemoteStatus {
+    crate::pairing::unpair(&id);
+    remote_status().await
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TestResult {
+    ok: bool,
+    url: Option<String>,
+    ms: Option<u64>,
+    error: Option<String>,
+}
+
+/// Loads the best phone address from this Mac, the way a phone on the tailnet would.
+#[tauri::command]
+pub async fn remote_test() -> TestResult {
+    crate::tailscale::invalidate();
+    let Some(port) = running_port() else {
+        return TestResult { ok: false, url: None, ms: None, error: Some("The remote isn't running. Turn it on and save first.".into()) };
+    };
+    let cfg = crate::config::load().remote;
+    let bases = tauri::async_runtime::spawn_blocking(move || {
+        let ts = crate::tailscale::info();
+        bases(&cfg, port, &ts, serving())
+    })
+    .await
+    .unwrap_or_default();
+    if bases.is_empty() {
+        let serve = REMOTE.serve_error.lock().unwrap().clone();
+        let error = match serve {
+            Some(e) => format!("Tailscale Serve failed: {e}. No phone address is available."),
+            None => "No phone address yet: Tailscale isn't ready on this Mac.".into(),
+        };
+        return TestResult { ok: false, url: None, ms: None, error: Some(error) };
+    }
+    let client = match reqwest::Client::builder().timeout(Duration::from_secs(6)).build() {
+        Ok(c) => c,
+        Err(e) => return TestResult { ok: false, url: None, ms: None, error: Some(e.to_string()) },
+    };
+    let mut last: Option<TestResult> = None;
+    for base in bases {
+        let url = format!("{}/healthz", base.url);
+        let t = std::time::Instant::now();
+        let result = match client.get(&url).send().await {
+            Ok(r) if r.status().is_success() => match r.text().await {
+                Ok(body) if body == HEALTH => Ok(()),
+                Ok(_) => Err("Something else answered on that address.".to_string()),
+                Err(e) => Err(e.to_string()),
+            },
+            Ok(r) => Err(format!("Answered {}", r.status())),
+            Err(e) if e.is_timeout() => Err("Timed out: Tailscale didn't route to this Mac.".into()),
+            Err(e) => Err(std::error::Error::source(&e).map(|s| s.to_string()).unwrap_or_else(|| e.to_string())),
+        };
+        let ms = t.elapsed().as_millis() as u64;
+        match result {
+            Ok(()) => return TestResult { ok: true, url: Some(base.url), ms: Some(ms), error: None },
+            Err(e) => last = Some(TestResult { ok: false, url: Some(base.url), ms: None, error: Some(e) }),
+        }
+    }
+    last.unwrap_or(TestResult { ok: false, url: None, ms: None, error: Some("No phone address is available.".into()) })
 }
 
 #[tauri::command]
@@ -852,9 +990,8 @@ mod tests {
         use std::io::Read;
         set_snapshot(json!({ "panes": panes, "accounts": ["claude-a", "claude-b"], "projects": [{ "name": "AureliaSpace", "path": "~/Downloads/AureliaSpace" }] }));
         let port = std::env::var("REMOTE_DEMO_PORT").ok().and_then(|p| p.parse().ok()).unwrap_or(4848);
-        let token = "0".repeat(48);
-        let port = start(demo, port, true, token.clone()).unwrap();
-        println!("http://127.0.0.1:{port}/pair?k={token}");
+        let port = start(demo, port, true, false).unwrap();
+        println!("http://127.0.0.1:{port}/pair?k={}", crate::pairing::code().0);
         std::thread::sleep(Duration::from_secs(std::env::var("REMOTE_DEMO_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(600)));
     }
 }

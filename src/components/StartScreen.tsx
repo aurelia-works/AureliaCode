@@ -3,10 +3,14 @@ import { invoke } from "@tauri-apps/api/core";
 import { useEffect, useRef, useState } from "react";
 import { basename, expandPath, shortenPath } from "../lib/format";
 import { ipc } from "../lib/ipc";
-import { launchTeam, prepareCustomAgent, variantOf } from "../lib/agents";
+import { agentVariants, launchSkillAgent, launchTeam, prepareCustomAgent, variantOf } from "../lib/agents";
+import { skillPrompt, type Skill } from "../lib/skills";
+import { SkillsPanel } from "./SkillsPanel";
 import { queueFirstMessage } from "../lib/chat";
 import { shellQuote, startDir } from "../lib/launch";
 import { prAttention } from "../lib/threads";
+import { newScratchDir } from "../lib/scratch";
+import { toggleStash } from "../lib/stash";
 import { queueInit, showPane } from "../lib/terminals";
 import { useAgents } from "../store/agents";
 import { paneDir, useGit } from "../store/git";
@@ -64,6 +68,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const worktree = useUi((s) => s.useWorktree);
   const setupDone = useConfig((s) => s.config?.setupDone);
+  const prefs = useUi((s) => s.prefs);
 
   useEffect(() => {
     let alive = true;
@@ -85,6 +90,16 @@ export function StartScreen({ paneId }: { paneId: string }) {
   const start = (patch: { account?: string }, command?: string) => {
     if (command) queueInit(paneId, command);
     updatePane(paneId, { ...patch, launcher: undefined });
+  };
+  /** DeepSeek skills run through OpenCode in a fresh terminal pane, not through Claude. */
+  const runSkill = async (skill: Skill, task: string) => {
+    const variant = agentVariants(accounts).find((v) => v.id === "deepseek:opencode");
+    if (!variant) return toast("OpenCode isn't configured; add a DeepSeek agent in Settings → My agents", true);
+    if (!(await ipc.which("opencode").catch(() => false))) return toast("OpenCode isn't installed. Install it with: curl -fsSL https://opencode.ai/install | bash", true);
+    const keys = await ipc.agentKeysPresent(["deepseek"]).catch(() => [] as string[]);
+    if (!keys.includes("deepseek")) return toast("DeepSeek needs an API key: Settings → Agent keys → DeepSeek", true);
+    launchSkillAgent(variant, cwd || workspace, skillPrompt(skill, task));
+    toast(`${skill.name} started in a new pane`);
   };
 
   const startCustom = async (agent: CustomAgent) => {
@@ -156,7 +171,32 @@ export function StartScreen({ paneId }: { paneId: string }) {
     updatePane(paneId, { account, cwd: dir, launcher: undefined, ...(chat && { mode: "chat" as const }) });
   };
 
+  /** ⌘Enter or ⌘⌥Enter: start the thread, then open another start tab for the next task. */
+  const beginBackground = async () => {
+    if (!prompt.trim()) return;
+    await begin();
+    useLayout.getState().newTab({ cwd: cwd || workspace, launcher: true });
+  };
+  /** ⌘S: set the draft aside, or bring the last one back into an empty box. */
+  const stashKey = () => {
+    const r = toggleStash(useUi.getState().stash, prompt);
+    if (r.did === "nothing") return toast("No stashed draft");
+    useUi.getState().set({ stash: r.list });
+    setPrompt(r.text);
+    toast(r.did === "stashed" ? "Draft stashed. ⌘S in an empty box brings it back" : "Draft restored");
+  };
+
   const onKey = (e: React.KeyboardEvent) => {
+    if (e.target instanceof HTMLTextAreaElement && e.metaKey && !e.ctrlKey) {
+      if (e.key === "Enter" && prefs.background) {
+        e.preventDefault();
+        void beginBackground();
+      } else if (e.key.toLowerCase() === "s" && !e.altKey && !e.shiftKey && prefs.stash) {
+        e.preventDefault();
+        stashKey();
+      }
+      return;
+    }
     if (e.metaKey || e.ctrlKey) return;
     if (e.target instanceof HTMLTextAreaElement) {
       if (e.key === "Enter" && !e.shiftKey) {
@@ -231,6 +271,19 @@ export function StartScreen({ paneId }: { paneId: string }) {
                   <button role="menuitem" className="pick-act" onClick={() => { setPicking(false); setDraft(shortenPath(cwd || workspace || "")); setEditing(true); }}>
                     Type a path…
                   </button>
+                  {prefs.noProject && (
+                    <button
+                      role="menuitem"
+                      className="pick-act"
+                      title="A new empty folder; its files stay after the thread is gone"
+                      onClick={() => {
+                        setPicking(false);
+                        void newScratchDir().then((dir) => updatePane(paneId, { cwd: dir }), (e) => toast(String(e), true));
+                      }}
+                    >
+                      No project (scratch folder)
+                    </button>
+                  )}
                 </div>
               )}
             </span>
@@ -257,7 +310,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 rows={2}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe the change. Enter starts a Claude chat; ⌥Enter a terminal"
+                placeholder={`Describe the change. Enter starts a Claude chat; ⌥Enter a terminal${prefs.background ? "; ⌘Enter starts it and opens another" : ""}`}
               />
               <div className="chat-card-bar">
                 {accounts.length > 0 && (
@@ -296,6 +349,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 </button>
               ))}
             </div>
+            <SkillsPanel task={prompt} onRun={(skill, task) => void runSkill(skill, task)} />
             <BriefingCard />
             <TodayPanel
               onStart={(text, projectId) => {

@@ -59,6 +59,43 @@ export function shipCard(s: PlannerState, id: string, now = new Date().toISOStri
   return out;
 }
 
+/**
+ * Takes back what settling threads did to the planner: a card that shipped goes back to its old lane, its goal is
+ * unticked, and the activity rows the settle added are removed. `before` is the planner state from just before the settle; `settledCount` is how many threads it settled (one activity row each).
+ */
+export function undoShip(cur: PlannerState, before: PlannerState, cardIds: string[], settledCount = cardIds.length): PlannerState {
+  let out = cur;
+  let reverted = 0;
+  for (const id of cardIds) {
+    const was = before.roadmapCards.find((c) => c.id === id);
+    const now = out.roadmapCards.find((c) => c.id === id);
+    if (!was || !now || was.lane === "shipped" || now.lane !== "shipped") continue;
+    reverted++;
+    // Only what shipping changed goes back; edits made to the card since (title, notes, due date) stay.
+    out = { ...out, roadmapCards: out.roadmapCards.map((c) => (c.id === id ? { ...c, lane: was.lane, updatedAt: was.updatedAt } : c)) };
+    if (was.goalId) {
+      const days = { ...out.dailyGoalsByDate };
+      for (const [date, day] of Object.entries(days)) {
+        const goalBefore = before.dailyGoalsByDate[date]?.goals.find((g) => g.id === was.goalId);
+        if (!goalBefore || goalBefore.done || !day.goals.some((g) => g.id === was.goalId && g.done)) continue;
+        days[date] = tally({ ...day, goals: day.goals.map((g) => (g.id === was.goalId ? goalBefore : g)) });
+      }
+      out = { ...out, dailyGoalsByDate: days };
+    }
+  }
+  // The activity this settle logged: at most one "settled" per thread and one "shipped" per reverted card, newest first.
+  const known = new Set(before.activity.map((a) => a.id));
+  const fresh = out.activity.filter((a) => !known.has(a.id));
+  const drop = new Set<string>();
+  let settledLeft = settledCount;
+  let shippedLeft = reverted;
+  for (const a of [...fresh].reverse()) {
+    if (a.kind === "card-shipped" && shippedLeft > 0) (shippedLeft--, drop.add(a.id));
+    else if (a.kind === "thread-settled" && settledLeft > 0) (settledLeft--, drop.add(a.id));
+  }
+  return drop.size ? { ...out, activity: out.activity.filter((a) => !drop.has(a.id)) } : out;
+}
+
 interface PaneLike {
   settled?: boolean;
   cardId?: string;

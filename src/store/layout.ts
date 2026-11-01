@@ -47,6 +47,10 @@ export interface PaneMeta {
   mode?: "chat" | "terminal";
   /** Done with for now: listed under Settled in the threads sidebar (set when its PR merges). */
   settled?: boolean;
+  /** Pin order key (epoch ms when pinned); pinned threads sit above the rest. Cleared by settling. */
+  pinned?: number;
+  /** A name you gave the thread; shown instead of the automatic title. */
+  title?: string;
   /** Roadmap card this thread works on; settling the thread ships the card (store/planner.ts). */
   cardId?: string;
   /** Epoch ms: hidden under Settled until then, or until it needs you. */
@@ -74,6 +78,8 @@ export interface Tab {
 }
 
 export interface NewPaneOpts {
+  /** Reuse a closed pane's id when reopening it from history, so it updates the same row. */
+  id?: string;
   account?: string;
   cwd?: string;
   agent?: string;
@@ -87,6 +93,8 @@ export interface NewPaneOpts {
   editor?: EditorTarget;
   /** "chat" opens a Claude chat pane instead of a terminal. */
   mode?: "chat" | "terminal";
+  /** A chat pane's first model pick (a team router's suggestion). */
+  chatModel?: string;
 }
 
 interface LayoutState {
@@ -155,7 +163,7 @@ const emitClosed = (ids: string[]) => ids.length && closeListeners.forEach((fn) 
 
 function makePane(opts?: NewPaneOpts): PaneMeta {
   return {
-    id: uid("pane"),
+    id: opts?.id ?? uid("pane"),
     account: opts?.account,
     cwd: opts?.cwd,
     agent: opts?.agent,
@@ -166,6 +174,7 @@ function makePane(opts?: NewPaneOpts): PaneMeta {
     browser: opts?.browserUrl !== undefined ? { url: opts.browserUrl } : undefined,
     editor: opts?.editor,
     mode: opts?.mode === "chat" ? "chat" : undefined,
+    chatModel: opts?.chatModel,
   };
 }
 

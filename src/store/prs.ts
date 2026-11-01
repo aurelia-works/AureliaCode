@@ -1,3 +1,5 @@
+import { settlePatch } from "../lib/threadOrder";
+import { workSettled } from "../lib/workBridge";
 import { addActivity } from "../lib/plannerWeekly";
 import { usePlanner } from "./planner";
 import { create } from "zustand";
@@ -83,7 +85,8 @@ async function read() {
     const action = prAction(prev[d], next[d], !!pane.babysit);
     if (action.kind === "wake") wake(id, action.text);
     else if (action.kind === "settle" && !pane.settled) {
-      layout.updatePane(id, { settled: true, babysit: false });
+      layout.updatePane(id, { ...settlePatch(), babysit: false });
+      workSettled(id);
       // Several panes can share one PR, and a pane can settle on a later poll: it is logged once per PR.
       const pr = next[d]!;
       usePlanner.getState().update((s) => (s.activity.some((x) => x.kind === "pr-merged" && x.label.endsWith(pr.url)) ? s : addActivity(s, "pr-merged", `#${pr.number} ${pr.title} ${pr.url}`)));

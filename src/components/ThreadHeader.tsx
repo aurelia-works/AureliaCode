@@ -24,6 +24,8 @@ export function repoBadge(name: string) {
 export function ThreadHeader() {
   const single = useUi((s) => s.single);
   const board = useUi((s) => s.mode === "agents");
+  const work = useUi((s) => s.mode === "work");
+  const full = board || work;
   const railOpen = useUi((s) => s.agentPanelOpen && s.railTab === "changes");
   const tab = useLayout((s) => s.tabs.find((t) => t.id === s.activeTabId));
   const paneId = tab?.focusedPaneId;
@@ -39,7 +41,7 @@ export function ThreadHeader() {
 
   const tools = (
     <div className="th-tools">
-      <button className="ib" aria-label="Colony: every thread of this tab at once" title="Colony: every thread of this tab at once" aria-pressed={!single || board} onClick={() => ui.set(board ? { mode: "terminals" } : { single: !single })}>
+      <button className="ib" aria-label="Colony: every thread of this tab at once" title="Colony: every thread of this tab at once" aria-pressed={!single || full} onClick={() => ui.set(full ? { mode: "terminals" } : { single: !single })}>
         <GridIcon />
       </button>
       <button
@@ -72,6 +74,18 @@ export function ThreadHeader() {
         <div className="crumb">
           <h1>Board</h1>
           <span>· every agent, by what it needs</span>
+        </div>
+        <span className="sp" />
+        {tools}
+      </div>
+    );
+
+  if (work)
+    return (
+      <div className="thread-head">
+        <div className="crumb">
+          <h1>Board</h1>
+          <span>· every unit of work, across projects</span>
         </div>
         <span className="sp" />
         {tools}

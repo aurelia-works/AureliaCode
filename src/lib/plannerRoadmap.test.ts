@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { emptyPlanner } from "./planner.ts";
-import { addCard, cardPrompt, editCard, lanesFor, moveCard, newlySettled, removeCard, shipCard, startCard } from "./plannerRoadmap.ts";
+import { addActivity } from "./plannerWeekly.ts";
+import { undoShip, addCard, cardPrompt, editCard, lanesFor, moveCard, newlySettled, removeCard, shipCard, startCard } from "./plannerRoadmap.ts";
 import { ensureDay } from "./plannerToday.ts";
 
 const withCard = () => {
@@ -76,4 +77,39 @@ test("newlySettled reports only threads that just settled", () => {
   const next = { a: { cardId: "c1", settled: true }, b: { cardId: "c2", settled: true }, c: { settled: true }, d: { cardId: "c4", settled: true } };
   assert.deepEqual(newlySettled(prev, next), ["c1"]);
   assert.deepEqual(newlySettled({}, next), [], "panes restored at startup are not newly settled");
+});
+
+test("undoing a settle puts the card back, unticks its goal and removes the activity it logged", () => {
+  let { s, id } = withCard();
+  s = ensureDay({ ...s, goalTemplate: [{ id: "t", title: "G", category: "B", points: 2, done: false, createdAt: "", completedAt: null }] }, "2026-10-28");
+  const gid = s.dailyGoalsByDate["2026-10-28"].goals[0].id;
+  s = moveCard(editCard(s, id, { goalId: gid }), id, "now");
+  const before = s;
+  const after = shipCard(s, id, "T"); // what the settle did
+  assert.equal(after.roadmapCards[0].lane, "shipped");
+  const undone = undoShip(after, before, [id]);
+  assert.equal(undone.roadmapCards[0].lane, "now");
+  assert.equal(undone.dailyGoalsByDate["2026-10-28"].goals[0].done, false);
+  assert.equal(undone.dailyGoalsByDate["2026-10-28"].score, 0);
+  assert.equal(undone.activity.length, before.activity.length);
+});
+
+test("undoShip leaves cards that were already shipped, and other activity, alone", () => {
+  let { s, id } = withCard();
+  s = moveCard(s, id, "shipped", "T1");
+  const before = s;
+  assert.equal(undoShip(s, before, [id]), s);
+  assert.equal(undoShip(s, before, ["nope"]), s);
+});
+
+test("undoing a settle removes one 'settled' row per thread, card or not, and keeps edits made to the card since", () => {
+  let { s, id } = withCard();
+  const before = s;
+  let after = shipCard(s, id, "T");
+  after = addActivity(addActivity(after, "thread-settled", "plain thread 1", "T"), "thread-settled", "plain thread 2", "T");
+  after = { ...after, roadmapCards: after.roadmapCards.map((c) => ({ ...c, title: "Renamed meanwhile" })) };
+  const undone = undoShip(after, before, [id], 3);
+  assert.equal(undone.activity.length, 0);
+  assert.equal(undone.roadmapCards[0].lane, "next");
+  assert.equal(undone.roadmapCards[0].title, "Renamed meanwhile");
 });

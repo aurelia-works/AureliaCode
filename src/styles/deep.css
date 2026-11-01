@@ -2021,3 +2021,94 @@ body.resizing-row .rail-grip {
   right: 0;
   top: 0;
 }
+
+.undo-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 9px 12px 9px 16px;
+  border-radius: 10px;
+  border: 1px solid var(--line-2, #2a2a2a);
+  background: #121211;
+  font-size: 13px;
+}
+.undo-toast button {
+  font: inherit;
+  font-size: 12px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--line-2, #2a2a2a);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.undo-toast kbd {
+  opacity: 0.6;
+  margin-left: 4px;
+}
+
+.th-rename {
+  position: absolute;
+  z-index: 3;
+  top: 8px;
+  left: 36px;
+  right: 12px;
+  font: inherit;
+  min-width: 0;
+  padding: 1px 6px;
+  border-radius: 5px;
+  border: 1px solid var(--gold, #e0b050);
+  background: #0c0c0b;
+  color: inherit;
+}
+.th-pin {
+  font-size: 10px;
+  opacity: 0.7;
+}
+.thread-menu {
+  top: 36px;
+  right: 8px;
+  width: 190px;
+}
+.thread-menu button {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.grp.pinned h3 {
+  color: var(--gold, #e0b050);
+}
+
+.nav-thread.dragging {
+  opacity: 0.4;
+}
+.grp.drop-over,
+.bk.drop-over {
+  outline: 1px dashed var(--gold, #e0b050);
+  outline-offset: 2px;
+  border-radius: 8px;
+}
+.drop-label {
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: 5px;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: var(--gold, #e0b050);
+  color: #111;
+}
+.drop-hint {
+  margin: 4px 0 8px;
+  padding: 10px;
+  border: 1px dashed var(--line-2, #2a2a2a);
+  border-radius: 8px;
+  font-size: 12px;
+  opacity: 0.7;
+  text-align: center;
+}

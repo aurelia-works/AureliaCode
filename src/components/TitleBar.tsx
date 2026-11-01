@@ -33,12 +33,37 @@ export function TitleBar() {
       >
         <SidebarIcon />
       </button>
+      <ModeSwitch />
       <span className="tb-sp" data-tauri-drag-region />
       <FocusChip />
       <NoticeBell />
       <FontReset />
       <UsageStrip />
     </header>
+  );
+}
+
+/** Agents / Terminals / Review / Work: the same four views the ⇧⌘1–4 shortcuts pick. */
+function ModeSwitch() {
+  const mode = useUi((s) => s.mode);
+  const reviewOpen = useUi((s) => s.reviewOpen);
+  const set = useUi.getState().set;
+  const pick = (next: "agents" | "work" | "terminals") => set({ mode: next, reviewOpen: false });
+  return (
+    <div className="mode-switch" role="group" aria-label="Mode">
+      <button className={mode === "agents" ? "on" : ""} aria-pressed={mode === "agents"} title="Agents board (⇧⌘1)" onClick={() => pick("agents")}>
+        Agents
+      </button>
+      <button className={mode === "terminals" ? "on" : ""} aria-pressed={mode === "terminals"} title="Terminals (⇧⌘2)" onClick={() => pick("terminals")}>
+        Terminals
+      </button>
+      <button className={reviewOpen ? "on" : ""} aria-pressed={reviewOpen} title="Review changes (⇧⌘3)" onClick={() => set({ reviewOpen: true })}>
+        Review
+      </button>
+      <button className={mode === "work" ? "on" : ""} aria-pressed={mode === "work"} title="Work board (⇧⌘4)" onClick={() => pick("work")}>
+        Work
+      </button>
+    </div>
   );
 }
 
