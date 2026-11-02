@@ -13,55 +13,55 @@
 
 :root,
 :root[data-theme="dark"] {
-  /* Deep: pure black for OLED-like panels, warm moonlight ink, Aurelia gold, bio-blue work. */
+  /* T3-inspired neutral: pure black chrome, zinc surfaces, indigo actions, amber only for "needs you". */
   --bg: #000;
   --chrome: #000;
-  --surface: #0b0b0a;
-  --surface-2: #111110;
-  --surface-3: #181816;
+  --surface: #0a0a0a;
+  --surface-2: #111111;
+  --surface-3: #18181b;
   --pane-bg: #000;
-  --border: #171615;
-  --border-strong: #252422;
-  --text: #f1eee7;
-  --text-dim: #a29d92;
-  --text-faint: #8a857b;
-  --accent: #e9b04b;
-  --accent-strong: #f3c065;
-  --accent-ink: #160f02;
-  --ok: #5ed6a0;
-  --err: #ff8a7a;
-  --warn: #f59e5b;
-  --attn: #e9b04b;
-  --work: #8fd3ff;
-  --shadow: 0 20px 50px #000, 0 0 0 1px rgba(241, 238, 231, 0.14);
-  --shadow-sm: 0 6px 18px #000, 0 0 0 1px rgba(241, 238, 231, 0.09);
+  --border: rgba(255, 255, 255, 0.07);
+  --border-strong: rgba(255, 255, 255, 0.13);
+  --text: #f1f3f7;
+  --text-dim: #a1a1aa;
+  --text-faint: #71717a;
+  --accent: #7c7cf0;
+  --accent-strong: #9292ff;
+  --accent-ink: #ffffff;
+  --ok: #4ade80;
+  --err: #f87171;
+  --warn: #fbbf24;
+  --attn: #f0b45a;
+  --work: #60a5fa;
+  --shadow: 0 20px 50px #000, 0 0 0 1px rgba(255, 255, 255, 0.13);
+  --shadow-sm: 0 6px 18px #000, 0 0 0 1px rgba(255, 255, 255, 0.07);
   --tint: 12%;
   color-scheme: dark;
 }
 
 :root[data-theme="light"] {
-  /* Parchment: warm paper, ink text, deep gold. */
-  --bg: #e6e2d8;
-  --chrome: #efece4;
-  --surface: #f8f6f1;
-  --surface-2: #f0ede5;
-  --surface-3: #e4dfd3;
-  --pane-bg: #fbfaf6;
-  --border: #dad4c6;
-  --border-strong: #c5bdab;
-  --text: #1d1b21;
-  --text-dim: #55515c;
-  --text-faint: #6a6570;
-  --accent: #94600a;
-  --accent-strong: #7a4e06;
-  --accent-ink: #fff9ee;
-  --ok: #2c7a44;
-  --err: #be3a30;
-  --warn: #a85a10;
+  /* Neutral paper: white chrome, zinc ink, indigo actions. */
+  --bg: #ffffff;
+  --chrome: #ffffff;
+  --surface: #fafafa;
+  --surface-2: #f4f4f5;
+  --surface-3: #e4e4e7;
+  --pane-bg: #ffffff;
+  --border: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+  --text: #18181b;
+  --text-dim: #52525b;
+  --text-faint: #71717a;
+  --accent: #5b5bd6;
+  --accent-strong: #4a4ac4;
+  --accent-ink: #ffffff;
+  --ok: #15803d;
+  --err: #b91c1c;
+  --warn: #a16207;
   --attn: #94600a;
-  --work: #0a7488;
-  --shadow: 0 24px 60px rgba(60, 45, 20, 0.2), 0 0 0 1px rgba(0, 0, 0, 0.06);
-  --shadow-sm: 0 6px 16px rgba(60, 45, 20, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.05);
+  --work: #1d4ed8;
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.06);
+  --shadow-sm: 0 6px 16px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(0, 0, 0, 0.05);
   --tint: 10%;
   color-scheme: light;
 }
@@ -116,7 +116,7 @@
   --r-lg: 12px;
 
   /* Frame. */
-  --titlebar-h: 46px;
+  --titlebar-h: 44px;
   --statusbar-h: 0px;
   --nav-w: 288px;
   --rail-w: 312px;
@@ -135,4 +135,43 @@
     --t-fast: 0ms;
     --t-med: 0ms;
   }
+}
+
+/* T3-style interface settings (Settings → Appearance). */
+:root[data-contrast="high"] {
+  --border: rgba(255, 255, 255, 0.14);
+  --border-strong: rgba(255, 255, 255, 0.24);
+  --text-dim: #c4c4cc;
+  --text-faint: #a1a1aa;
+}
+
+:root[data-theme="light"][data-contrast="high"] {
+  --border: rgba(0, 0, 0, 0.16);
+  --border-strong: rgba(0, 0, 0, 0.26);
+  --text-dim: #3f3f46;
+  --text-faint: #52525b;
+}
+
+:root[data-chat-width="wide"] .chat {
+  --chat-col: 860px;
+}
+
+:root[data-chat-width="full"] .chat {
+  --chat-col: 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --t-fast: 0ms;
+    --t-med: 0ms;
+  }
+}
+
+:root[data-motion="reduced"] *,
+:root[data-motion="reduced"] *::before,
+:root[data-motion="reduced"] *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
 }

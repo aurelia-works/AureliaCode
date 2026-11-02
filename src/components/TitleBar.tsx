@@ -17,13 +17,6 @@ export function TitleBar() {
 
   return (
     <header className="titlebar" data-tauri-drag-region>
-      <div className="brand" data-tauri-drag-region>
-        <AureliaMark className="brand-mark" width={22} height={22} />
-        <span className="brand-name" data-tauri-drag-region>
-          Aurelia<span>Space</span>
-        </span>
-        <DevMark />
-      </div>
       <button
         className={`icon-btn quiet${nav ? " on" : ""}`}
         title="Sidebar (⌘\\)"
@@ -33,8 +26,15 @@ export function TitleBar() {
       >
         <SidebarIcon />
       </button>
-      <ModeSwitch />
+      <div className="brand" data-tauri-drag-region>
+        <AureliaMark className="brand-mark" width={20} height={20} />
+        <span className="brand-name" data-tauri-drag-region>
+          Aurelia<span>Space</span>
+        </span>
+        <DevMark />
+      </div>
       <span className="tb-sp" data-tauri-drag-region />
+      <ModeSwitch />
       <FocusChip />
       <NoticeBell />
       <FontReset />

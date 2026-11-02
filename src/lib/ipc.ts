@@ -114,6 +114,22 @@ export interface Config {
   effort: { auto: boolean; judge: boolean; floor: EffortLevel; ceiling: EffortLevel; autoModel: boolean };
   /** Phone remote (src-tauri/src/remote.rs): off by default; LAN off = this Mac and Tailscale only. */
   remote: { enabled: boolean; port: number; allowLan: boolean; tailscaleHttps: boolean; httpsPort: number; keepRunning: boolean };
+  /** Interface contrast: "normal" | "high". */
+  contrast: "normal" | "high";
+  /** Chat column width: "comfortable" | "wide" | "full". */
+  chatWidth: "comfortable" | "wide" | "full";
+  /** Turn off panel/message animations regardless of the OS setting. */
+  reduceMotion: boolean;
+  /** Enter sends a chat message; off means ⌘Enter sends and Enter inserts a newline. */
+  chatSendOnEnter: boolean;
+  /** Show the time next to chat messages. */
+  chatTimestamps: boolean;
+  /** Links clicked in chat: "system" | "local" (local dev servers in-app) | "app" (all in-app). */
+  linkOpen: "system" | "local" | "app";
+  /** Address-bar search engine. */
+  browserSearch: "duckduckgo" | "google" | "bing";
+  /** New threads start on their own git worktree by default. */
+  worktreeByDefault: boolean;
   terminal: {
     fontFamily: string;
     fontSize: number;

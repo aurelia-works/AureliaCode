@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { ipc } from "../lib/ipc";
+import { useConfig } from "./config";
 import { DEFAULT_PREFS, normalizePrefs, type ThreadPrefs } from "../lib/prefs";
+import { startWorktree } from "../lib/threadTools";
 
 /** A task the account picker will hand to the new Claude pane as its first prompt. */
 export interface PickerTask {
@@ -80,7 +82,7 @@ interface UiState {
 
 export const useUi = create<UiState>((set) => ({
   mode: "terminals",
-  agentPanelOpen: true,
+  agentPanelOpen: false,
   railTab: "queue",
   railWidths: {},
   nav: "projects",
@@ -137,7 +139,7 @@ export async function loadUiState() {
   if (saved) {
     useUi.setState({
       mode: saved.mode === "agents" || saved.mode === "work" ? saved.mode : "terminals",
-      agentPanelOpen: saved.agentPanelOpen ?? true,
+      agentPanelOpen: saved.agentPanelOpen ?? false,
       railTab: saved.railTab === "changes" || saved.railTab === "details" || saved.railTab === "notes" ? saved.railTab : "queue",
       railWidths: saved.railWidths ?? {},
       nav:
@@ -149,7 +151,7 @@ export async function loadUiState() {
               ? null
               : "projects",
       single: saved.single ?? true,
-      useWorktree: saved.useWorktree ?? false,
+      useWorktree: startWorktree(saved.useWorktree, useConfig.getState().config?.worktreeByDefault),
       reviewWhenDone: saved.reviewWhenDone ?? false,
       claudeAsChat: saved.claudeAsChat ?? true,
       fontDelta: saved.fontDelta ?? 0,

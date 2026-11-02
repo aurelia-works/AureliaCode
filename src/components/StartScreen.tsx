@@ -24,7 +24,6 @@ import { AgentAvatar } from "./AgentChip";
 import { AgentLogo } from "./AgentLogos";
 import { ArrowIcon, ArrowUpIcon, ChevronDownIcon, CloseIcon, FolderIcon, PrIcon, SparkIcon, TerminalIcon } from "./Icons";
 import { useChatTitle } from "./ProjectsSidebar";
-import { repoBadge } from "./ThreadHeader";
 import { TodayPanel } from "./planner/TodayPanel";
 import { HabitsPanel } from "./planner/HabitsPanel";
 import { BriefingCard } from "./planner/BriefingCard";
@@ -126,8 +125,11 @@ export function StartScreen({ paneId }: { paneId: string }) {
       logo: "more",
       run: () => void launchTeam(t),
     })),
-    // The folder's preferred account (workspace override, else the default) comes first.
-    ...[...accounts].sort((a, b) => Number(b.name === preferred) - Number(a.name === preferred)).map((a) => ({
+    // One account in the chip row; the composer's picker still offers all of them.
+    ...[...accounts]
+      .sort((a, b) => Number(b.name === preferred) - Number(a.name === preferred))
+      .slice(0, 1)
+      .map((a) => ({
       key: `acct-${a.name}`,
       label: `Claude · ${a.name}${a.name === preferred ? " (default)" : ""}`,
       hint: `${asChat ? "chat" : "terminal"} · ${shortenPath(a.configDir)}`,
@@ -225,16 +227,13 @@ export function StartScreen({ paneId }: { paneId: string }) {
 
   return (
     <div className="start-screen" tabIndex={-1} ref={rootRef} onKeyDown={onKey}>
-      <Bloom />
+      {prefs.bloom && <Bloom />}
       <div className="start-inner">
         <h2 className="hello">
-          What should we build <em>{timeWord(new Date())}</em>?
-        </h2>
-        <div className="where">
-          in
+          What should we build in{" "}
           {editing ? (
             <input
-              className="start-input"
+              className="start-input hello-input"
               autoFocus
               spellCheck={false}
               placeholder="~/path/to/project"
@@ -245,11 +244,9 @@ export function StartScreen({ paneId }: { paneId: string }) {
               aria-label="Folder path"
             />
           ) : (
-            <span className="pick-wrap">
-              <button className="pick" title={`${shortenPath(folder)}\nClick to pick another project`} onClick={() => setPicking(!picking)} aria-expanded={picking}>
-                <span className="mono-badge">{repoBadge(basename(folder) || "~")}</span>
+            <span className="pick-wrap hello-pick">
+              <button className="hello-project" title={`${shortenPath(folder)}\nClick to pick another project`} onClick={() => setPicking(!picking)} aria-expanded={picking}>
                 {basename(folder) || "~"}
-                <ChevronDownIcon width={12} height={12} />
               </button>
               {picking && (
                 <div className="pick-menu" role="menu" onMouseDown={(e) => e.preventDefault()}>
@@ -288,12 +285,27 @@ export function StartScreen({ paneId }: { paneId: string }) {
               )}
             </span>
           )}
+          ?
+        </h2>
+        <div className="where">
           {git ? (
             <>
-              {worktree ? "on a fresh worktree from" : "on"} <span className="mono br">{git.branch}</span>
+              {worktree ? "new worktree from" : "on"} <span className="mono br">{git.branch}</span>
             </>
           ) : (
             <span className="mono br">{shortenPath(folder)}</span>
+          )}
+          {prefs.noProject && (
+            <>
+              <span className="where-sep">·</span>
+              <button
+                className="where-link"
+                title="A new empty folder; its files stay after the thread is gone"
+                onClick={() => void newScratchDir().then((dir) => updatePane(paneId, { cwd: dir }), (e) => toast(String(e), true))}
+              >
+                Start without a project
+              </button>
+            </>
           )}
         </div>
         {setupDone === false ? (
@@ -310,7 +322,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 rows={2}
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                placeholder={`Describe the change. Enter starts a Claude chat; ⌥Enter a terminal${prefs.background ? "; ⌘Enter starts it and opens another" : ""}`}
+                placeholder="Ask anything…"
               />
               <div className="chat-card-bar">
                 {accounts.length > 0 && (
@@ -338,8 +350,12 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 </button>
               </div>
             </div>
+            <div className="start-hint">
+              <span>Enter to start</span>
+              <span>⌥Enter for a terminal</span>
+              {prefs.background && <span>⌘Enter starts and opens another</span>}
+            </div>
             <div className="start-others">
-              <span>Or open</span>
               {choices.map((c, i) => (
                 <button key={c.key} className={`start-chip ${c.logo}`} onClick={(e) => c.run(e.altKey)} title={`${c.hint}${i < 9 ? ` (${i + 1})` : ""}`}>
                   <span className="start-logo">
@@ -349,27 +365,30 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 </button>
               ))}
             </div>
-            <SkillsPanel task={prompt} onRun={(skill, task) => void runSkill(skill, task)} />
-            <BriefingCard />
-            <TodayPanel
-              onStart={(text, projectId) => {
-                const dir = usePlanner.getState().data.projects.find((p) => p.id === projectId)?.localRepoPath;
-                void begin(false, { text, dir: dir ? expandPath(dir) : undefined });
-              }}
-            />
-            <HabitsPanel />
+            <details className="start-extras">
+              <summary>
+                <SparkIcon width={13} height={13} />
+                Today &amp; tools
+                <span className="start-extras-meta">skills · briefing · goals · habits</span>
+              </summary>
+              <div className="start-extras-body">
+                <SkillsPanel task={prompt} onRun={(skill, task) => void runSkill(skill, task)} />
+                <BriefingCard />
+                <TodayPanel
+                  onStart={(text, projectId) => {
+                    const dir = usePlanner.getState().data.projects.find((p) => p.id === projectId)?.localRepoPath;
+                    void begin(false, { text, dir: dir ? expandPath(dir) : undefined });
+                  }}
+                />
+                <HabitsPanel />
+              </div>
+            </details>
             <Resume />
           </>
         )}
       </div>
     </div>
   );
-}
-
-/** The headline's one serif word, by the hour. */
-function timeWord(d: Date) {
-  const h = d.getHours();
-  return h < 5 ? "tonight" : h < 12 ? "this morning" : h < 18 ? "this afternoon" : "tonight";
 }
 
 const waited = (at: number | undefined) => {

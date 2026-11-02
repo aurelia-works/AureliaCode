@@ -48,8 +48,26 @@ function PaneActions({ paneId, browser, editor }: { paneId: string; browser?: bo
   );
 }
 
+/** Dictation, split, browser and close: the pane's own tools, in its header or in the thread header when it has none. */
+export function PaneControls({ paneId }: { paneId: string }) {
+  const launcher = useLayout((s) => !!s.panes[paneId]?.launcher);
+  const voiceInstalled = useVoice((s) => s.installed);
+  const voiceState = useVoice((s) => (focusedPaneId() === paneId ? s.state : "idle"));
+  return (
+    <>
+      {voiceState !== "idle" && <span className={`voice-dot ${voiceState}`} title={`Dictation: ${voiceState}`} />}
+      {voiceInstalled && !launcher && (
+        <button className={`icon-btn sm mic${voiceState !== "idle" ? " live" : ""}`} title="Dictate (⌥⌘V)" aria-label="Dictate" onClick={() => toggleVoice(paneId)}>
+          <MicIcon />
+        </button>
+      )}
+      <PaneActions paneId={paneId} />
+    </>
+  );
+}
+
 /** The pane's permission mode; click to pick another (Claude's own Shift+Tab, pressed for you). */
-function ModeChip({ paneId }: { paneId: string }) {
+export function ModeChip({ paneId }: { paneId: string }) {
   const hooked = useAgents((s) => s.sessions[paneId]?.permissionMode);
   // A chat pane hears its mode from the CLI itself, right when it changes.
   const mode = modeKey(useChat((s) => s.byPane[paneId]?.mode) ?? hooked);
@@ -119,8 +137,6 @@ export function PaneHeader({ paneId }: { paneId: string }) {
   const account = pane?.account ?? agent?.account;
   const dir = agent?.cwd ?? pane?.cwd;
   const git = useGit((s) => (dir ? s.info[dir] : undefined));
-  const voiceInstalled = useVoice((s) => s.installed);
-  const voiceState = useVoice((s) => (focusedPaneId() === paneId ? s.state : "idle"));
   const dirty = useEditors((s) => !!s.dirty[paneId]);
   const queued = useOutbox((s) => s.byPane[paneId]?.length ?? 0);
   if (!pane) return null;
@@ -206,13 +222,7 @@ export function PaneHeader({ paneId }: { paneId: string }) {
         )}
       </div>
       <div className="pane-end">
-        {voiceState !== "idle" && <span className={`voice-dot ${voiceState}`} title={`Dictation: ${voiceState}`} />}
-        {voiceInstalled && !pane.launcher && (
-          <button className={`icon-btn sm mic${voiceState !== "idle" ? " live" : ""}`} title="Dictate (⌥⌘V)" aria-label="Dictate" onClick={() => toggleVoice(paneId)}>
-            <MicIcon />
-          </button>
-        )}
-        <PaneActions paneId={paneId} />
+        <PaneControls paneId={paneId} />
       </div>
     </div>
   );

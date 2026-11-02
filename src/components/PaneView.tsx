@@ -22,6 +22,7 @@ export function PaneView({ paneId }: { paneId: string }) {
   const isBrowser = useLayout((s) => !!s.panes[paneId]?.browser);
   const isEditor = useLayout((s) => !!s.panes[paneId]?.editor);
   const isChat = useLayout((s) => s.panes[paneId]?.mode === "chat");
+  const single = useUi((s) => s.single);
   const suggestOpen = useUi((s) => s.suggestPaneId === paneId);
   const composerOpen = useUi((s) => s.composerPaneId === paneId);
   const dragging = usePaneDrag((s) => s.paneId === paneId);
@@ -58,7 +59,7 @@ export function PaneView({ paneId }: { paneId: string }) {
       data-state={state}
       onMouseDownCapture={() => useLayout.getState().focusPane(paneId)}
     >
-      <PaneHeader paneId={paneId} />
+      {!(single && !multi && (launcher || isChat)) && <PaneHeader paneId={paneId} />}
       <DropIndicator paneId={paneId} />
       <div className="pane-body">
         {isBrowser ? (

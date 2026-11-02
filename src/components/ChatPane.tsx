@@ -15,11 +15,11 @@ import { riskOf } from "../lib/risk";
 import { CHAT_FIND } from "../lib/shortcuts";
 import { focusedPaneId, useLayout } from "../store/layout";
 import { toggleStash } from "../lib/stash";
-import { followUpAction } from "../lib/threadTools";
+import { composerEnter, followUpAction } from "../lib/threadTools";
 import { toast, useUi } from "../store/ui";
 import { useConfig } from "../store/config";
 import { AgentLogo } from "./AgentLogos";
-import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, FileIcon, GaugeIcon, PenIcon, PlusIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
+import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, FileIcon, GaugeIcon, GlobeIcon, PenIcon, PlusIcon, SearchIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
 
 const MAX_ROWS = 12;
 /** Tool output shown when a call is opened; the rest stays in the transcript. */
@@ -319,6 +319,7 @@ function changedFrom(segs: Segment[], from: Segment): boolean {
  * conversation cut just before it (lib/chat.ts branchChat), optionally undoing file changes.
  */
 function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatItem, { kind: "user" }>; paneId: string; idle: boolean; changedLater: boolean }) {
+  const showTime = useConfig((s) => s.config?.chatTimestamps ?? false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const [undoFiles, setUndoFiles] = useState(true);
@@ -394,6 +395,11 @@ function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatI
           </button>
         </div>
       )}
+      {showTime && item.at && (
+        <time className="chat-time" dateTime={new Date(item.at).toISOString()}>
+          {clockTime(item.at)}
+        </time>
+      )}
     </div>
   );
 }
@@ -424,12 +430,17 @@ function openLink(e: React.MouseEvent, paneId: string) {
   e.preventDefault();
   const href = a.getAttribute("href") ?? "";
   if (/^https?:\/\//.test(href)) {
-    if (isLocalUrl(href) && !e.altKey) openInBrowserPane(paneId, href);
+    const mode = useConfig.getState().config?.linkOpen ?? "local";
+    const inApp = !e.altKey && (mode === "app" || (mode === "local" && isLocalUrl(href)));
+    if (inApp) openInBrowserPane(paneId, href);
     else ipc.openUrl(href).catch(() => {});
   } else if (href && !/^[a-z]+:/i.test(href)) {
     openFile(href, undefined, undefined, { fromPane: paneId });
   }
 }
+
+/** "3:42 PM": the time a message landed, in the locale's clock. */
+const clockTime = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 /** "8s", "2m 10s": whole seconds, as a person would say it. */
 function took(ms: number) {
@@ -493,6 +504,8 @@ const TOOL_VERB: Record<string, string> = {
  * and folded, and the answer as it streams. Once done the work folds under one line.
  */
 const WorkBlock = memo(function WorkBlock({ seg, live, waiting, cwd, paneId }: { seg: Work; live: boolean; waiting: boolean; cwd?: string; paneId: string }) {
+  const showTime = useConfig((s) => s.config?.chatTimestamps ?? false);
+  const answeredAt = seg.answer.at(-1)?.at;
   const [open, setOpen] = useState(false);
   const ms = seg.end?.ms ?? (seg.startAt && seg.lastAt && seg.lastAt > seg.startAt ? seg.lastAt - seg.startAt : undefined);
   const steps = seg.activity.filter((i) => i.kind === "tool").length;
@@ -515,10 +528,15 @@ const WorkBlock = memo(function WorkBlock({ seg, live, waiting, cwd, paneId }: {
         <Markdown key={a.id} text={a.text} streaming={!a.done} />
       ))}
       {!live && seg.answer.length > 0 && (
-        <div className="chat-answer-tools">
+        <div className={`chat-answer-tools${showTime ? " with-time" : ""}`}>
           <button type="button" className="chat-answer-copy" title="Copy this answer as Markdown" onClick={(e) => copyText(e.currentTarget, seg.answer.map((a) => a.text).join("\n\n"))}>
             Copy
           </button>
+          {showTime && answeredAt && (
+            <time className="chat-time" dateTime={new Date(answeredAt).toISOString()}>
+              {clockTime(answeredAt)}
+            </time>
+          )}
         </div>
       )}
       {seg.end?.outcome === "interrupted" && <div className="chat-outcome">Stopped</div>}
@@ -556,6 +574,16 @@ function Activity({ items, cwd }: { items: ChatItem[]; cwd?: string }) {
   );
 }
 
+/** The icon T3-style work rows use for a tool: file, search, web, agent, else terminal. */
+function toolGlyph(name: string | undefined) {
+  if (!name) return <TerminalIcon className="chat-tools-glyph" />;
+  if (/^(Read|Write|Edit|MultiEdit|NotebookEdit)$/.test(name)) return <FileIcon className="chat-tools-glyph" />;
+  if (/^(Grep|Glob)$/.test(name)) return <SearchIcon className="chat-tools-glyph" />;
+  if (/^(WebFetch|WebSearch)$/.test(name)) return <GlobeIcon className="chat-tools-glyph" />;
+  if (/^(Task|Agent)$/.test(name)) return <SparkIcon className="chat-tools-glyph" />;
+  return <TerminalIcon className="chat-tools-glyph" />;
+}
+
 function ToolGroup({ tools, cwd }: { tools: Tool[]; cwd?: string }) {
   const [open, setOpen] = useState(false);
   const running = tools.find((t) => t.result === undefined);
@@ -564,7 +592,7 @@ function ToolGroup({ tools, cwd }: { tools: Tool[]; cwd?: string }) {
   return (
     <div className={`chat-tools${running ? " running" : ""}`}>
       <button type="button" className={`chat-tools-line${open ? " open" : ""}`} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <TerminalIcon className="chat-tools-glyph" />
+        {toolGlyph(one?.name ?? tools[0]?.name)}
         {one ? (
           <>
             <span className="chat-tools-name">{one.name}</span>
@@ -1089,6 +1117,8 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const pane = useLayout((s) => s.panes[paneId]);
   useConfig((s) => s.config?.effort); // re-render when the auto defaults change
+  const sendOnEnter = useConfig((s) => s.config?.chatSendOnEnter ?? true);
+  const sendKey = sendOnEnter ? "Enter" : "⌘Enter";
   const { model, effort } = chatPicks(pane);
   const running = useChat((s) => s.byPane[paneId]?.model);
   const mode = modeKey(useChat((s) => s.byPane[paneId]?.mode));
@@ -1240,9 +1270,9 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           } else if (e.key === "." && e.metaKey && busy) {
             e.preventDefault();
             interruptChat(paneId);
-          } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.target === ref.current) {
+          } else if (e.key === "Enter" && !e.nativeEvent.isComposing && e.target === ref.current && composerEnter({ meta: e.metaKey, shift: e.shiftKey }, sendOnEnter) !== "newline") {
             e.preventDefault();
-            send(e.metaKey);
+            send(composerEnter({ meta: e.metaKey, shift: e.shiftKey }, sendOnEnter) === "opposite");
           } else if (e.key === "Tab" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.target === ref.current) {
             // Claude Code's own mode cycle.
             e.preventDefault();
@@ -1276,7 +1306,7 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           rows={2}
           value={text}
           data-chat-input={paneId}
-          placeholder={busy ? "Claude is working. A message now goes after this turn" : "Describe a task, or / for commands"}
+          placeholder={busy ? "Claude is working. A message now goes after this turn" : "Ask anything. @ files, / commands"}
           onChange={(e) => {
             setText(e.target.value);
             setCaret(e.target.selectionStart);
@@ -1360,7 +1390,7 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
               <StopIcon />
             </button>
           ) : (
-            <button type="button" className="chat-send" onClick={() => send()} disabled={empty} title={busy ? (prefs.steerKey && prefs.followUp === "steer" ? "Stop this turn and send now (Enter)" : "Queue for after this turn (Enter)") : "Send (Enter)"} aria-label="Send">
+            <button type="button" className="chat-send" onClick={() => send()} disabled={empty} title={busy ? (prefs.steerKey && prefs.followUp === "steer" ? `Stop this turn and send now (${sendKey})` : `Queue for after this turn (${sendKey})`) : `Send (${sendKey})`} aria-label="Send">
               <ArrowUpIcon />
             </button>
           )}

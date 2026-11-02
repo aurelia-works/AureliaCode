@@ -22,6 +22,7 @@ import { startRemote } from "./lib/remote";
 import { planResume } from "./lib/resume";
 import { installShortcuts } from "./lib/shortcuts";
 import { applyAppearance } from "./lib/terminals";
+import { applyUiAppearance } from "./lib/uiAppearance";
 import { onSystemThemeChange, resolveDark } from "./lib/theme";
 import { startVoice } from "./lib/voice";
 import { trackAttention, useAgents, type AgentEvent } from "./store/agents";
@@ -61,6 +62,7 @@ function applyTheme() {
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   applyPaletteVars(cfg?.palette, dark);
   applyAppearance();
+  if (cfg) applyUiAppearance();
 }
 
 function persistLayout() {

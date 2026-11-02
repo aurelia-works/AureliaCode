@@ -1,5 +1,6 @@
 import { useEffect, type MouseEvent } from "react";
 import { useUi, type RailTab } from "../store/ui";
+import { CloseIcon } from "./Icons";
 import { ChangesPanel } from "./ChangesPanel";
 import { DetailsPanel } from "./DetailsPanel";
 import { QueueRail } from "./QueueRail";
@@ -57,6 +58,9 @@ export function RightPanel() {
             {t.label}
           </button>
         ))}
+        <button className="rail-close" aria-label="Close side panel" title="Close side panel" onClick={() => useUi.getState().set({ agentPanelOpen: false })}>
+          <CloseIcon width={12} height={12} />
+        </button>
       </div>
       {tab === "queue" ? <QueueRail /> : tab === "changes" ? <ChangesPanel /> : tab === "notes" ? <NotesPanel /> : <DetailsPanel />}
     </aside>

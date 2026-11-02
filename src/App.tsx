@@ -42,6 +42,19 @@ export function App() {
   const focusKey = useLayout((s) => `${s.activeTabId}:${s.tabs.find((t) => t.id === s.activeTabId)?.focusedPaneId}`);
   const modalOpen = useUi((s) => s.settingsOpen || s.captureOpen || s.roadmapOpen || s.weeklyOpen || !!s.accountPicker || s.gridOpen || s.reviewOpen || s.paletteOpen || s.historyOpen);
 
+  // Below 760px the thread list is a drawer: fold it once on the way down, and let the title-bar toggle reopen it.
+  useEffect(() => {
+    let wasNarrow = false;
+    const check = () => {
+      const narrow = window.innerWidth < 760;
+      if (narrow && !wasNarrow && useUi.getState().nav) useUi.getState().set({ nav: null });
+      wasNarrow = narrow;
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
   // Belt and braces: anything that resized while the board covered the stage refits on the way back.
   useEffect(() => {
     if (mode !== "terminals") return;

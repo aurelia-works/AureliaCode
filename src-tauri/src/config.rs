@@ -329,6 +329,22 @@ pub struct Config {
     pub routines: Vec<Value>,
     pub effort: EffortConfig,
     pub remote: RemoteConfig,
+    /// Interface contrast: "normal" | "high" (T3-style accessibility).
+    pub contrast: String,
+    /// Chat column width: "comfortable" | "wide" | "full".
+    pub chat_width: String,
+    /// Turn off panel/message animations regardless of the OS setting.
+    pub reduce_motion: bool,
+    /// Enter sends a chat message; off means ⌘Enter sends and Enter inserts a newline.
+    pub chat_send_on_enter: bool,
+    /// Show the time next to chat messages.
+    pub chat_timestamps: bool,
+    /// Links clicked in chat: "system" | "local" (local dev servers in-app) | "app" (all in-app).
+    pub link_open: String,
+    /// Address-bar search engine: "duckduckgo" | "google" | "bing".
+    pub browser_search: String,
+    /// New threads start on their own git worktree by default.
+    pub worktree_by_default: bool,
 }
 
 impl Default for Config {
@@ -361,6 +377,14 @@ impl Default for Config {
             routines: Vec::new(),
             effort: EffortConfig::default(),
             remote: RemoteConfig::default(),
+            contrast: "normal".into(),
+            chat_width: "comfortable".into(),
+            reduce_motion: false,
+            chat_send_on_enter: true,
+            chat_timestamps: false,
+            link_open: "local".into(),
+            browser_search: "duckduckgo".into(),
+            worktree_by_default: false,
         }
     }
 }

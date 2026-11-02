@@ -724,7 +724,7 @@ button.chip:hover,
   flex: 1;
 }
 input[type="checkbox"] {
-  accent-color: var(--text);
+  accent-color: var(--accent);
   width: 14px;
   height: 14px;
   margin: 0;

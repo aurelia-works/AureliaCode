@@ -440,7 +440,7 @@ mockIPC(
         return null;
       case "load_state":
         if (args.name === "layout") return structuredClone(layout);
-        if (args.name === "ui") return { mode: view === "board" ? "agents" : view === "work" ? "work" : "terminals", agentPanelOpen: true, nav: "projects" };
+        if (args.name === "ui") return { mode: view === "board" ? "agents" : view === "work" ? "work" : "terminals", agentPanelOpen: params.get("rail") !== null, nav: "projects" };
         if (args.name === "work") return { items: WORK_ITEMS };
         if (args.name === "tasks")
           return {

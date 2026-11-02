@@ -13,6 +13,7 @@ import { paneDir, useGit } from "../store/git";
 import { paneIds, useLayout, type PaneMeta } from "../store/layout";
 import { usePrs } from "../store/prs";
 import { useRuntime } from "../store/runtime";
+import { tasksForPane, useTasks } from "../store/tasks";
 import { ipc, type PrInfo, type WorktreeEntry } from "../lib/ipc";
 import { matchesFilter, prAttention, snoozeChoices } from "../lib/threads";
 import { toast, useUi } from "../store/ui";
@@ -235,12 +236,13 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   });
   const [menu, setMenu] = useState(false);
   const title = useChatTitle(paneId);
+  const task = useTasks((s) => tasksForPane(s.projects, paneId).find((t) => t.status === "doing") ?? tasksForPane(s.projects, paneId)[0]);
   const custom = usePaneAgent(paneId);
   const account = pane?.account ?? agent?.account;
   const isClaude = !!agent || !!account;
   const v: Visual | undefined = agent ? visualOf(agent) : isClaude ? "starting" : undefined;
   const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher ? "New thread" : custom ? custom.name : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
-  const label = pane?.title ?? title ?? kind;
+  const label = pane?.title ?? title ?? task?.title ?? kind;
   const dir = paneDir(paneId);
   const repo = basename(git?.repo ?? dir) || "~";
   const attention = prAttention(pr, pane?.prSeenFeedback);
@@ -429,8 +431,8 @@ export function ProjectsSidebar() {
   const prs = usePrs((s) => s.byDir);
   const chats = useChat((s) => s.byPane);
   const [away, setAway] = useState<"snoozed" | "settled" | null>(null);
-  const [finding, setFinding] = useState(false);
   const [filter, setFilter] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkMenu, setBulkMenu] = useState(false);
   const [removed, setRemoved] = useState(0);
@@ -440,6 +442,19 @@ export function ProjectsSidebar() {
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
+  }, []);
+  // "/" focuses thread search, the way T3's sidebar does; typing in a field or terminal keeps the key.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
   const snoozed = (id: string) => (panes[id]?.snoozedUntil ?? 0) > now && sessions[id]?.status !== "needs_input";
 
@@ -582,41 +597,34 @@ export function ProjectsSidebar() {
         </div>
       ) : (
         <div className="side-top">
-          <button className="newt" onClick={() => useLayout.getState().newTab({ launcher: true })}>
+          <label className="side-search">
+            <SearchIcon width={13} height={13} />
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder="Search threads"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setFilter("");
+                  e.currentTarget.blur();
+                }
+              }}
+              aria-label="Search threads"
+            />
+            {filter ? (
+              <button type="button" className="side-search-clear" aria-label="Clear search" onClick={() => { setFilter(""); searchRef.current?.focus(); }}>
+                ×
+              </button>
+            ) : (
+              <kbd>/</kbd>
+            )}
+          </label>
+          <button className="find" aria-label="New thread" title="New thread (⌘N)" onClick={() => useLayout.getState().newTab({ launcher: true })}>
             <PlusIcon />
-            New thread
-            <kbd>⌘N</kbd>
-          </button>
-          <button
-            className={`find${finding ? " on" : ""}`}
-            aria-label="Filter threads"
-            title="Filter threads"
-            aria-pressed={finding}
-            onClick={() => {
-              setFinding(!finding);
-              setFilter("");
-            }}
-          >
-            <SearchIcon />
           </button>
         </div>
-      )}
-      {finding && (
-        <input
-          className="nav-filter"
-          type="search"
-          autoFocus
-          placeholder="Filter by title, repo, branch or PR"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setFilter("");
-              setFinding(false);
-            }
-          }}
-          aria-label="Filter threads"
-        />
       )}
       <div
         className="side-list"

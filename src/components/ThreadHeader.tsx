@@ -7,6 +7,9 @@ import { usePrs } from "../store/prs";
 import { useUi } from "../store/ui";
 import { usePaneAgent } from "./AgentChip";
 import { BottomPanelIcon, BranchIcon, GridIcon, PrIcon, RightPanelIcon, WorktreeIcon } from "./Icons";
+import { AccountSwitch } from "./AccountSwitch";
+import { ModeChip, PaneControls } from "./PaneHeader";
+import { ChatUsageChip } from "./UsageChip";
 import { useChatTitle } from "./ProjectsSidebar";
 
 /** "AureliaSpace" → "AS", "mtr-addon" → "MA", "web" → "WE". */
@@ -112,6 +115,10 @@ export function ThreadHeader() {
 
   const repo = basename(git?.repo ?? dir) || "~";
   const agent = paneId ? sessions[paneId] : undefined;
+  const account = pane?.account ?? agent?.account;
+  const chat = pane?.mode === "chat";
+  // PaneView drops the pane header for these, so its tools live here.
+  const bare = (chat || !!pane?.launcher) && tabRoot?.type !== "split";
   const name = title ?? (pane?.launcher ? "New thread" : pane?.browser ? "Browser" : pane?.editor ? basename(pane.editor.path) : custom?.name ?? (pane?.account || agent ? "Claude" : "Terminal"));
   const prTone = pr && (pr.state === "MERGED" ? "merged" : pr.conflicts || pr.checks === "fail" ? "bad" : pr.checks === "pass" ? "ok" : "");
   const prWhat = pr && (pr.state !== "OPEN" ? pr.state.toLowerCase() : pr.conflicts ? "conflicts" : pr.checks === "none" ? (pr.draft ? "draft" : "open") : `checks ${pr.checks}`);
@@ -124,18 +131,26 @@ export function ThreadHeader() {
         <span>/</span>
         <h1>{name}</h1>
       </div>
+      {chat && account && paneId && <AccountSwitch paneId={paneId} account={account} />}
       {git && (
         <span className={`chip${git.worktree ? " wt" : ""}`} title={`${git.detached ? "Detached HEAD" : "Branch"} ${git.branch}${git.worktree ? `\nWorktree: ${git.root}` : ""}`}>
           {git.worktree ? <WorktreeIcon width={13} height={13} /> : <BranchIcon width={13} height={13} />}
           {git.branch}
         </span>
       )}
+      {chat && paneId && <ModeChip paneId={paneId} />}
+      {chat && paneId && <ChatUsageChip paneId={paneId} />}
       {pr && (
         <button className={`chip pr ${prTone}`} title={`PR #${pr.number}: ${pr.title}\nClick to open on GitHub`} onClick={() => void ipc.openUrl(pr.url)}>
           <PrIcon width={13} height={13} />#{pr.number} {prWhat}
         </button>
       )}
       <span className="sp" />
+      {bare && paneId && (
+        <span className="th-pane">
+          <PaneControls paneId={paneId} />
+        </span>
+      )}
       {tools}
     </div>
   );

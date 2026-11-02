@@ -36,6 +36,8 @@ export interface ThreadPrefs {
   dropFiles: boolean;
   /** ⌘[ and ⌘] between threads. */
   backForward: boolean;
+  /** One faint jellyfish per live thread on the start screen. */
+  bloom: boolean;
 }
 
 export const DEFAULT_PREFS: ThreadPrefs = {
@@ -57,6 +59,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   promptLinks: true,
   dropFiles: true,
   backForward: true,
+  bloom: false,
 };
 
 export const UNDO_SECONDS = { min: 2, max: 30 } as const;
