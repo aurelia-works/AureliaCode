@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AureliaSpace</title>
+    <title>AureliaCode</title>
     <style>
       /* Load-in splash: inline so it paints before the app bundle loads. Removed by hideSplash() in main.tsx. */
       #splash {
@@ -260,13 +260,13 @@
       }
       (() => {
         const dev = document.documentElement.dataset.dev === "1";
-        if (dev) document.title = "AureliaSpace Dev";
+        if (dev) document.title = "AureliaCode Dev";
         const name = document.querySelector("#splash .name");
-        (dev ? "AureliaSpace Dev" : "AureliaSpace").split("").forEach((ch, i) => {
+        (dev ? "AureliaCode Dev" : "AureliaCode").split("").forEach((ch, i) => {
           const s = document.createElement("span");
           s.textContent = ch === " " ? "\u00a0" : ch;
           s.style.setProperty("--i", i);
-          if (i >= 13) s.className = "dev";
+          if (i >= 12) s.className = "dev";
           else if (i >= 7) s.className = "gold";
           name.appendChild(s);
         });

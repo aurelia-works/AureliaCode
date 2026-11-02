@@ -5,6 +5,7 @@ import { ipc } from "../../lib/ipc";
 import { applyAppearance } from "../../lib/terminals";
 import { applyUiAppearance } from "../../lib/uiAppearance";
 import { useConfig } from "../../store/config";
+import { useUi } from "../../store/ui";
 import type { SectionProps } from "./registry";
 
 type Health = { ok: boolean; threads: number; events: number; path: string };
@@ -14,6 +15,7 @@ export function DiagnosticsSection({ notify }: SectionProps) {
   const [version, setVersion] = useState("dev");
   const [tauri, setTauri] = useState("—");
   const [store, setStore] = useState<Health | null>(null);
+  const prefs = useUi((s) => s.prefs);
 
   useEffect(() => {
     void getVersion().then((v) => setVersion(v || "dev"), () => setVersion("dev"));
@@ -30,7 +32,7 @@ export function DiagnosticsSection({ notify }: SectionProps) {
 
   const copy = () => {
     const text = [
-      `AureliaSpace ${version}`,
+      `AureliaCode ${version}`,
       `Tauri ${tauri}`,
       `WebView ${navigator.userAgent}`,
       `Store ${store?.ok ? `${store.threads} threads, ${store.events} events` : "unavailable"}`,
@@ -60,6 +62,24 @@ export function DiagnosticsSection({ notify }: SectionProps) {
             <dd className="diag-ua">{navigator.userAgent}</dd>
           </div>
         </dl>
+      </section>
+
+      <section className="set-group">
+        <h3>Developer</h3>
+        <label className="field check">
+          <input type="checkbox" checked={prefs.legacyTerminals} onChange={(e) => useUi.getState().set({ prefs: { ...prefs, legacyTerminals: e.target.checked } })} />
+          <span>Legacy terminal panes</span>
+        </label>
+        <label className="field check">
+          <input type="checkbox" checked={prefs.permissionDrag} onChange={(e) => useUi.getState().set({ prefs: { ...prefs, permissionDrag: e.target.checked } })} />
+          <span>Drag-into-Settings permission helper</span>
+        </label>
+        <div className="field-row">
+          <button type="button" onClick={() => useUi.getState().set({ settingsOpen: false, permissionsOpen: true })}>
+            Open permissions
+          </button>
+        </div>
+        <p className="hint">Brings back AureliaSpace's terminal panes: plain zsh, Codex, Gemini, OpenCode skills, saved agents and teams. Off: every thread is a chat.</p>
       </section>
 
       <section className="set-group">

@@ -1,7 +1,7 @@
 [package]
 name = "aurelia-space"
 version = "0.1.0"
-description = "AureliaSpace — a personal terminal for running Claude Code accounts side by side"
+description = "AureliaCode — a chat-first app for running Claude Code accounts side by side"
 edition = "2021"
 
 [lib]
@@ -29,6 +29,12 @@ if-addrs = "0.13"
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 # Durable threads, work items and events. Bundled SQLite keeps the app self-contained.
 rusqlite = { version = "0.32", features = ["bundled"] }
+tauri-plugin-drag = "2"
+base64 = "0.22"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Catches Objective-C exceptions during AppKit event dispatch (see appkit_guard.rs).
+objc2 = { version = "0.6", features = ["exception"] }
 
 [profile.release]
 codegen-units = 1

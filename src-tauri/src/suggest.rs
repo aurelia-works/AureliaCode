@@ -148,7 +148,7 @@ async fn run(cfg: &SuggestionsConfig, req: &SuggestRequest) -> Result<String, St
                     { "role": "user", "content": user }
                 ]
             });
-            let r = client.post(&url).bearer_auth(key).header("X-Title", "AureliaSpace");
+            let r = client.post(&url).bearer_auth(key).header("X-Title", "AureliaCode");
             let v = post(r, body).await?;
             v.pointer("/choices/0/message/content").and_then(Value::as_str).unwrap_or_default().to_string()
         }

@@ -18,7 +18,7 @@ Estimates are agent time and rough tokens (from PLAN-T3 actuals: about 60-75 min
 | --- | --- | --- | --- | --- | --- |
 | 0 | Research + plan | 30-45 min | scout 4.7 min, 103k tok; main session not measured | Haiku scout + Opus | done, approved 2026-11-02 |
 | 1 | Rename, move, re-sign; terminal out; chat-first window with working select/copy | 2-3 h, ~3-4M tok | | Sonnet 5.5 medium | todo |
-| 2 | Squid menubar: account, usage, spend, providers, privacy blur; CLIProxyAPI (Claude routed, risk accepted) | 2-3 h, ~3-4M tok | | Sonnet 5.5 medium | todo |
+| 2 | Squid menubar: account, usage, spend, providers, privacy blur; CLIProxyAPI (Claude routed, risk accepted); notification accuracy | 2.5-3.5 h, ~3-4M tok | | Opus 5.5 medium | todo |
 | 3 | Grok Bot-style features Jah picks from the teardown | 1-3 h (depends on picks) | | Sonnet 5.5 medium | todo |
 
 Phase 1 and 2 are each near the one-thread limit; if one runs long it stops and is marked "part done".
@@ -41,8 +41,11 @@ Goal: the squid tray icon shows who you are and what you've used.
 - API shadow bill: local ledger over `~/.claude/projects/*.jsonl` (+ Codex sessions), live list prices, cache file, 24h/7d/30d, split by provider.
 - Real API spend: from keys Jah adds (Keychain); Anthropic needs an Admin API key, else shows "not available".
 - Privacy: Keychain for all keys, telemetry off (app + CLIProxyAPI), no outbound calls except vendor usage/price routes, streamer blur.
+- Context-window and app notifications (Jah 2026-11-02): audit every path (`lib/handoffAdvisor.ts`, `store/notifications.ts`, `components/Notices.tsx`, `lib/notify.ts`, sounds). One reliable context warning per thread at a sensible threshold, for running threads too (the advisor only checks idle ones); no repeats, no stale cards; settings for what alerts. Ask Jah which ones annoy him before cutting any.
+- Notification accuracy (Jah 2026-11-02, screenshot): the bell said "Context 98% full" while the composer showed 56% on the same thread. At least four sources disagree: `store/metrics.ts:81` (its own window), `store/live.ts`, `chat.rs` usage and the composer's `ctx` (`ChatPane.tsx:1828`). Use one context number everywhere, from what the CLI reports for that thread, with the right window for the model. Clear or update old cards once the fact changes (compacted, handed off, limit reset), and show the real state rather than the state when it fired. Reproduce the mismatch first; check "finished", "burning fast" and the 5-hour cards too.
+- Chat: a message sent mid-turn lands after the reply that already answered it, because `lib/chat.ts:130` adds the queued bubble at turn end. Put it at the point Claude received it. Failing test first (Jah 2026-11-02, screenshot).
 - CLIProxyAPI: `brew install cliproxyapi`, local hub on 127.0.0.1:8317, Claude + signed-in account routed through it, telemetry off, on/off switch in settings.
-Done when: tray popover screenshot with real numbers and blur working; unit tests for ledger windows and pricing.
+Done when: tray popover screenshot with real numbers and blur working; unit tests for ledger windows and pricing; context warning and mid-turn bubble order checked in the Dev app.
 Needs: Phase 1 (new bundle id).
 
 ### Phase 3: Grok Bot-style features

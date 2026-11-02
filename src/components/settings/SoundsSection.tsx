@@ -59,7 +59,7 @@ export function SoundsSection({ draft, update, notify }: SectionProps) {
           </label>
         ))}
         <p className="hint">
-          Sounds play from inside AureliaSpace, so macOS Focus can't mute them. No sound plays for the pane you're looking at.
+          Sounds play from inside AureliaCode, so macOS Focus can't mute them. No sound plays for the pane you're looking at.
         </p>
       </section>
 
@@ -111,10 +111,10 @@ export function SoundsSection({ draft, update, notify }: SectionProps) {
       <section className="set-group">
         <h3>Desktop banner</h3>
         <p className="hint">
-          macOS banners follow your Focus settings. If one doesn't show, allow AureliaSpace under System Settings → Focus → your Focus →
+          macOS banners follow your Focus settings. If one doesn't show, allow AureliaCode under System Settings → Focus → your Focus →
           Allowed Notifications → Apps.
         </p>
-        <button type="button" onClick={() => banner("AureliaSpace", "If you can read this, banners get through.").then(() => notify("Test banner sent."))}>
+        <button type="button" onClick={() => banner("AureliaCode", "If you can read this, banners get through.").then(() => notify("Test banner sent."))}>
           Send a test banner
         </button>
       </section>
@@ -123,7 +123,7 @@ export function SoundsSection({ draft, update, notify }: SectionProps) {
         <h3>Phone alerts</h3>
         <label className="field check">
           <input type="checkbox" checked={push.enabled} onChange={(e) => update((c) => (c.push.enabled = e.target.checked))} />
-          <span>Send alerts to my phone while AureliaSpace isn't the focused app</span>
+          <span>Send alerts to my phone while AureliaCode isn't the focused app</span>
         </label>
         <label className="field">
           <span>Topic</span>

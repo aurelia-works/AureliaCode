@@ -3,6 +3,7 @@ import { ipc } from "../lib/ipc";
 import { useConfig } from "./config";
 import { DEFAULT_PREFS, normalizePrefs, type ThreadPrefs } from "../lib/prefs";
 import { startWorktree } from "../lib/threadTools";
+import { setTerminalsAllowed } from "../lib/paneKind";
 
 /** A task the account picker will hand to the new Claude pane as its first prompt. */
 export interface PickerTask {
@@ -55,6 +56,8 @@ interface UiState {
   reviewOpen: boolean;
   /** Durable thread history search (SQLite). */
   historyOpen: boolean;
+  /** The drag-the-app-into-System-Settings sheet (components/PermissionsSheet.tsx). */
+  permissionsOpen: boolean;
   /** "split" | "tab" — where the account picker will open the new Claude pane. */
   accountPicker: null | { target: "split" | "tab"; task?: PickerTask };
   /** Give new Claude panes their own git worktree. */
@@ -101,6 +104,7 @@ export const useUi = create<UiState>((set) => ({
   gridOpen: false,
   reviewOpen: false,
   historyOpen: false,
+  permissionsOpen: false,
   accountPicker: null,
   useWorktree: false,
   reviewWhenDone: false,
@@ -159,8 +163,10 @@ export async function loadUiState() {
       stash: Array.isArray(saved.stash) ? saved.stash.filter((x): x is string => typeof x === "string").slice(-10) : [],
     });
   }
+  setTerminalsAllowed(useUi.getState().prefs.legacyTerminals);
   let last = "";
   useUi.subscribe((s) => {
+    setTerminalsAllowed(s.prefs.legacyTerminals);
     const next = JSON.stringify({
       mode: s.mode,
       agentPanelOpen: s.agentPanelOpen,

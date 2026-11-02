@@ -4,6 +4,7 @@ import { useAgents } from "../store/agents";
 import { getConfig } from "../store/config";
 import { onPanesClosed, useLayout, type PaneMeta } from "../store/layout";
 import { addNotice, addUser, applyLine, emptyTranscript, endTurn, toolSummary, type Transcript } from "./chatModel";
+import { takeReplay } from "./chatReplay";
 import { workAfterTurn } from "./workBridge";
 import { cacheSafe } from "./effort";
 import { ipc, type ChatEvent, type ChatImage, type CliModel, type ChatUsage, type ContextUsage, type SlashCommand } from "./ipc";
@@ -86,8 +87,12 @@ const forkIds = new Map<string, string>();
 
 function reduce(paneId: string, s: ChatSession, ev: ChatEvent): ChatSession {
   switch (ev.type) {
-    case "raw":
+    case "raw": {
+      // The CLI's echo of a message it took (often mid-turn): it leaves the queue now.
+      const taken = takeReplay(s.transcript, s.queued, ev.msg);
+      if (taken) return { ...s, ...taken };
       return { ...s, transcript: applyLine(s.transcript, ev.msg), model: reportedModel(ev.msg) ?? s.model, mode: reportedMode(paneId, ev.msg) ?? s.mode };
+    }
     case "controlError":
       return { ...s, transcript: addNotice(s.transcript, `Claude Code said no: ${ev.error}`, true) };
     case "status":

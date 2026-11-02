@@ -7,6 +7,7 @@ import { agentVariants, launchSkillAgent, launchTeam, prepareCustomAgent, varian
 import { skillPrompt, type Skill } from "../lib/skills";
 import { SkillsPanel } from "./SkillsPanel";
 import { queueFirstMessage } from "../lib/chat";
+import { cleanTextarea } from "../lib/controlChars";
 import { shellQuote, startDir } from "../lib/launch";
 import { prAttention } from "../lib/threads";
 import { newScratchDir } from "../lib/scratch";
@@ -83,15 +84,18 @@ export function StartScreen({ paneId }: { paneId: string }) {
   const account = picked ?? preferred ?? accounts[0]?.name;
   const git = useGit((s) => s.info[expandPath(folder)] ?? s.info[folder]);
   const { updatePane } = useLayout.getState();
-  const asChat = useUi((s) => s.claudeAsChat);
+  // Chat-only unless Settings → Diagnostics → Legacy terminal panes is on.
+  const terms = prefs.legacyTerminals;
+  const asChat = useUi((s) => s.claudeAsChat) || !terms;
   const openClaude = (account: string | undefined, alt?: boolean) =>
-    updatePane(paneId, { account, launcher: undefined, ...(asChat !== !!alt && { mode: "chat" as const }) });
+    updatePane(paneId, { account, launcher: undefined, ...((terms ? asChat !== !!alt : true) && { mode: "chat" as const }) });
   const start = (patch: { account?: string }, command?: string) => {
     if (command) queueInit(paneId, command);
     updatePane(paneId, { ...patch, launcher: undefined });
   };
   /** DeepSeek skills run through OpenCode in a fresh terminal pane, not through Claude. */
   const runSkill = async (skill: Skill, task: string) => {
+    if (!terms) return toast("Skills run through OpenCode in a terminal pane: turn on Legacy terminal panes in Settings → Diagnostics", true);
     const variant = agentVariants(accounts).find((v) => v.id === "deepseek:opencode");
     if (!variant) return toast("OpenCode isn't configured; add a DeepSeek agent in Settings → My agents", true);
     if (!(await ipc.which("opencode").catch(() => false))) return toast("OpenCode isn't installed. Install it with: curl -fsSL https://opencode.ai/install | bash", true);
@@ -110,7 +114,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
 
   const choices: Choice[] = [
     // Saved agents first: they're the ones you set up on purpose.
-    ...customAgents.map((a) => ({
+    ...(terms ? customAgents : []).map((a) => ({
       key: `agent-${a.id}`,
       label: a.name,
       hint: variantOf(a)?.label ?? "missing CLI",
@@ -118,7 +122,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
       agent: a,
       run: () => void startCustom(a),
     })),
-    ...teams.map((t) => ({
+    ...(terms ? teams : []).map((t) => ({
       key: `team-${t.id}`,
       label: t.name,
       hint: `team · ${t.agentIds.length} panes in a new tab`,
@@ -136,16 +140,18 @@ export function StartScreen({ paneId }: { paneId: string }) {
       logo: "claude",
       run: (alt?: boolean) => openClaude(a.name, alt),
     })),
-    { key: "terminal", label: "Terminal", hint: "plain zsh with command blocks", logo: "terminal", run: () => start({}) },
-    ...(tools.codex ? [{ key: "codex", label: "Codex", hint: "codex", logo: "codex", run: () => start({}, "codex") }] : []),
-    ...(tools.gemini ? [{ key: "gemini", label: "Gemini CLI", hint: "gemini", logo: "gemini", run: () => start({}, "gemini") }] : []),
-    {
-      key: "more",
-      label: "More agents…",
-      hint: "several CLIs at once, worktrees, API keys",
-      logo: "more",
-      run: () => useUi.getState().set({ accountPicker: { target: "tab" } }),
-    },
+    ...(terms ? [{ key: "terminal", label: "Terminal", hint: "plain zsh with command blocks", logo: "terminal", run: () => start({}) }] : []),
+    ...(terms && tools.codex ? [{ key: "codex", label: "Codex", hint: "codex", logo: "codex", run: () => start({}, "codex") }] : []),
+    ...(terms && tools.gemini ? [{ key: "gemini", label: "Gemini CLI", hint: "gemini", logo: "gemini", run: () => start({}, "gemini") }] : []),
+    ...(terms
+      ? [{
+          key: "more",
+          label: "More agents…",
+          hint: "several CLIs at once, worktrees, API keys",
+          logo: "more",
+          run: () => useUi.getState().set({ accountPicker: { target: "tab" } }),
+        }]
+      : []),
   ];
   const quickOpen = recents.filter((r) => r !== folder).slice(0, 5);
 
@@ -167,7 +173,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
     const text = (over?.text ?? prompt).trim();
     if (!text) return;
     const dir = over?.dir ? await startDir(over.dir, false, text.slice(0, 40)) : await startDir(expandPath(folder), worktree && !!git, text.slice(0, 40));
-    const chat = asChat !== !!alt;
+    const chat = terms ? asChat !== !!alt : true;
     if (chat) queueFirstMessage(paneId, text);
     else queueInit(paneId, `claude ${shellQuote(text)}`);
     updatePane(paneId, { account, cwd: dir, launcher: undefined, ...(chat && { mode: "chat" as const }) });
@@ -321,7 +327,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 ref={promptRef}
                 rows={2}
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
+                onChange={(e) => setPrompt(cleanTextarea(e.target))}
                 placeholder="Ask anything…"
               />
               <div className="chat-card-bar">
@@ -352,7 +358,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
             </div>
             <div className="start-hint">
               <span>Enter to start</span>
-              <span>⌥Enter for a terminal</span>
+              {terms && <span>⌥Enter for a terminal</span>}
               {prefs.background && <span>⌘Enter starts and opens another</span>}
             </div>
             <div className="start-others">

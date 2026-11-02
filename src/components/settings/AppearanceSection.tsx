@@ -1,9 +1,11 @@
 import { PALETTES, swatchColors } from "../../lib/palettes";
 import { resolveDark } from "../../lib/theme";
 import { useConfig } from "../../store/config";
+import { useUi } from "../../store/ui";
 import type { SectionProps } from "./registry";
 
 export function AppearanceSection({ draft, update }: SectionProps) {
+  const terms = useUi((s) => s.prefs.legacyTerminals);
   const num = (v: string, fallback: number) => (Number.isFinite(Number(v)) && Number(v) > 0 ? Number(v) : fallback);
   return (
     <>
@@ -73,7 +75,7 @@ export function AppearanceSection({ draft, update }: SectionProps) {
         <p className="hint">Turns off panel and message animations without changing the macOS setting.</p>
       </section>
 
-      <section className="set-group">
+      {terms && <section className="set-group">
         <h3>Terminal</h3>
         <label className="field">
           <span>Font</span>
@@ -96,7 +98,7 @@ export function AppearanceSection({ draft, update }: SectionProps) {
           <span>Option key acts as Meta</span>
         </label>
         <p className="hint">Scrollback applies to panes opened after saving.</p>
-      </section>
+      </section>}
     </>
   );
 }

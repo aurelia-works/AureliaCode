@@ -530,6 +530,14 @@ body {
   color: var(--text);
   border-color: color-mix(in srgb, var(--text) 30%, transparent);
 }
+/* Row actions are icon-only so they cover the row's right edge, not its title: the title must open the thread. */
+.nav-thread-actions .nav-act {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
 .snooze-menu {
   width: 240px;
   border-radius: 12px;
@@ -1092,10 +1100,22 @@ body {
   border: 1px solid var(--line-2);
   background: var(--surface-2);
   box-shadow: var(--shadow);
+  /* The start screen's menu sits inside the 32px heading: don't inherit its type. */
+  font: 400 13px / 1.4 var(--font-ui);
+  letter-spacing: normal;
   text-align: left;
+  text-wrap: wrap;
 }
 .pick-menu .recent-row:hover {
   background: var(--s2);
+}
+.pick-menu .recent-name {
+  min-width: 0;
+  flex-shrink: 0;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 500;
 }
 .pick-act {
   display: flex;

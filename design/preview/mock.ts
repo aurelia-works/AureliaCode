@@ -528,7 +528,12 @@ mockIPC(
           };
         }
         return { text: "", mtimeMs: 0 };
+      case "project_files":
+        return ["src/App.tsx", "src/components/Composer.tsx", "src/components/ChatPane.tsx", "src/lib/chat.ts", "package.json", "README.md"];
+      case "app_bundle_path":
+        return "/Applications/AureliaCode.app";
       case "has_full_disk_access":
+        if (view === "permissions") return false;
       case "which":
       case "voice_installed":
         return true;
@@ -620,6 +625,7 @@ if (view === "weekly") useUi.setState({ weeklyOpen: true });
 if (view === "roadmap") useUi.setState({ roadmapOpen: true, roadmapProject: params.get("project") });
 if (view === "settings") useUi.setState({ settingsOpen: true, settingsSection: params.get("section") });
 if (view === "palette") useUi.setState({ paletteOpen: true });
+if (view === "permissions") useUi.setState({ permissionsOpen: true });
 if (view === "files") useUi.setState({ nav: "files" });
 if (view === "threads") {
   useUi.setState({ single: params.get("single") === "1", railTab: (params.get("rail") as "queue" | "changes" | "details" | "notes") ?? "queue" });

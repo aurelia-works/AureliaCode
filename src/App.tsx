@@ -3,6 +3,7 @@ import { WeeklyPage } from "./components/planner/WeeklyPage";
 import { RoadmapPage } from "./components/planner/RoadmapPage";
 import { CaptureBox } from "./components/planner/CaptureBox";
 import { HistoryPanel } from "./components/HistoryPanel";
+import { PermissionsSheet } from "./components/PermissionsSheet";
 import { useEffect } from "react";
 import { AccountPicker } from "./components/AccountPicker";
 import { AgentsBoard } from "./components/AgentsBoard";
@@ -39,8 +40,9 @@ export function App() {
   const railWidth = useUi((s) => s.railWidths[s.railTab]);
   const mode = useUi((s) => s.mode);
   const historyOpen = useUi((s) => s.historyOpen);
+  const permissionsOpen = useUi((s) => s.permissionsOpen);
   const focusKey = useLayout((s) => `${s.activeTabId}:${s.tabs.find((t) => t.id === s.activeTabId)?.focusedPaneId}`);
-  const modalOpen = useUi((s) => s.settingsOpen || s.captureOpen || s.roadmapOpen || s.weeklyOpen || !!s.accountPicker || s.gridOpen || s.reviewOpen || s.paletteOpen || s.historyOpen);
+  const modalOpen = useUi((s) => s.settingsOpen || s.captureOpen || s.roadmapOpen || s.weeklyOpen || !!s.accountPicker || s.gridOpen || s.reviewOpen || s.paletteOpen || s.historyOpen || s.permissionsOpen);
 
   // Below 760px the thread list is a drawer: fold it once on the way down, and let the title-bar toggle reopen it.
   useEffect(() => {
@@ -118,6 +120,7 @@ export function App() {
       <GridPicker />
       <CommandPalette />
       {historyOpen && <HistoryPanel />}
+      {permissionsOpen && <PermissionsSheet />}
       <CaptureBox />
       <RoadmapPage />
       <WeeklyPage />

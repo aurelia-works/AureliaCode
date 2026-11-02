@@ -480,6 +480,9 @@ export const ipc = {
   checkProject: (root: string) => invoke<{ problems: Problem[]; ran: string[] }>("check_project", { root }),
   transcriptThread: (path: string, maxItems: number) => invoke<ThreadItem[]>("transcript_thread", { path, maxItems }),
   hasFullDiskAccess: () => invoke<boolean>("has_full_disk_access"),
+  appBundlePath: () => invoke<string | null>("app_bundle_path"),
+  captureScreenshot: () => invoke<ChatImage | null>("capture_screenshot"),
+  clipboardImage: () => invoke<ChatImage | null>("clipboard_image"),
   openFullDiskAccessSettings: () => invoke<void>("open_full_disk_access_settings"),
 
   gitLastCommit: (cwd: string) => invoke<number | null>("git_last_commit", { cwd }),

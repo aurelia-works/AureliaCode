@@ -14,8 +14,11 @@ mod ide;
 mod integration;
 mod orchestrator;
 mod links;
+mod media;
 mod pairing;
 mod tailscale;
+#[cfg(target_os = "macos")]
+mod appkit_guard;
 pub mod panic_log;
 mod privacy;
 mod pr;
@@ -42,10 +45,10 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, Some("CmdOrCtrl+,"))?;
     let app_menu = Submenu::with_items(
         app,
-        "AureliaSpace",
+        "AureliaCode",
         true,
         &[
-            &PredefinedMenuItem::about(app, Some("About AureliaSpace"), None)?,
+            &PredefinedMenuItem::about(app, Some("About AureliaCode"), None)?,
             &PredefinedMenuItem::separator(app)?,
             &settings,
             &PredefinedMenuItem::separator(app)?,
@@ -66,6 +69,9 @@ fn build_menu(app: &tauri::AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
             &PredefinedMenuItem::cut(app, None)?,
             &PredefinedMenuItem::copy(app, None)?,
             &PredefinedMenuItem::paste(app, None)?,
+            // A macOS webview needs this item for ⌘A at all. The item takes the key before the
+            // page sees it, so it's ours and the page decides what to select.
+            &MenuItem::with_id(app, "select-all", "Select All", true, Some("CmdOrCtrl+A"))?,
         ],
     )?;
     let window = Submenu::with_items(
@@ -140,8 +146,12 @@ pub fn raise_fd_limit() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "macos")]
+    appkit_guard::install();
+    config::migrate_from_aureliaspace();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_drag::init())
         .plugin(no_webview_context_menu())
         .manage(pty::PtyState::default())
         .manage(chat::ChatState::default())
@@ -163,6 +173,8 @@ pub fn run() {
             app.on_menu_event(|app, event| {
                 if event.id() == "settings" {
                     let _ = app.emit("menu-settings", ());
+                } else if event.id() == "select-all" {
+                    let _ = app.emit("menu-select-all", ());
                 }
             });
             Ok(())
@@ -179,6 +191,9 @@ pub fn run() {
             files::make_scratch,
             privacy::has_full_disk_access,
             privacy::open_full_disk_access_settings,
+            privacy::app_bundle_path,
+            media::capture_screenshot,
+            media::clipboard_image,
             chat::chat_spawn,
             chat::chat_send,
             chat::chat_interrupt,
@@ -278,7 +293,7 @@ pub fn run() {
             agents::agent_keys_present,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building AureliaSpace");
+        .expect("error while building AureliaCode");
 
     app.run(|handle, event| {
         #[cfg(target_os = "macos")]

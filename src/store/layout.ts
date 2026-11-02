@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { paneForLayout } from "../lib/paneKind";
 
 export type SplitDir = "row" | "column"; // row = side by side, column = stacked
 
@@ -162,7 +163,7 @@ export function onPanesClosed(fn: CloseListener) {
 const emitClosed = (ids: string[]) => ids.length && closeListeners.forEach((fn) => fn(ids));
 
 function makePane(opts?: NewPaneOpts): PaneMeta {
-  return {
+  return paneForLayout({
     id: opts?.id ?? uid("pane"),
     account: opts?.account,
     cwd: opts?.cwd,
@@ -175,7 +176,7 @@ function makePane(opts?: NewPaneOpts): PaneMeta {
     editor: opts?.editor,
     mode: opts?.mode === "chat" ? "chat" : undefined,
     chatModel: opts?.chatModel,
-  };
+  });
 }
 
 /** Balanced binary splits whose ratios give every leaf the same share of space. */
@@ -372,8 +373,10 @@ export const useLayout = create<LayoutState>((set, get) => ({
   updatePane(paneId, patch) {
     const pane = get().panes[paneId];
     if (!pane) return;
-    const changed = Object.entries(patch).some(([k, v]) => pane[k as keyof PaneMeta] !== v);
-    if (changed) set((s) => ({ panes: { ...s.panes, [paneId]: { ...pane, ...patch } } }));
+    const next = paneForLayout({ ...pane, ...patch });
+    const keys = new Set([...Object.keys(pane), ...Object.keys(next)]) as Set<keyof PaneMeta>;
+    const changed = [...keys].some((k) => pane[k] !== next[k]);
+    if (changed) set((s) => ({ panes: { ...s.panes, [paneId]: next } }));
   },
 
   hydrate(saved) {
@@ -382,7 +385,8 @@ export const useLayout = create<LayoutState>((set, get) => ({
       const tabs = saved.tabs.filter((t) => paneIds(t.root).every((id) => saved.panes[id]));
       if (tabs.length) {
         const activeTabId = tabs.some((t) => t.id === saved.activeTabId) ? saved.activeTabId : tabs[0].id;
-        set({ tabs, activeTabId, panes: saved.panes, hydrated: true });
+        const panes = Object.fromEntries(Object.entries(saved.panes).map(([id, p]) => [id, paneForLayout(p)]));
+        set({ tabs, activeTabId, panes, hydrated: true });
         return;
       }
     }

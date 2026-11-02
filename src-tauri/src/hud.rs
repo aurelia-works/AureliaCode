@@ -13,7 +13,7 @@ fn ensure(app: &AppHandle) -> Result<WebviewWindow, String> {
         return Ok(w);
     }
     WebviewWindowBuilder::new(app, "hud", WebviewUrl::App("hud.html".into()))
-        .title("AureliaSpace HUD")
+        .title("AureliaCode HUD")
         .inner_size(WIDTH, 120.0)
         .decorations(false)
         .transparent(true)

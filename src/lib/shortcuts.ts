@@ -9,6 +9,7 @@ import { newScratchTab } from "./scratch";
 import { hasUndo, runUndo } from "../store/undo";
 import { toggleHud } from "./hudBridge";
 import { clearTerminal, getEntry, jumpBlock, showPane } from "./terminals";
+import { selectAllAction, selectChatLog } from "./selectAll";
 import { toggleVoice } from "./voice";
 
 /** ⌘F in a chat pane: ChatPane opens its find bar. */
@@ -63,7 +64,7 @@ export interface ShortcutHelp {
 export const shortcutHelp: ShortcutHelp[] = [
   { keys: "⌘P", label: "Command palette: jump to any pane, run any action" },
   { keys: "⌘T", label: "New tab (start screen)" },
-  { keys: "⇧⌘1 / ⇧⌘2 / ⇧⌘3 / ⇧⌘4", label: "Agents / Terminals / Review / Work" },
+  { keys: "⇧⌘1 / ⇧⌘2 / ⇧⌘3 / ⇧⌘4", label: "Agents / Threads / Review / Work" },
   { keys: "⌘D / ⇧⌘D", label: "Split right / down" },
   { keys: "Drag header", label: "Move a pane: drop on an edge to dock it there, in the middle to swap (Esc cancels)" },
   { keys: "⌘W / ⇧⌘W", label: "Close pane / tab" },
@@ -103,6 +104,16 @@ function isTextField(el: Element | null) {
   if (!el) return false;
   if (el.classList.contains("xterm-helper-textarea")) return false;
   return el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || (el as HTMLElement).isContentEditable;
+}
+
+/** ⌘A, from the Edit menu or the key, whichever reaches the page. */
+export function selectAll(): void {
+  const pane = focusedPaneId();
+  const active = document.activeElement;
+  const what = selectAllAction(pane ? useLayout.getState().panes[pane] : undefined, isTextField(active), active instanceof HTMLTextAreaElement && !active.value);
+  if (what === "chat") selectChatLog(pane!);
+  else if (what === "terminal") getEntry(pane!)?.term.selectAll();
+  else document.execCommand("selectAll");
 }
 
 export function installShortcuts(): () => void {
@@ -204,7 +215,7 @@ export function installShortcuts(): () => void {
         if (!shift && !alt && pane) action = () => clearTerminal(pane);
         break;
       case "KeyA":
-        if (!shift && !alt && pane && !isTextField(document.activeElement)) action = () => getEntry(pane)?.term.selectAll();
+        if (!shift && !alt) action = selectAll;
         break;
       case "Comma":
         if (!shift && !alt) action = () => ui.set({ settingsOpen: true });

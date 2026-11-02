@@ -48,16 +48,20 @@ pub fn install(mode: &'static str) {
             &location,
             &Backtrace::force_capture().to_string(),
         );
-        if let Some(path) = log_path() {
-            if let Some(dir) = path.parent() {
-                let _ = fs::create_dir_all(dir);
-            }
-            if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
-                let _ = f.write_all(text.as_bytes());
-            }
-        }
+        append(&text);
         previous(info);
     }));
+}
+
+/// Adds text to panic.log. Best effort: a logging failure must never add a second crash.
+pub fn append(text: &str) {
+    let Some(path) = log_path() else { return };
+    if let Some(dir) = path.parent() {
+        let _ = fs::create_dir_all(dir);
+    }
+    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&path) {
+        let _ = f.write_all(text.as_bytes());
+    }
 }
 
 #[cfg(test)]

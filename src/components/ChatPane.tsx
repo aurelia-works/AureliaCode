@@ -6,6 +6,7 @@ import { isLocalUrl, openInBrowserPane } from "../lib/browser";
 import { basename, formatCost, formatDuration, formatTokens } from "../lib/format";
 import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
+import { cleanTextarea } from "../lib/controlChars";
 import { toolPhrase } from "../lib/toolPhrase";
 import { ipc, type ChatImage, type CliModel, type RuleFile, type RuleKind, type SlashCommand } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
@@ -337,7 +338,7 @@ function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatI
           value={draft}
           rows={Math.min(10, draft.split("\n").length + 1)}
           aria-label="Edit message"
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => setDraft(cleanTextarea(e.target))}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -1308,7 +1309,7 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           data-chat-input={paneId}
           placeholder={busy ? "Claude is working. A message now goes after this turn" : "Ask anything. @ files, / commands"}
           onChange={(e) => {
-            setText(e.target.value);
+            setText(cleanTextarea(e.target));
             setCaret(e.target.selectionStart);
             setHist(null);
           }}
@@ -1322,9 +1323,20 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           spellCheck={false}
         />
         <div className="chat-card-bar">
-          <button type="button" className="chat-pick chat-plus" title="Add images (or paste them, or drop files here)" aria-label="Add images" onClick={() => fileInput.current?.click()}>
-            <PlusIcon />
-          </button>
+          <PlusMenu
+            onImages={() => fileInput.current?.click()}
+            onPicked={(img) => void pngFile(img.data).then((f) => addImages([f]))}
+            onFiles={() => {
+              const at = ref.current?.selectionStart ?? text.length;
+              const lead = at > 0 && !/\s/.test(text[at - 1]) ? " @" : "@";
+              setText(text.slice(0, at) + lead + text.slice(at));
+              setCaret(at + lead.length);
+              requestAnimationFrame(() => {
+                ref.current?.focus();
+                ref.current?.setSelectionRange(at + lead.length, at + lead.length);
+              });
+            }}
+          />
           <input
             ref={fileInput}
             type="file"
@@ -1506,7 +1518,7 @@ function useProjectFiles(cwd: string | undefined): string[] {
     if (!cwd) return;
     let hit = fileCache.get(cwd);
     if (!hit || Date.now() - hit.at > 60_000) {
-      hit = { at: Date.now(), files: ipc.projectFiles(cwd).catch(() => []) };
+      hit = { at: Date.now(), files: ipc.projectFiles(cwd).then((f) => (Array.isArray(f) ? f : []), () => []) };
       fileCache.set(cwd, hit);
     }
     let live = true;
@@ -1616,6 +1628,61 @@ interface Option {
   desc: string;
   icon?: React.ReactNode;
   tone?: "warn" | "danger";
+}
+
+/** The composer's +: images from the Mac's picker, a screenshot, the clipboard, or an @ file mention. */
+function PlusMenu({ onImages, onPicked, onFiles }: { onImages: () => void; onPicked: (img: ChatImage) => void; onFiles: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    addEventListener("mousedown", off);
+    return () => removeEventListener("mousedown", off);
+  }, [open]);
+  const pick = (run: () => void) => () => {
+    setOpen(false);
+    run();
+  };
+  const items = [
+    { key: "images", label: "Add images", desc: "PNG, JPEG, GIF or WebP from your Mac", run: onImages },
+    {
+      key: "shot",
+      label: "Take screenshot",
+      desc: "drag an area, Space for a window, Esc cancels",
+      run: () => void ipc.captureScreenshot().then((img) => img && onPicked(img), (e) => toast(`Screenshot failed: ${e}`, true)),
+    },
+    {
+      key: "clip",
+      label: "Paste image",
+      desc: "the image on the clipboard",
+      run: () => void ipc.clipboardImage().then((img) => (img ? onPicked(img) : toast("There's no image on the clipboard")), (e) => toast(`Couldn't read the clipboard: ${e}`, true)),
+    },
+    { key: "files", label: "Add files", desc: "mention a file with @", run: onFiles },
+  ];
+  return (
+    <div className="chat-pick chat-plus-menu" ref={ref}>
+      <button type="button" className={`chat-pick-btn chat-plus${open ? " on" : ""}`} aria-haspopup="menu" aria-expanded={open} aria-label="Add" title="Add images, a screenshot or files" onClick={() => setOpen((o) => !o)}>
+        <PlusIcon />
+      </button>
+      {open && (
+        <div className="chat-pick-menu" role="menu" aria-label="Add" onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setOpen(false))}>
+          {items.map((i, n) => (
+            <button key={i.key} type="button" role="menuitem" autoFocus={n === 0} onClick={pick(i.run)}>
+              <span className="chat-pick-name">{i.label}</span>
+              <span className="chat-pick-desc">{i.desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A base64 PNG from the + menu as a File, so it goes through readImage's size limits like any other image. */
+async function pngFile(data: string): Promise<File> {
+  const blob = await (await fetch(`data:image/png;base64,${data}`)).blob();
+  return new File([blob], "image.png", { type: "image/png" });
 }
 
 /** A small menu above its button: one pick from a list, arrow keys to move, Esc to close. */

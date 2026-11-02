@@ -101,7 +101,7 @@ function textOf(content: unknown): string {
  */
 export function userLine(text: string): { kind: "user" | "notice"; text: string } | null {
   const t = text.trim();
-  if (!t || t.startsWith("[Request interrupted by user") || t.startsWith("[Image: ") || t.startsWith("<local-command-") || t.startsWith("<system-reminder>")) return null;
+  if (!t || t.startsWith("Base directory for this skill:") || t.startsWith("[Request interrupted by user") || t.startsWith("[Image: ") || t.startsWith("<local-command-") || t.startsWith("<system-reminder>")) return null;
   const tag = (name: string) => t.match(new RegExp(`<${name}>([\\s\\S]*?)</${name}>`))?.[1]?.trim();
   if (t.startsWith("<command-name>") || t.startsWith("<command-message>")) {
     const cmd = tag("command-name") ?? tag("command-message");
@@ -250,6 +250,8 @@ export function applyLine(t0: Transcript, m: Json): Transcript {
   if (m.type === "user") {
     const content = m.message?.content;
     const uuid = typeof m.uuid === "string" ? m.uuid : undefined;
+    // Text Claude Code adds for itself, such as a skill's instructions: never the person's words.
+    if (m.isMeta || m.isSynthetic) return t;
     if (typeof content === "string") return pushUser(t, content, [], uuid);
     if (!Array.isArray(content)) return t;
     for (const c of content) {

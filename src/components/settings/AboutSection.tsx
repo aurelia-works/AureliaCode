@@ -12,19 +12,19 @@ export function AboutSection(_: SectionProps) {
   return (
     <>
       <section className="set-group">
-        <h3>AureliaSpace {version}</h3>
+        <h3>AureliaCode {version}</h3>
         <p className="hint">
           A local-first workspace for many coding agents: terminals, chats, review and a thread list that keeps the work in
           one place.
         </p>
         <div className="field-row">
-          <button type="button" onClick={() => open("https://github.com/aurelia-works/AureliaSpace")}>
+          <button type="button" onClick={() => open("https://github.com/aurelia-works/AureliaCode")}>
             GitHub
           </button>
-          <button type="button" onClick={() => open("https://github.com/aurelia-works/AureliaSpace/releases")}>
+          <button type="button" onClick={() => open("https://github.com/aurelia-works/AureliaCode/releases")}>
             Releases
           </button>
-          <button type="button" onClick={() => open("https://github.com/aurelia-works/AureliaSpace/issues")}>
+          <button type="button" onClick={() => open("https://github.com/aurelia-works/AureliaCode/issues")}>
             Report an issue
           </button>
         </div>

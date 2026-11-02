@@ -1,4 +1,4 @@
-# AureliaSpace
+# AureliaCode
 
 Tauri 2 app: React + TypeScript front end in `src/`, Rust back end in `src-tauri/`.
 
@@ -39,4 +39,4 @@ The harness (`design/preview/mock.ts`) mocks the Tauri IPC. Add a view there whe
 - PRs use [.github/pull_request_template.md](.github/pull_request_template.md): Testing, Risk, How to revert.
 
 ## Current project
-AureliaCode rebrand: see PLAN-AURELIACODE.md and the latest HANDOFF-*-PHASE-*.md (now HANDOFF-2026-11-02-PHASE-0.md).
+AureliaCode rebrand: see PLAN-AURELIACODE.md and the latest HANDOFF-*-PHASE-*.md (now HANDOFF-2026-11-02-PHASE-1.md).

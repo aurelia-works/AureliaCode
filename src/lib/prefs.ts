@@ -38,6 +38,10 @@ export interface ThreadPrefs {
   backForward: boolean;
   /** One faint jellyfish per live thread on the start screen. */
   bloom: boolean;
+  /** Old AureliaSpace terminal panes (plain zsh, Codex, Gemini, custom agents, teams). Off: chat only. */
+  legacyTerminals: boolean;
+  /** Full Disk Access toast opens the drag-into-Settings sheet; off: it only opens System Settings. */
+  permissionDrag: boolean;
 }
 
 export const DEFAULT_PREFS: ThreadPrefs = {
@@ -60,6 +64,8 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   dropFiles: true,
   backForward: true,
   bloom: false,
+  legacyTerminals: false,
+  permissionDrag: true,
 };
 
 export const UNDO_SECONDS = { min: 2, max: 30 } as const;

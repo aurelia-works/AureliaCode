@@ -347,6 +347,8 @@ fn command(cfg: &config::Config, resume: Option<&str>, resume_at: Option<&str>, 
     cmd.extend(
         [
             "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--include-partial-messages", "--verbose",
+            // Echoes each message as the CLI takes it, so one sent mid-turn leaves the queue then.
+            "--replay-user-messages",
             // Hidden from `claude --help` (2.1.309) but needed: without it approvals are
             // denied instead of being sent to us as `can_use_tool` requests.
             "--permission-prompt-tool", "stdio",
