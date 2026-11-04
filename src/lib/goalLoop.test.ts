@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { elapsedLabel, goalAction, goalKickoff, goalRound, judgeCheck, parseScore, shouldCheck, type Goal } from "./goalLoop.ts";
+import { elapsedLabel, goalAction, goalKickoff, goalRound, judgeCheck, msToDeadline, parseScore, shouldCheck, type Goal } from "./goalLoop.ts";
 
 const goal = (over: Partial<Goal> = {}): Goal => ({ text: "Make the settings page pass axe", check: "npm run a11y", maxRounds: 3, startedAt: 0, deadline: 60_000, rounds: 0, ...over });
 
@@ -91,4 +91,10 @@ test("elapsed time reads like a clock", () => {
   assert.equal(elapsedLabel(45_000), "45s");
   assert.equal(elapsedLabel(14 * 60_000), "14m");
   assert.equal(elapsedLabel(3 * 3600_000 + 48 * 60_000), "3h 48m");
+});
+
+test("the deadline timer fires at the deadline, at once when past it, never once ended", () => {
+  assert.equal(msToDeadline(goal({ deadline: 60_000 }), 10_000), 50_000);
+  assert.equal(msToDeadline(goal({ deadline: 60_000 }), 90_000), 0);
+  assert.equal(msToDeadline(goal({ ended: { at: 1, why: "met" } }), 0), null);
 });

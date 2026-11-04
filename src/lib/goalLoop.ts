@@ -107,6 +107,11 @@ export function goalKickoff(goal: Goal): string {
   ].join("\n");
 }
 
+/** How long until the goal runs out of time (0 when past it), or null once it ended. */
+export function msToDeadline(goal: Pick<Goal, "deadline" | "ended">, now: number): number | null {
+  return goal.ended ? null : Math.max(0, goal.deadline - now);
+}
+
 /** "45s", "14m", "3h 48m". */
 export function elapsedLabel(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));

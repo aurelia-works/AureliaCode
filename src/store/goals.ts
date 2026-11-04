@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { goalAction, goalKickoff, judgeCheck, shouldCheck, type Goal } from "../lib/goalLoop";
+import { goalAction, goalKickoff, judgeCheck, msToDeadline, shouldCheck, type Goal } from "../lib/goalLoop";
 import { ipc } from "../lib/ipc";
 import type { TurnOutcome } from "../lib/workActions";
 import { useLayout } from "./layout";
@@ -7,8 +7,9 @@ import { alertUser } from "./notifications";
 
 /**
  * The impure half of a thread goal (lib/goalLoop.ts): run the check after a turn, record it on
- * the pane, and wake the agent, settle, or stop. `send` is the chat's sendChat, passed in so
- * this store doesn't import lib/chat (which calls it on every turn end).
+ * the pane, and wake the agent, settle, or stop. `send` is the chat's sendChat (and `interrupt`
+ * its interruptChat), passed in so this store doesn't import lib/chat (which calls it on every
+ * turn end).
  */
 
 /** Per pane, the goal (by startedAt) whose check is running now. */
@@ -23,6 +24,31 @@ const setChecking = (paneId: string, startedAt: number | null) =>
   });
 
 const patchGoal = (paneId: string, goal: Goal) => useLayout.getState().updatePane(paneId, { goal });
+const killCheck = (paneId: string) => void ipc.stopCheck(paneId).catch(() => {});
+
+/** Per pane, the timer that ends the goal at its deadline, even mid-turn or on an approval. */
+const deadlines = new Map<string, { startedAt: number; timer: ReturnType<typeof setTimeout> }>();
+
+/** Arms (once per goal) the timer that stops the goal and interrupts the turn at its deadline. */
+export function armGoalDeadline(paneId: string, interrupt: () => void) {
+  const g = useLayout.getState().panes[paneId]?.goal;
+  const ms = g ? msToDeadline(g, Date.now()) : null;
+  const armed = deadlines.get(paneId);
+  if (armed && g && armed.startedAt === g.startedAt && ms !== null) return;
+  if (armed) clearTimeout(armed.timer);
+  deadlines.delete(paneId);
+  if (!g || ms === null) return;
+  const timer = setTimeout(() => {
+    deadlines.delete(paneId);
+    const now = useLayout.getState().panes[paneId]?.goal;
+    if (!now || now.ended || now.startedAt !== g.startedAt) return;
+    patchGoal(paneId, { ...now, ended: { at: Date.now(), why: "time" } });
+    killCheck(paneId);
+    interrupt();
+    alertUser({ kind: "info", paneId, title: "Goal stopped", body: "Out of time, so the turn was stopped. Over to you." });
+  }, Math.min(ms, 2 ** 31 - 1));
+  deadlines.set(paneId, { startedAt: g.startedAt, timer });
+}
 
 /** Starts a goal and sends the kickoff; returns why it can't start, or null. */
 export function startGoal(paneId: string, goal: Omit<Goal, "startedAt" | "deadline" | "rounds"> & { hours: number }, send: (text: string) => void): string | null {
@@ -30,6 +56,7 @@ export function startGoal(paneId: string, goal: Omit<Goal, "startedAt" | "deadli
   const { hours, ...rest } = goal;
   const now = Date.now();
   const g: Goal = { ...rest, startedAt: now, deadline: now + hours * 3600_000, rounds: 0 };
+  killCheck(paneId);
   patchGoal(paneId, g);
   send(goalKickoff(g));
   return null;
@@ -38,10 +65,12 @@ export function startGoal(paneId: string, goal: Omit<Goal, "startedAt" | "deadli
 export function stopGoal(paneId: string) {
   const g = useLayout.getState().panes[paneId]?.goal;
   if (g && !g.ended) patchGoal(paneId, { ...g, ended: { at: Date.now(), why: "stopped" } });
+  killCheck(paneId);
 }
 
 export function clearGoal(paneId: string) {
   useLayout.getState().updatePane(paneId, { goal: undefined });
+  killCheck(paneId);
 }
 
 /**
@@ -58,7 +87,7 @@ export async function runGoalCheck(paneId: string, send: (text: string) => void,
   let failed: string | null = pane.cwd ? null : "This chat has no folder to run the check in";
   try {
     if (!failed) {
-      const r = await ipc.runCheck(pane.cwd!, g.check);
+      const r = await ipc.runCheck(paneId, pane.cwd!, g.check);
       code = r.code;
       output = r.output;
     }

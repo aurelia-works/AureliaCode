@@ -6,12 +6,40 @@ use crate::config::expand_path;
 use serde::Serialize;
 use std::io::Read;
 use std::os::unix::process::CommandExt;
+use std::collections::HashMap;
 use std::process::{Command, Stdio};
+use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
 const TIMEOUT: Duration = Duration::from_secs(15 * 60);
 /// The loop only sends the agent the last few KB; this keeps a chatty suite from filling memory.
 const KEEP_BYTES: usize = 64 * 1024;
+
+/// The process group of the check running for each thread, so Stop can kill it and a new goal's
+/// check doesn't run beside the old one.
+static RUNNING: LazyLock<Mutex<HashMap<String, i32>>> = LazyLock::new(|| Mutex::new(HashMap::new()));
+
+/// Kills the thread's running check, if any; its run then returns what it printed so far.
+fn stop(key: &str) {
+    if let Some(pid) = RUNNING.lock().unwrap().remove(key) {
+        unsafe { libc::killpg(pid, libc::SIGKILL) };
+    }
+}
+
+/// `run`, registered under `key` for `stop`; a check already running for the key is stopped first.
+fn run_keyed(key: &str, cwd: &str, command: &str, timeout: Duration) -> Result<CheckRun, String> {
+    stop(key);
+    let mine = std::cell::Cell::new(None);
+    let r = run_with(cwd, command, timeout, |pid| {
+        mine.set(Some(pid));
+        RUNNING.lock().unwrap().insert(key.to_string(), pid);
+    });
+    let mut running = RUNNING.lock().unwrap();
+    if mine.get().is_some() && running.get(key).copied() == mine.get() {
+        running.remove(key);
+    }
+    r
+}
 
 #[derive(Serialize, Debug)]
 pub struct CheckRun {
@@ -24,6 +52,10 @@ pub struct CheckRun {
 }
 
 fn run(cwd: &str, command: &str, timeout: Duration) -> Result<CheckRun, String> {
+    run_with(cwd, command, timeout, |_| {})
+}
+
+fn run_with(cwd: &str, command: &str, timeout: Duration, started_as: impl FnOnce(i32)) -> Result<CheckRun, String> {
     let started = Instant::now();
     let mut child = Command::new("/bin/zsh")
         .args(["-lc", &format!("exec 2>&1\n{command}")])
@@ -35,6 +67,7 @@ fn run(cwd: &str, command: &str, timeout: Duration) -> Result<CheckRun, String> 
         .spawn()
         .map_err(|e| format!("couldn't start the check: {e}"))?;
     let pid = child.id() as i32;
+    started_as(pid);
     let mut out = child.stdout.take().expect("piped");
     let reader = std::thread::spawn(move || {
         let mut kept: Vec<u8> = Vec::new();
@@ -87,13 +120,19 @@ fn run(cwd: &str, command: &str, timeout: Duration) -> Result<CheckRun, String> 
     Ok(CheckRun { code: status.and_then(|s| s.code()).unwrap_or(-1), output, timed_out, duration_ms: started.elapsed().as_millis() as u64 })
 }
 
-/// Runs `command` with zsh in `cwd` and reports how it went.
+/// Runs `command` with zsh in `cwd` for thread `key` and reports how it went.
 #[tauri::command]
-pub async fn run_check(cwd: String, command: String) -> Result<CheckRun, String> {
+pub async fn run_check(key: String, cwd: String, command: String) -> Result<CheckRun, String> {
     if command.trim().is_empty() {
         return Err("The goal has no check command".into());
     }
-    tauri::async_runtime::spawn_blocking(move || run(&cwd, &command, TIMEOUT)).await.map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || run_keyed(&key, &cwd, &command, TIMEOUT)).await.map_err(|e| e.to_string())?
+}
+
+/// Kills thread `key`'s running check (the goal was stopped, dismissed or replaced).
+#[tauri::command]
+pub fn stop_check(key: String) {
+    stop(&key);
 }
 
 #[cfg(test)]
@@ -134,5 +173,27 @@ mod tests {
         let r = run("/tmp", "for i in $(seq 1 30000); do echo line-$i; done", TIMEOUT).unwrap();
         assert!(r.output.len() <= KEEP_BYTES);
         assert!(r.output.trim_end().ends_with("line-30000"));
+    }
+
+    #[test]
+    fn stopping_a_check_kills_it_and_its_children() {
+        let key = format!("stop-{}", std::process::id());
+        let k = key.clone();
+        let t = Instant::now();
+        let h = std::thread::spawn(move || run_keyed(&k, "/tmp", "sleep 30 & sleep 30; echo never", TIMEOUT));
+        while !RUNNING.lock().unwrap().contains_key(&key) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        stop(&key);
+        let r = h.join().unwrap().unwrap();
+        assert_ne!(r.code, 0);
+        assert!(!r.output.contains("never"));
+        assert!(t.elapsed() < Duration::from_secs(5), "{:?}", t.elapsed());
+        assert!(!RUNNING.lock().unwrap().contains_key(&key));
+    }
+
+    #[test]
+    fn a_missing_folder_is_an_error_not_a_failed_check() {
+        assert!(run("/nonexistent/goal-folder", "true", TIMEOUT).is_err());
     }
 }

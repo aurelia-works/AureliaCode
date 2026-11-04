@@ -17,9 +17,9 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 export function parseScorecard(text: string): Scorecard {
   const categories: Partial<Record<Category, number>> = {};
   for (const c of CATEGORIES) {
-    // Only a line that starts with the category (after list or bold marks) scores it, so a FIX
-    // line that mentions a score can't change it.
-    const re = new RegExp(`^[\\s*_#>-]*${escape(c)}\\W{0,6}?(\\d+(?:\\.\\d+)?)\\s*/\\s*10`, "gim");
+    // Only a line that starts with the category (after list, number or bold marks) and a colon
+    // scores it, so a FIX line or a wrapped reason that mentions a score can't change it.
+    const re = new RegExp(`^[ \\t*_#>-]*(?:\\d+[.)][ \\t]*)?[*_]*${escape(c)}[*_ \\t]*:[*_ \\t]*(\\d+(?:\\.\\d+)?)[ \\t]*/[ \\t]*10`, "gim");
     for (const m of text.matchAll(re)) {
       const n = Number(m[1]);
       if (n >= 0 && n <= 10) categories[c] = n;

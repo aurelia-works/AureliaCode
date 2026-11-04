@@ -306,6 +306,7 @@ pub fn run() {
             ide::search_project,
             ide::check_project,
             goal::run_check,
+            goal::stop_check,
             ide::transcript_thread,
             suggest::suggest_command,
             suggest::set_api_key,

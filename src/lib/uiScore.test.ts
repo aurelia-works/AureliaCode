@@ -32,3 +32,14 @@ test("a FIX line that mentions a score doesn't change the category", () => {
   const r = parseScorecard(`${card([8, 8, 3, 8, 8, 8, 8, 8])}\nFIX: Spacing 9/10 is reachable with one scale`);
   assert.equal(r.categories.Spacing, 3);
 });
+
+test("a numbered reply still scores every category", () => {
+  const r = parseScorecard(CATEGORIES.map((c, i) => `${i + 1}. ${c}: 7/10 - because`).join("\n"));
+  assert.deepEqual(r.missing, []);
+  assert.equal(r.score, 7);
+});
+
+test("a wrapped reason that mentions a score doesn't change the category", () => {
+  const r = parseScorecard(`${card([8, 8, 4, 8, 8, 8, 8, 8])}\n  Spacing 9/10 with one scale`);
+  assert.equal(r.categories.Spacing, 4);
+});

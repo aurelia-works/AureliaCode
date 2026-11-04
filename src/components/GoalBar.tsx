@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { sendChat } from "../lib/chat";
+import { interruptChat, sendChat, useChat } from "../lib/chat";
 import { DEFAULT_HOURS, DEFAULT_ROUNDS, elapsedLabel, goalRound, type Goal } from "../lib/goalLoop";
-import { clearGoal, runGoalCheck, startGoal, stopGoal, useGoalRuns } from "../store/goals";
+import { armGoalDeadline, clearGoal, runGoalCheck, startGoal, stopGoal, useGoalRuns } from "../store/goals";
 import { useLayout } from "../store/layout";
 
 const ENDED: Record<NonNullable<Goal["ended"]>["why"], string> = {
@@ -25,7 +25,10 @@ function lastLine(g: Goal): string | null {
 export function GoalBanner({ paneId }: { paneId: string }) {
   const goal = useLayout((s) => s.panes[paneId]?.goal);
   const checkingFor = useGoalRuns((s) => s.checking[paneId]);
+  const status = useChat((s) => s.byPane[paneId]?.status);
+  const working = status === "working" || status === "waiting";
   const [, tick] = useState(0);
+  useEffect(() => armGoalDeadline(paneId, () => interruptChat(paneId)), [paneId, goal]);
   useEffect(() => {
     if (!goal || goal.ended) return;
     const t = setInterval(() => tick((n) => n + 1), 15_000);
@@ -64,7 +67,7 @@ export function GoalBanner({ paneId }: { paneId: string }) {
           </button>
         ) : (
           <>
-            <button type="button" disabled={checking} onClick={() => void runGoalCheck(paneId, send)} title={`Run \`${goal.check}\` now`}>
+            <button type="button" disabled={checking || working} onClick={() => void runGoalCheck(paneId, send)} title={working ? "The check runs when this turn ends" : `Run \`${goal.check}\` now`}>
               Check now
             </button>
             <button type="button" onClick={() => stopGoal(paneId)}>
@@ -136,7 +139,7 @@ export function GoalDialog({ paneId, onClose }: { paneId: string; onClose: () =>
             </label>
           </div>
           <p className="hint">
-            With a score, the check must also print a line like <code>SCORE: 8.5/10</code>; the last one counts. Rounds count every attempt, the first included. No new round starts once the time is up; a turn already running isn't stopped.
+            With a score, the check must also print a line like <code>SCORE: 8.5/10</code>; the last one counts. Rounds count every attempt, the first included. When the time is up, the goal stops and so does the turn under way.
           </p>
         </div>
         <div className="modal-foot actions">
