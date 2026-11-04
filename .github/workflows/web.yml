@@ -1,0 +1,33 @@
+name: web
+
+on:
+  pull_request:
+    paths-ignore: ["src-tauri/**", "**/*.md"]
+  push:
+    branches: [main]
+    paths-ignore: ["src-tauri/**", "**/*.md"]
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Type check, front-end tests and the web build need no macOS APIs, so they run on the cheaper, faster runner.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Type check
+        run: npx tsc --noEmit -p .
+      - name: Front-end tests
+        run: npm test
+      - name: Web build
+        run: npx vite build
