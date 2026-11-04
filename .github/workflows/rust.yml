@@ -13,8 +13,10 @@ concurrency:
 
 jobs:
   # The back end links WKWebView and AppKit, so it needs macOS. Runs only when src-tauri changes.
+  # Intel: on 2026-11-04 GitHub's arm64 macOS pool dropped every job after 15 min queued
+  # ("not acquired by Runner of type hosted"), four times in a row.
   rust:
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     timeout-minutes: 40
     env:
       CARGO_INCREMENTAL: "0"
