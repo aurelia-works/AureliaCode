@@ -332,9 +332,7 @@ impl OcChat {
                 Some(s) => s.code(),
                 None => child.wait().ok().and_then(|s| s.code()),
             };
-            for f in &files {
-                let _ = std::fs::remove_file(f);
-            }
+            remove_files(&files);
             let mut runs = chat.runs.lock().unwrap();
             runs.pid = None;
             if runs.closed {
@@ -365,13 +363,24 @@ fn write_files(files: &[Attachment]) -> Result<Vec<std::path::PathBuf>, String> 
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     files
         .iter()
-        .map(|f| {
+        .enumerate()
+        .map(|(i, f)| {
             // Only the file name: a name with slashes can't write outside the folder.
             let name = std::path::Path::new(&f.name).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| "file".into());
-            let path = dir.join(name);
+            // A folder per file, so two files with one name both arrive under that name.
+            let sub = dir.join((i + 1).to_string());
+            std::fs::create_dir_all(&sub).map_err(|e| e.to_string())?;
+            let path = sub.join(name);
             std::fs::write(&path, &f.bytes).map(|_| path).map_err(|e| e.to_string())
         })
         .collect()
+}
+
+/// The run's attachment folder (see write_files) with everything in it.
+fn remove_files(files: &[std::path::PathBuf]) {
+    if let Some(dir) = files.first().and_then(|f| f.parent()).and_then(|p| p.parent()) {
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }
 
 fn uuid_ish() -> String {
@@ -416,6 +425,22 @@ mod tests {
         assert_eq!((u.input_tokens, u.output_tokens, u.cache_read_tokens), (300, 18, 90));
         assert!((u.cost_usd - 0.003).abs() < 1e-9);
         assert_eq!(u.context_tokens, Some(253), "the last step's context");
+    }
+
+    #[test]
+    fn attachments_with_one_name_are_all_kept_and_cleaned_up() {
+        let files = write_files(&[
+            Attachment { name: "notes.txt".into(), bytes: b"one".to_vec() },
+            Attachment { name: "../notes.txt".into(), bytes: b"two".to_vec() },
+        ])
+        .unwrap();
+        assert_eq!(files.len(), 2);
+        assert_ne!(files[0], files[1], "the second must not overwrite the first");
+        assert_eq!(std::fs::read(&files[0]).unwrap(), b"one");
+        assert_eq!(std::fs::read(&files[1]).unwrap(), b"two");
+        let dir = files[0].parent().unwrap().to_path_buf();
+        remove_files(&files);
+        assert!(!dir.exists(), "the run's temp folder goes too");
     }
 
     #[test]

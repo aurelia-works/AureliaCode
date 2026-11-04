@@ -9,6 +9,7 @@ import type { ChatDocument } from "./attachments";
 import { workAfterTurn } from "./workBridge";
 import { cacheSafe } from "./effort";
 import { ipc, type ChatEvent, type ChatImage, type CliModel, type ChatUsage, type ContextUsage, type SlashCommand } from "./ipc";
+import { chatCan } from "./chatStart";
 import { startPermissionMode } from "./startMode";
 import { refreshUsageAfterTurn } from "../store/usage";
 import { runGoalCheck } from "../store/goals";
@@ -292,7 +293,7 @@ export function forkChat(paneId: string): string | null {
   const layout = useLayout.getState();
   const pane = layout.panes[paneId];
   // An OpenCode chat would carry on the same session, not a copy of it.
-  if (!pane?.claudeSession || isOpenCode(pane)) return null;
+  if (!pane?.claudeSession || !chatCan(pane).fork) return null;
   const id = layout.splitPane(paneId, "row", { account: pane.account, cwd: pane.cwd, mode: "chat" });
   layout.updatePane(id, { claudeSession: pane.claudeSession, chatFork: true, chatUsed: true, chatModel: pane.chatModel, chatEffort: pane.chatEffort, chatPermission: pane.chatPermission });
   return id;
@@ -493,6 +494,8 @@ export async function refreshContext(paneId: string) {
 
 /** Switches the chat's permission mode right away; the CLI confirms it with the new mode. */
 export async function setChatMode(paneId: string, mode: string) {
+  // OpenCode runs on its own permission rules: there is no mode to switch.
+  if (!chatCan(useLayout.getState().panes[paneId]).mode) return;
   patch(paneId, (s) => ({ ...s, mode }));
   useLayout.getState().updatePane(paneId, { chatPermission: mode });
   await ipc.chatSetMode(paneId, mode).catch(() => {});

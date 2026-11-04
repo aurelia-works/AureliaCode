@@ -19,7 +19,7 @@ import { riskOf } from "../lib/risk";
 import { CHAT_FIND, GOAL_OPEN } from "../lib/shortcuts";
 import { GoalBanner, GoalDialog } from "./GoalBar";
 import { focusedPaneId, useLayout } from "../store/layout";
-import { freshChat } from "../lib/chatStart";
+import { chatCan, freshChat } from "../lib/chatStart";
 import { ChatStart, sendFirst } from "./ChatStart";
 import { loadProviders, useProviders } from "../store/providers";
 import { chatProviderId, chatProviderOptions, currentProblem, missingAccounts, type ProviderStatus } from "../lib/providers";
@@ -363,7 +363,8 @@ function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatI
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const [undoFiles, setUndoFiles] = useState(true);
-  const canBranch = idle && !!item.uuid && !!item.text;
+  const can = chatCan(useLayout((s) => s.panes[paneId]));
+  const canBranch = idle && !!item.uuid && !!item.text && can.branch;
   const go = (text: string) => {
     if (!item.uuid || !text.trim()) return;
     setEditing(false);
