@@ -1548,7 +1548,6 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             options={models}
             onPick={(v) => setChatOptions(paneId, { model: v })}
             icon={model === "auto" ? <SparkIcon className="chat-auto-icon" /> : agentIcon}
-            className="chat-pick-model"
           />
           {!oc && (
             <Picker
@@ -1870,7 +1869,7 @@ function Picker({
   tone?: "warn" | "danger";
   /** A last row that opens something else, e.g. the saved rules. */
   more?: { label: string; onClick: () => void };
-  /** chat-pick-model keeps its label in a narrow pane; chat-pick-account steps aside there. */
+  /** chat-pick-mode keeps its label in a narrow pane; chat-pick-account steps aside there. */
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
