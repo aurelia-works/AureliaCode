@@ -48,6 +48,8 @@ export interface ThreadPrefs {
   dropFiles: boolean;
   /** ⌘[ and ⌘] between threads. */
   backForward: boolean;
+  /** The thread list on the right of the window instead of the left. */
+  navRight: boolean;
   /** One faint jellyfish per live thread on the start screen. */
   bloom: boolean;
   /** Old AureliaSpace terminal panes (plain zsh, Codex, Gemini, custom agents, teams). Off: chat only. */
@@ -76,6 +78,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   promptLinks: true,
   dropFiles: true,
   backForward: true,
+  navRight: false,
   bloom: false,
   legacyTerminals: false,
   permissionDrag: true,

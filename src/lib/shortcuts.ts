@@ -14,6 +14,8 @@ import { toggleVoice } from "./voice";
 
 /** ⌘F in a chat pane: ChatPane opens its find bar. */
 export const CHAT_FIND = "aurelia-chat-find";
+/** Opens the set-goal dialog of the chat whose pane id is the detail. */
+export const GOAL_OPEN = "aurelia-goal-open";
 
 /** Focuses the agent that has waited longest for you (needs input first). */
 export function jumpToWaiting() {

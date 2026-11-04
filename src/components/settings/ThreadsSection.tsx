@@ -19,6 +19,7 @@ const SWITCHES: { key: Exclude<keyof ThreadPrefs, "undoSeconds" | "followUp">; l
   { key: "promptLinks", label: "Prompt links (aurelia://new)" },
   { key: "dropFiles", label: "Drop files onto a thread" },
   { key: "backForward", label: "Back and forward between threads (⌘[ ⌘])" },
+  { key: "navRight", label: "Thread list on the right", hint: "The chat stays in the middle" },
   { key: "bloom", label: "Jellyfish on the start screen", hint: "One per live thread" },
 ];
 

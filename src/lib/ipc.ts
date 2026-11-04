@@ -509,6 +509,8 @@ export const ipc = {
   searchProject: (root: string, query: string, regex: boolean, caseSensitive: boolean) =>
     invoke<SearchMatch[]>("search_project", { root, query, regex, caseSensitive }),
   checkProject: (root: string) => invoke<{ problems: Problem[]; ran: string[] }>("check_project", { root }),
+  /** A thread goal's check (src-tauri/src/goal.rs): zsh in `cwd`, exit code and the end of the output. */
+  runCheck: (cwd: string, command: string) => invoke<{ code: number; output: string; timedOut: boolean; durationMs: number }>("run_check", { cwd, command }),
   transcriptThread: (path: string, maxItems: number) => invoke<ThreadItem[]>("transcript_thread", { path, maxItems }),
   hasFullDiskAccess: () => invoke<boolean>("has_full_disk_access"),
   appBundlePath: () => invoke<string | null>("app_bundle_path"),
