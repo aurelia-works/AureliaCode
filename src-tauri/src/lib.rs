@@ -28,6 +28,7 @@ pub mod panic_log;
 mod privacy;
 mod pr;
 mod pty;
+mod providers;
 mod proxy;
 mod ptyhost;
 mod remote;
@@ -316,6 +317,7 @@ pub fn run() {
             voice::voice_toggle,
             voice::voice_installed,
             which::which,
+            providers::providers,
             agents::set_agent_key,
             agents::agent_keys_present,
         ])

@@ -58,3 +58,10 @@ export function scorePrompt(images: string[], rubric: string): string {
     "Don't write an overall score; it is computed from the categories.",
   ].join("\n");
 }
+
+/** `--min` as a score from 0 to 10, or null for anything else (a typo must not pass every run). */
+export function parseMin(s: string): number | null {
+  if (!/^\d+(\.\d+)?$/.test(s.trim())) return null;
+  const n = Number(s);
+  return n <= 10 ? n : null;
+}

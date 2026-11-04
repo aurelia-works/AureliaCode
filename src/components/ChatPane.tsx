@@ -19,6 +19,8 @@ import { riskOf } from "../lib/risk";
 import { CHAT_FIND, GOAL_OPEN } from "../lib/shortcuts";
 import { GoalBanner, GoalDialog } from "./GoalBar";
 import { focusedPaneId, useLayout } from "../store/layout";
+import { loadProviders, useProviders } from "../store/providers";
+import { chatProviderOptions, currentProblem, missingAccounts } from "../lib/providers";
 import { usePaneContext } from "../store/metrics";
 import { freshness, type ContextFill } from "../lib/contextFill";
 import { toggleStash } from "../lib/stash";
@@ -1361,6 +1363,17 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
   // The model the CLI runs, once it runs the picked family; the pick until then.
   const runningName = modelName(running);
   const familyRuns = (fam: string) => runningName?.toLowerCase().startsWith(fam);
+  const provs = useProviders((st) => st.list);
+  const accountNames = useConfig((st) => st.config?.accounts.map((a) => a.name).join("\n") ?? "");
+  // Loads once; an account added since then is checked again, so the picker offers it.
+  useEffect(() => void loadProviders(missingAccounts(useProviders.getState().list, accountNames ? accountNames.split("\n") : [])), [accountNames]);
+  const firstAccount = useConfig((st) => st.config?.accounts[0]?.name);
+  const providerAccount = pane?.account ?? firstAccount;
+  const providerOptions = useMemo<Option[]>(
+    () => chatProviderOptions(provs ?? [], providerAccount).map((o) => ({ ...o, icon: o.value.startsWith("claude:") ? CLAUDE : <AgentLogo logo={o.value} size={14} /> })),
+    [provs, providerAccount],
+  );
+  const providerProblem = currentProblem(provs, providerAccount);
   const modelLabel =
     model === "auto"
       ? `Auto${runningName ? ` · ${runningName}` : ""}`
@@ -1486,6 +1499,20 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             tone={m.tone}
             more={{ label: "Saved rules…", onClick: () => setRulesOpen(true) }}
           />
+          {providerOptions.length > 1 && (
+            <Picker
+              label={providerProblem ? `${providerAccount}: ${providerProblem}` : (providerAccount ?? "Claude")}
+              title={providerProblem ? `This chat's account: ${providerProblem}` : "Provider and account for this chat"}
+              value={`claude:${providerAccount}`}
+              options={providerOptions}
+              onPick={(v) => {
+                if (v === `claude:${providerAccount}` || !v.startsWith("claude:")) return;
+                useLayout.getState().newTab({ mode: "chat", account: v.slice("claude:".length), cwd: pane?.cwd });
+              }}
+              icon={CLAUDE}
+              tone={providerProblem ? "warn" : undefined}
+            />
+          )}
           <Picker
             label={modelLabel}
             title={model === "auto" && auto?.model ? `Auto picked ${auto.model.pick}: ${auto.model.why}` : "Model for the next message"}
@@ -1729,6 +1756,8 @@ interface Option {
   desc: string;
   icon?: React.ReactNode;
   tone?: "warn" | "danger";
+  /** Shown greyed and can't be picked; `desc` says why. */
+  disabled?: string;
 }
 
 /** The composer's +: files from the Mac's picker by kind, a screenshot, the clipboard, or an @ file mention. */
@@ -1844,7 +1873,7 @@ function Picker({
           role="listbox"
           aria-label={title}
           onKeyDown={(e) => {
-            const opts = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("[role=option], .chat-pick-more")];
+            const opts = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("[role=option]:not(:disabled), .chat-pick-more")];
             const at = opts.indexOf(document.activeElement as HTMLButtonElement);
             if (e.key === "Escape") {
               e.preventDefault();
@@ -1862,6 +1891,8 @@ function Picker({
               type="button"
               role="option"
               className={o.tone}
+              disabled={!!o.disabled}
+              title={o.disabled}
               aria-selected={o.value === value}
               autoFocus={o.value === value}
               onClick={() => {

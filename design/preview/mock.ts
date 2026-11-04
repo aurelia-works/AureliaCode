@@ -588,6 +588,21 @@ mockIPC(
         return ["src/App.tsx", "src/components/Composer.tsx", "src/components/ChatPane.tsx", "src/lib/chat.ts", "package.json", "README.md"];
       case "app_bundle_path":
         return "/Applications/AureliaCode.app";
+      case "providers": {
+        const all = ["chat", "resume", "interrupt", "steer", "effort", "images", "files", "mcp"];
+        const claude = (name: string, signedIn: boolean, auth: string) => ({ id: `claude:${name}`, provider: "claude", label: `Claude · ${name}`, installed: true, path: "/opt/homebrew/bin/claude", version: "2.1.318", signedIn, auth, email: signedIn ? `${name}@example.com` : null, models: [], caps: all });
+        return [
+          claude("claude", true, "Claude.ai account, Max plan"),
+          claude("claude-b", true, "Claude.ai account, Pro plan"),
+          claude("work", false, null),
+          { id: "opencode", provider: "opencode", label: "OpenCode", installed: true, path: "/opt/homebrew/bin/opencode", version: "2.0.15", signedIn: true, auth: "OpenCode Go, OpenAI", models: ["opencode-go/deepseek-v4-pro", "opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3", "openai/gpt-5.5"], caps: ["resume", "effort", "files", "mcp"] },
+          { id: "gemini", provider: "gemini", label: "Gemini CLI", installed: true, path: "/opt/homebrew/bin/gemini", version: "0.46.0", signedIn: true, auth: "Google sign-in", models: [], caps: ["resume", "files", "mcp"] },
+          { id: "grok", provider: "grok", label: "Grok", installed: true, path: "~/.grok/bin/grok", version: "1.0.70", signedIn: false, models: ["grok-4.6", "grok-4.5"], defaultModel: "grok-4.6", caps: ["resume", "effort", "mcp"] },
+          { id: "codex", provider: "codex", label: "OpenAI Codex", installed: true, path: "/opt/homebrew/bin/codex", version: "0.166.0", signedIn: true, auth: "ChatGPT", models: [], caps: ["resume", "effort", "images", "mcp"] },
+          { id: "cursor", provider: "cursor", label: "Cursor CLI", installed: false, models: [], caps: ["resume", "mcp"] },
+          { id: "copilot", provider: "copilot", label: "GitHub Copilot", installed: false, models: [], caps: ["resume", "mcp"] },
+        ];
+      }
       case "has_full_disk_access":
         if (view === "permissions") return false;
       case "which":
