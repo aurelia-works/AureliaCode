@@ -30,3 +30,8 @@ test("anything else is left to the normal line handling", () => {
   assert.equal(takeReplay(emptyTranscript(), [{ text: "a", uuid: "u1" }], { type: "user", uuid: "u1", message: { content: "a" } }), null);
   assert.equal(takeReplay(emptyTranscript(), [], { type: "assistant" }), null);
 });
+
+test("a queued message taken mid-turn still says it was queued", () => {
+  const r = takeReplay(emptyTranscript(), [{ text: "two", uuid: "u2", via: "queued" as const }], echo("u2", "two"));
+  assert.equal((r?.transcript.items[0] as { via?: string }).via, "queued");
+});
