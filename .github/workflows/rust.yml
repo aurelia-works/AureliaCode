@@ -30,5 +30,6 @@ jobs:
           workspaces: src-tauri
           # Only main writes the cache; PRs restore main's, so caches don't pile up per branch.
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # --lib: the binary and doc-test targets hold no tests, so building them only costs time.
       - name: Back-end tests
-        run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked --lib

@@ -19,6 +19,7 @@ import { ShortcutsSection } from "./ShortcutsSection";
 import { SoundsSection } from "./SoundsSection";
 import { ThreadsSection } from "./ThreadsSection";
 import { PlannerSection } from "./PlannerSection";
+import { ProvidersSection } from "./ProvidersSection";
 import { SkillsSection } from "./SkillsSection";
 import { SubagentsSection } from "./SubagentsSection";
 import { SuggestionsSection } from "./SuggestionsSection";
@@ -53,6 +54,7 @@ export const SECTIONS: SettingsSection[] = [
   { id: "accounts", label: "Accounts", group: "App", keywords: "claude account config folder default workspace", Component: AccountsSection },
   { id: "my-agents", label: "My agents", group: "Agents", keywords: "agents teams custom", Component: MyAgentsSection },
   { id: "skills", label: "Skills", group: "Agents", keywords: "skills installed folders", Component: SkillsSection },
+  { id: "providers", label: "Providers", group: "Agents", keywords: "providers installed signed in sign-in login models capabilities claude opencode gemini grok codex cursor copilot cli", Component: ProvidersSection },
   { id: "agents", label: "Agent keys", group: "Agents", keywords: "keys api key deepseek anthropic openai", Component: AgentsSection },
   { id: "effort", label: "Auto effort", group: "Agents", keywords: "model effort auto judge", Component: EffortSection },
   { id: "subagents", label: "Subagents", group: "Agents", keywords: "deepseek opencode model timeout", Component: SubagentsSection },

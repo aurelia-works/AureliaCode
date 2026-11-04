@@ -1,5 +1,6 @@
 import type { ChatDocument } from "./attachments";
 import { Channel, invoke } from "@tauri-apps/api/core";
+import type { ProviderStatus } from "./providers";
 
 export interface Account {
   name: string;
@@ -574,6 +575,8 @@ export const ipc = {
   setAgentKey: (id: string, key: string) => invoke<void>("set_agent_key", { id, key }),
   agentKeysPresent: (ids: string[]) => invoke<string[]>("agent_keys_present", { ids }),
   which: (cmd: string) => invoke<boolean>("which", { cmd }),
+  /** Every agent CLI's install, sign-in, models and capabilities; cached until `refresh`. */
+  providers: (refresh = false) => invoke<ProviderStatus[]>("providers", { refresh }),
 
   voiceToggle: () => invoke<void>("voice_toggle"),
   voiceInstalled: () => invoke<boolean>("voice_installed"),
