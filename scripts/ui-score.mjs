@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { viewSlug } from "../src/lib/previewViews.ts";
-import { CATEGORIES, parseScorecard, scorePrompt } from "../src/lib/uiScore.ts";
+import { CATEGORIES, parseMin, parseScorecard, scorePrompt } from "../src/lib/uiScore.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const args = process.argv.slice(2);
@@ -22,7 +22,11 @@ const opt = (name, fallback) => {
 };
 const views = (args.find((a, i) => !a.startsWith("--") && !args[i - 1]?.startsWith("--")) ?? "chat").split(",").map((v) => v.trim()).filter(Boolean);
 const model = opt("model", "haiku");
-const min = opt("min", "8");
+const min = parseMin(opt("min", "8"));
+if (min === null) {
+  console.error(`--min takes a score from 0 to 10, not "${opt("min", "")}"`);
+  process.exit(2);
+}
 const out = ".shots/score";
 
 execFileSync(process.execPath, [join(root, "scripts/preview-shots.mjs"), "--no-before", "--views", views.join(","), "--out", out], { cwd: root, stdio: ["ignore", "ignore", "inherit"] });
@@ -40,4 +44,4 @@ for (const c of CATEGORIES) console.log(card.lines[c] ?? `${c}: missing`);
 for (const l of answer.split("\n").filter((l) => /^[^A-Za-z\n]*FIX\b[^A-Za-z\n]*:/i.test(l))) console.log(l.trim());
 if (card.missing.length) console.log(`Missing from the review: ${card.missing.join(", ")}`);
 console.log(`SCORE: ${card.score}/10 (${model}, ${views.join(", ")})`);
-if (min && card.score < Number(min)) process.exit(1);
+if (card.score < min) process.exit(1);
