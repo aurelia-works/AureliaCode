@@ -257,7 +257,10 @@ impl OcChat {
             .stderr(Stdio::piped())
             .process_group(0)
             .spawn()
-            .map_err(|e| format!("couldn't start opencode: {e}"))?;
+            .map_err(|e| {
+                remove_files(&files);
+                format!("couldn't start opencode: {e}")
+            })?;
         runs.pid = Some(child.id());
         runs.interrupted = false;
         (self.emit)(ChatEvent::Status { status: Status::Working });
@@ -512,6 +515,23 @@ mod tests {
         assert_eq!(texts.len(), 2);
         assert!(texts[0].contains("--model opencode-go/deepseek") && texts[0].ends_with("-- first ") && !texts[0].contains("--session"), "{}", texts[0]);
         assert!(texts[1].contains("--session ses_f") && texts[1].ends_with("-- -second "), "the second message continues the session: {}", texts[1]);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn attachments_are_removed_when_opencode_cannot_start() {
+        let dir = std::env::temp_dir().join(format!("oc-chat-nostart-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let c = OcChat::new(vec![dir.join("missing-opencode").to_string_lossy().into_owned()], dir.to_string_lossy().into_owned(), vec![], None, None, Box::new(|_| {}));
+        let marker = "nostart-marker.txt";
+        assert!(c.send("hi".into(), vec![Attachment { name: marker.into(), bytes: b"x".to_vec() }]).is_err());
+        let prefix = format!("aurelia-opencode-{}-", std::process::id());
+        let left: Vec<_> = std::fs::read_dir(std::env::temp_dir())
+            .unwrap()
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with(&prefix) && e.path().join("1").join(marker).exists())
+            .collect();
+        assert!(left.is_empty(), "attachment folder left behind: {:?}", left.iter().map(|e| e.path()).collect::<Vec<_>>());
         std::fs::remove_dir_all(&dir).ok();
     }
 
