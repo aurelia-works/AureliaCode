@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { elapsedLabel, goalAction, goalKickoff, goalRound, judgeCheck, msToDeadline, parseScore, shouldCheck, type Goal } from "./goalLoop.ts";
+import { elapsedLabel, goalAction, goalKickoff, goalRound, deadlineTimer, judgeCheck, msToDeadline, parseScore, shouldCheck, type Goal } from "./goalLoop.ts";
 
 const goal = (over: Partial<Goal> = {}): Goal => ({ text: "Make the settings page pass axe", check: "npm run a11y", maxRounds: 3, startedAt: 0, deadline: 60_000, rounds: 0, ...over });
 
@@ -97,4 +97,11 @@ test("the deadline timer fires at the deadline, at once when past it, never once
   assert.equal(msToDeadline(goal({ deadline: 60_000 }), 10_000), 50_000);
   assert.equal(msToDeadline(goal({ deadline: 60_000 }), 90_000), 0);
   assert.equal(msToDeadline(goal({ ended: { at: 1, why: "met" } }), 0), null);
+});
+
+test("a deadline past the longest timer waits in steps instead of ending early", () => {
+  const far = goal({ deadline: 1000 * 3600_000 });
+  assert.deepEqual(deadlineTimer(far, 0), { ms: 2 ** 31 - 1, final: false });
+  assert.deepEqual(deadlineTimer(goal({ deadline: 60_000 }), 10_000), { ms: 50_000, final: true });
+  assert.equal(deadlineTimer(goal({ ended: { at: 1, why: "met" } }), 0), null);
 });

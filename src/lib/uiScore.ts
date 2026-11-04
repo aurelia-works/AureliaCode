@@ -7,6 +7,8 @@ export type Category = (typeof CATEGORIES)[number];
 
 export interface Scorecard {
   categories: Partial<Record<Category, number>>;
+  /** The line each category's score came from. */
+  lines: Partial<Record<Category, string>>;
   missing: Category[];
   /** Mean of the categories to one decimal; 0 when any is missing. */
   score: number;
@@ -16,19 +18,27 @@ const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 export function parseScorecard(text: string): Scorecard {
   const categories: Partial<Record<Category, number>> = {};
+  const lines: Partial<Record<Category, string>> = {};
+  // The scores come before the FIX lines (scorePrompt); what follows can't rescore.
+  const fix = text.search(/^[ \t]*[-*]?[ \t]*\**FIX:/im);
+  const scores = fix < 0 ? text : text.slice(0, fix);
   for (const c of CATEGORIES) {
-    // Only a line that starts with the category (after list, number or bold marks) and a colon
-    // scores it, so a FIX line or a wrapped reason that mentions a score can't change it.
-    const re = new RegExp(`^[ \\t*_#>-]*(?:\\d+[.)][ \\t]*)?[*_]*${escape(c)}[*_ \\t]*:[*_ \\t]*(\\d+(?:\\.\\d+)?)[ \\t]*/[ \\t]*10`, "gim");
-    for (const m of text.matchAll(re)) {
+    // Only a top-level line scores: the category at the start (after one list mark, a number or
+    // bold marks) and a colon. A FIX line, an indented sub-point or a wrapped reason that
+    // mentions a score can't change it.
+    const re = new RegExp(`^(?:[-*>#]+[ \\t]*)?(?:\\d+[.)][ \\t]*)?[*_]*${escape(c)}[*_ \\t]*:[*_ \\t]*(\\d+(?:\\.\\d+)?)[ \\t]*/[ \\t]*10\\b.*$`, "gim");
+    for (const m of scores.matchAll(re)) {
       const n = Number(m[1]);
-      if (n >= 0 && n <= 10) categories[c] = n;
+      if (n >= 0 && n <= 10) {
+        categories[c] = n;
+        lines[c] = m[0].trim();
+      }
     }
   }
   const missing = CATEGORIES.filter((c) => categories[c] === undefined);
   const values = Object.values(categories) as number[];
   const score = missing.length ? 0 : Math.round((values.reduce((a, b) => a + b, 0) / values.length) * 10) / 10;
-  return { categories, missing, score };
+  return { categories, lines, missing, score };
 }
 
 export function scorePrompt(images: string[], rubric: string): string {

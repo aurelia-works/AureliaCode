@@ -43,3 +43,19 @@ test("a wrapped reason that mentions a score doesn't change the category", () =>
   const r = parseScorecard(`${card([8, 8, 4, 8, 8, 8, 8, 8])}\n  Spacing 9/10 with one scale`);
   assert.equal(r.categories.Spacing, 4);
 });
+
+test("an indented line under a category, bullet and colon included, doesn't rescore it", () => {
+  const r = parseScorecard(`${card([8, 8, 4, 8, 8, 8, 8, 8])}\n  - Spacing: 9/10 reachable with one scale`);
+  assert.equal(r.categories.Spacing, 4);
+  assert.equal(r.score, 7.5);
+});
+
+test("the line that scored each category is kept, for printing", () => {
+  const r = parseScorecard(`1. Typography: 6/10 - small labels\n${card([8, 8, 8, 8, 8, 8, 8, 8]).split("\n").slice(1).join("\n")}`);
+  assert.equal(r.lines.Typography, "1. Typography: 6/10 - small labels");
+});
+
+test("nothing after the first FIX line scores, bullets without the prefix included", () => {
+  const r = parseScorecard(`${card([8, 8, 4, 8, 8, 8, 8, 8])}\nFIX: one spacing scale\n- Spacing: 9/10 reachable with one scale`);
+  assert.equal(r.categories.Spacing, 4);
+});

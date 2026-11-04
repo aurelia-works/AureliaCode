@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { goalAction, goalKickoff, judgeCheck, msToDeadline, shouldCheck, type Goal } from "../lib/goalLoop";
+import { deadlineTimer, goalAction, goalKickoff, judgeCheck, shouldCheck, type Goal } from "../lib/goalLoop";
 import { ipc } from "../lib/ipc";
 import type { TurnOutcome } from "../lib/workActions";
 import { useLayout } from "./layout";
@@ -32,21 +32,23 @@ const deadlines = new Map<string, { startedAt: number; timer: ReturnType<typeof 
 /** Arms (once per goal) the timer that stops the goal and interrupts the turn at its deadline. */
 export function armGoalDeadline(paneId: string, interrupt: () => void) {
   const g = useLayout.getState().panes[paneId]?.goal;
-  const ms = g ? msToDeadline(g, Date.now()) : null;
+  const next = g ? deadlineTimer(g, Date.now()) : null;
   const armed = deadlines.get(paneId);
-  if (armed && g && armed.startedAt === g.startedAt && ms !== null) return;
+  if (armed && g && armed.startedAt === g.startedAt && next) return;
   if (armed) clearTimeout(armed.timer);
   deadlines.delete(paneId);
-  if (!g || ms === null) return;
+  if (!g || !next) return;
   const timer = setTimeout(() => {
     deadlines.delete(paneId);
     const now = useLayout.getState().panes[paneId]?.goal;
     if (!now || now.ended || now.startedAt !== g.startedAt) return;
+    // Deadline further off than one timer can wait: wait again.
+    if (!next.final) return armGoalDeadline(paneId, interrupt);
     patchGoal(paneId, { ...now, ended: { at: Date.now(), why: "time" } });
     killCheck(paneId);
     interrupt();
     alertUser({ kind: "info", paneId, title: "Goal stopped", body: "Out of time, so the turn was stopped. Over to you." });
-  }, Math.min(ms, 2 ** 31 - 1));
+  }, next.ms);
   deadlines.set(paneId, { startedAt: g.startedAt, timer });
 }
 

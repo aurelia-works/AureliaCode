@@ -112,6 +112,16 @@ export function msToDeadline(goal: Pick<Goal, "deadline" | "ended">, now: number
   return goal.ended ? null : Math.max(0, goal.deadline - now);
 }
 
+/** setTimeout's longest delay; a later deadline is waited for in steps. */
+const MAX_TIMER_MS = 2 ** 31 - 1;
+
+/** The next deadline timer: how long, and whether the goal is out of time when it fires. */
+export function deadlineTimer(goal: Pick<Goal, "deadline" | "ended">, now: number): { ms: number; final: boolean } | null {
+  const ms = msToDeadline(goal, now);
+  if (ms === null) return null;
+  return ms > MAX_TIMER_MS ? { ms: MAX_TIMER_MS, final: false } : { ms, final: true };
+}
+
 /** "45s", "14m", "3h 48m". */
 export function elapsedLabel(ms: number): string {
   const s = Math.max(0, Math.round(ms / 1000));
