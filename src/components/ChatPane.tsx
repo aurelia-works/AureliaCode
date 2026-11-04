@@ -26,6 +26,7 @@ import { composerEnter, followUpAction } from "../lib/threadTools";
 import { toast, useUi } from "../store/ui";
 import { useConfig } from "../store/config";
 import { AgentLogo } from "./AgentLogos";
+import { delegationTool, parseDelegation } from "../lib/delegation";
 import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, CollapseIcon, ExpandIcon, FileIcon, GaugeIcon, GlobeIcon, PenIcon, PlusIcon, SearchIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
 
 const MAX_ROWS = 12;
@@ -589,14 +590,20 @@ function Activity({ items, cwd }: { items: ChatItem[]; cwd?: string }) {
   const groups: (ChatItem | Tool[])[] = [];
   for (const i of items) {
     const prev = groups.at(-1);
-    if (i.kind === "tool" && Array.isArray(prev)) prev.push(i);
+    // A delegated agent gets a card of its own, never folded in with other tool calls.
+    const own = i.kind === "tool" && !!delegationTool(i.name);
+    if (i.kind === "tool" && !own && Array.isArray(prev) && !delegationTool(prev[0].name)) prev.push(i);
     else groups.push(i.kind === "tool" ? [i] : i);
   }
   return (
     <div className="chat-activity">
       {groups.map((g) =>
         Array.isArray(g) ? (
-          <ToolGroup key={g[0].id} tools={g} cwd={cwd} />
+          delegationTool(g[0].name) ? (
+            <DelegationCard key={g[0].id} item={g[0]} cwd={cwd} />
+          ) : (
+            <ToolGroup key={g[0].id} tools={g} cwd={cwd} />
+          )
         ) : g.kind === "text" ? (
           <div key={g.id} className="chat-aside">
             <Markdown text={g.text} streaming={!g.done} />
@@ -651,6 +658,54 @@ function ToolGroup({ tools, cwd }: { tools: Tool[]; cwd?: string }) {
             <ToolLine key={t.id} item={t} cwd={cwd} />
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+/** Another agent this chat handed work to: who, on what, how long, what it changed, its report. */
+function DelegationCard({ item, cwd }: { item: Tool; cwd?: string }) {
+  const d = parseDelegation(item.name, item.input, item.result, item.isError);
+  const [open, setOpen] = useState(false);
+  if (!d) return null;
+  const label = d.state === "running" ? "Working" : d.state === "background" ? `Started in the background · ${d.id}` : d.state === "status" ? `Checked ${d.id ?? "runs"}` : d.state === "failed" ? "Failed" : "Done";
+  const meta = [d.model, d.mode === "work" ? "can edit" : "read only", d.tools !== undefined && `${d.tools} tool call${d.tools === 1 ? "" : "s"}`, d.secs !== undefined && formatDuration(d.secs * 1000)].filter(Boolean);
+  return (
+    <div className={`chat-deleg ${d.state}`}>
+      <div className="chat-deleg-head">
+        <span className="chat-deleg-logo" aria-hidden>
+          <AgentLogo logo={(d.who ?? d.provider ?? "agent").toLowerCase()} size={14} />
+        </span>
+        <span className="chat-deleg-who">{d.who ?? d.provider ?? "Agent"}</span>
+        <span className="chat-deleg-state">{label}</span>
+        {meta.length > 0 && <span className="chat-deleg-meta num">{meta.join(" · ")}</span>}
+      </div>
+      {d.task && d.tool !== "delegation" && <p className="chat-deleg-task">{d.task}</p>}
+      {d.stopped && <p className="chat-deleg-stopped">{d.stopped}</p>}
+      {d.changed.length > 0 && (
+        <ul className="chat-deleg-files" aria-label="Files it changed">
+          {d.changed.map((f) => (
+            <li key={f}>
+              <button type="button" className="link-btn" onClick={() => void openFile(cwd && !f.startsWith("/") ? `${cwd}/${f}` : f)}>
+                {f}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {d.blocked.length > 0 && <p className="chat-deleg-blocked">Blocked: {d.blocked.join("; ")}</p>}
+      {d.report && (
+        <>
+          <button type="button" className="chat-deleg-toggle" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+            {open ? "Hide report" : d.state === "status" ? "Show status" : "Show report"}
+            <ChevronIcon className="chat-chev" />
+          </button>
+          {open && (
+            <div className="chat-deleg-report">
+              <Markdown text={d.report} streaming={false} />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

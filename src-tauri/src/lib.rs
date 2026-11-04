@@ -5,6 +5,7 @@ mod chat;
 mod checkpoints;
 mod config;
 mod control;
+mod delegate;
 mod discord;
 mod effort;
 mod files;

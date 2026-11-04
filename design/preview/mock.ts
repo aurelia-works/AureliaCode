@@ -733,6 +733,31 @@ if (view === "chat") {
       },
     },
   });
+  if (params.get("delegate") === "1") {
+    // Three delegated agents: one done with edits, one started in the background, one still working.
+    const chat = useChat.getState().byPane.p10!;
+    const done = `The right-arrow handler in Composer.tsx:212 inserts the key's text when \`key\` is longer than one character; it now ignores named keys.\n\n---\nDeepSeek agent · opencode-go/deepseek-v4.1-flash · write · 9 tool calls · 48.2s · session ses_8f2\nChanged: src/components/Composer.tsx, src/lib/keys.test.ts\nDelegation d1`;
+    useChat.setState({
+      byPane: {
+        p10: {
+          ...chat,
+          status: "working",
+          approvals: [],
+          queued: [],
+          transcript: {
+            ...chat.transcript,
+            items: [
+              { kind: "user", id: id(), text: "Fix the right-arrow boxes, and have someone check Notes in the background." },
+              { kind: "text", id: id(), text: "I'll hand the fix to DeepSeek and the Notes check to Haiku in the background.", done: true },
+              { kind: "tool", id: id(), toolId: "d1", name: "mcp__aurelia__aurelia_delegate", input: { provider: "opencode", task: "Find why the right arrow types boxes in the composer and fix it, with a test.", mode: "work" }, partial: "", result: done, steps: 0 },
+              { kind: "tool", id: id(), toolId: "d2", name: "mcp__aurelia__aurelia_delegate", input: { provider: "claude", model: "haiku", task: "Check whether Notes gets the same key code from Aurelia Voice's key tap.", wait: false }, partial: "", result: 'Started d2: Claude agent on "Check whether Notes gets the same key code". Check it with aurelia_delegation (status, wait or cancel) and id d2.', steps: 0 },
+              { kind: "tool", id: id(), toolId: "d3", name: "mcp__aurelia__aurelia_delegate", input: { provider: "grok", task: "Review the Composer.tsx change for other named keys it might still type." }, partial: "", steps: 0 },
+            ],
+          },
+        },
+      },
+    });
+  }
 }
 if (view === "commit") {
   const { createElement } = await import("react");

@@ -47,3 +47,7 @@ test("the goal banner and dialog have their own chat views", () => {
   assert.deepEqual(viewsFor(["src/components/GoalBar.tsx"]), ["chat&goal=1", "chat&goal=dialog"]);
   assert.deepEqual(viewsFor(["src/store/goals.ts", "src/lib/goalLoop.ts"]), ["chat&goal=1", "chat&goal=dialog"]);
 });
+
+test("the delegation card has its own chat view", () => {
+  assert.deepEqual(viewsFor(["src/lib/delegation.ts"]), ["chat&delegate=1"]);
+});
