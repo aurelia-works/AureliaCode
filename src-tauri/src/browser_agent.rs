@@ -139,6 +139,11 @@ fn fit_budget(timeout_ms: u64, spent: Duration) -> (u64, Duration) {
     (ms, Duration::from_millis(ms) + answer)
 }
 
+/// What's left of the call's budget once `reserve` is kept for the steps after this one.
+fn left(started: Instant, reserve: Duration) -> Duration {
+    CALL_BUDGET.saturating_sub(started.elapsed() + reserve)
+}
+
 /// Runs one agent browser action against a pane. Async: WebKit answers on the main thread,
 /// so the command must not hold it.
 #[tauri::command]
@@ -158,8 +163,9 @@ pub async fn browser_agent(app: AppHandle, pane: String, action: String, args: O
             // ("completion handler no longer reachable"): wait for the load again and retry.
             let mut tries = 0;
             let r = loop {
-                wait_load(&wv, &pane, expect, budget).await?;
-                match native::call_js(&wv, SCRIPT, &idle, Duration::from_secs(5)).await {
+                wait_load(&wv, &pane, expect, budget.min(left(started, Duration::from_secs(5)))).await?;
+                let limit = Duration::from_secs(5).min(left(started, Duration::ZERO)).max(Duration::from_secs(1));
+                match native::call_js(&wv, SCRIPT, &idle, limit).await {
                     Err(e) if e.starts_with("webkit:") && tries < 3 => {
                         tries += 1;
                         tokio::time::sleep(Duration::from_millis(200)).await;
@@ -171,7 +177,8 @@ pub async fn browser_agent(app: AppHandle, pane: String, action: String, args: O
         }
         "resize" => resize(&wv, &pane, &args),
         "screenshot" => {
-            wait_load(&wv, &pane, expect, budget).await?;
+            // Kept back: 5 s for the crop's rect, 10 s for the snapshot itself.
+            wait_load(&wv, &pane, expect, budget.min(left(started, Duration::from_secs(15)))).await?;
             let crop = if args.get("ref").is_some() || args.get("selector").is_some() {
                 let mut q = args.clone();
                 q["action"] = json!("rect");
@@ -186,7 +193,7 @@ pub async fn browser_agent(app: AppHandle, pane: String, action: String, args: O
             if let Some(m) = req.as_object_mut() {
                 m.remove("expect");
             }
-            wait_load(&wv, &pane, expect, budget).await?;
+            wait_load(&wv, &pane, expect, budget.min(left(started, Duration::from_secs(6)))).await?;
             let (ms, limit) = fit_budget(req["timeoutMs"].as_u64().unwrap_or(5000), started.elapsed());
             req["timeoutMs"] = json!(ms);
             let raw = native::call_js(&wv, SCRIPT, &req.to_string(), limit).await;
@@ -426,6 +433,15 @@ mod tests {
         let (ms, limit) = fit_budget(15_000, CALL_BUDGET);
         assert_eq!(ms, 0);
         assert!(limit >= Duration::from_secs(1));
+    }
+
+    #[test]
+    fn steps_after_the_page_load_keep_their_share_of_the_budget() {
+        let long_ago = Instant::now().checked_sub(Duration::from_secs(20)).unwrap();
+        assert_eq!(left(long_ago, Duration::from_secs(15)), Duration::ZERO);
+        let now = Instant::now();
+        let rest = left(now, Duration::from_secs(15));
+        assert!(rest <= CALL_BUDGET - Duration::from_secs(15) && rest > Duration::from_secs(11), "{rest:?}");
     }
 
     #[test]
