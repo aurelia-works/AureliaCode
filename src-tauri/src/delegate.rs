@@ -198,6 +198,9 @@ struct Run {
     started: Instant,
     tools: AtomicUsize,
     last: Mutex<String>,
+    /// Where its process is registered in `running`: the MCP request id for a waiting call,
+    /// else the run id.
+    key: String,
     /// Set by aurelia_delegation cancel before it stops the process.
     cancelled: AtomicBool,
     /// The rendered report and whether it failed, once the run ends.
@@ -278,6 +281,8 @@ pub fn call(name: &str, args: &Value, key: &str, running: &Running, progress: &(
     let id = format!("d{}", NEXT.fetch_add(1, Ordering::Relaxed));
     let run = Arc::new(Run {
         id: id.clone(),
+        // A waiting call is cancelled through its request id; a background run through its own id.
+        key: if req.wait { key.to_string() } else { id.clone() },
         provider: req.provider,
         model: req.model.clone(),
         mode: req.mode,
@@ -297,8 +302,7 @@ pub fn call(name: &str, args: &Value, key: &str, running: &Running, progress: &(
         _ => Kind::Grok,
     };
     let cmd = build(&bin, &req, &cwd);
-    // A waiting call is cancelled through its request id; a background run through its own id.
-    let run_key = if req.wait { key.to_string() } else { id.clone() };
+    let run_key = run.key.clone();
     let execute = {
         let (run, running) = (run.clone(), running.clone());
         move |progress: &dyn Fn(usize, &str)| {
@@ -355,7 +359,7 @@ fn follow(args: &Value, running: &Running) -> Value {
                 return text(format!("{id} had already finished."), false);
             }
             run.cancelled.store(true, Ordering::Relaxed);
-            if let Some(child) = running.lock().unwrap().get(id) {
+            if let Some(child) = running.lock().unwrap().get(&run.key) {
                 stop(&mut child.lock().unwrap());
             }
             match run.wait(Duration::from_secs(10)) {
@@ -472,11 +476,44 @@ mod tests {
     }
 
     #[test]
+    fn a_waiting_run_can_be_cancelled_by_its_id() {
+        let running = Running::default();
+        let bin = fake("slow-wait", "sleep 30");
+        let run = Arc::new(Run {
+            id: "d901".into(),
+            key: "request-7".into(),
+            provider: "opencode",
+            model: String::new(),
+            mode: Mode::Read,
+            title: "waited task".into(),
+            started: Instant::now(),
+            tools: AtomicUsize::new(0),
+            last: Mutex::new(String::new()),
+            cancelled: AtomicBool::new(false),
+            done: Mutex::new(None),
+            finished: Condvar::new(),
+        });
+        RUNS.lock().unwrap().push(run.clone());
+        let (r2, running2) = (run.clone(), running.clone());
+        std::thread::spawn(move || r2.settle(run_with(&bin, Kind::OpenCode, "request-7", &running2, Duration::from_secs(60))));
+        let started = Instant::now();
+        while !running.lock().unwrap().contains_key("request-7") {
+            assert!(started.elapsed() < Duration::from_secs(5), "never started");
+            std::thread::yield_now();
+        }
+        let cancelled = follow(&json!({ "action": "cancel", "id": "d901" }), &running);
+        let t = cancelled["content"][0]["text"].as_str().unwrap();
+        assert!(t.starts_with("Cancelled d901.") && t.contains("Stopped: cancelled."), "{t}");
+        assert!(started.elapsed() < Duration::from_secs(8), "cancel didn't stop the process");
+    }
+
+    #[test]
     fn a_background_run_can_be_followed_and_cancelled() {
         let running = Running::default();
         let bin = fake("slow", r#"printf '%s\n' '{"type":"text","sessionID":"s","part":{"messageID":"m","text":"partial"}}'; sleep 30"#);
         let run = Arc::new(Run {
             id: "d900".into(),
+            key: "d900".into(),
             provider: "opencode",
             model: "opencode-go/deepseek-v4.1-flash".into(),
             mode: Mode::Read,
