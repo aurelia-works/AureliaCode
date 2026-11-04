@@ -146,8 +146,15 @@ fn start_renders() {
         for mut stream in listener.incoming().flatten() {
             let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
             let mut first = String::new();
-            if BufReader::new(&stream).read_line(&mut first).is_err() {
+            let mut reader = BufReader::new(&stream);
+            if reader.read_line(&mut first).is_err() {
                 continue;
+            }
+            // Read the headers too: closing with them unread makes macOS reset the connection,
+            // and the client loses the reply it was sent (seen in CI as ECONNRESET).
+            let mut line = String::new();
+            while reader.read_line(&mut line).is_ok_and(|n| n > 0 && line != "\r\n" && line != "\n") {
+                line.clear();
             }
             let path = first.split_whitespace().nth(1).unwrap_or("");
             let body = path
