@@ -1,3 +1,4 @@
+import { chatCan } from "./chatStart";
 import { useAgents } from "../store/agents";
 import { useLayout } from "../store/layout";
 import { toast } from "../store/ui";
@@ -54,7 +55,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Presses Shift+Tab in the pane (Claude Code's own mode switch) and records where it landed. */
 export async function cyclePermissionMode(paneId: string): Promise<string> {
-  if (useLayout.getState().panes[paneId]?.mode === "chat") {
+  const pane = useLayout.getState().panes[paneId];
+  // OpenCode runs on its own permission rules: nothing to cycle.
+  if (pane?.mode === "chat" && !chatCan(pane).mode) return modeKey(useChat.getState().byPane[paneId]?.mode);
+  if (pane?.mode === "chat") {
     const mode = CHAT_CYCLE[(CHAT_CYCLE.indexOf(modeKey(useChat.getState().byPane[paneId]?.mode)) + 1) % CHAT_CYCLE.length];
     await setChatMode(paneId, mode);
     record(paneId, mode);
@@ -70,7 +74,10 @@ export async function cyclePermissionMode(paneId: string): Promise<string> {
 /** Shift+Tabs until the pane is in `target`; gives up after a full cycle (the mode isn't offered). */
 export async function setPermissionMode(paneId: string, target: string): Promise<boolean> {
   // A chat pane switches through Claude Code's control channel: every mode, no key presses.
-  if (useLayout.getState().panes[paneId]?.mode === "chat") {
+  const pane = useLayout.getState().panes[paneId];
+  if (pane?.mode === "chat") {
+    // OpenCode has no modes to switch to.
+    if (!chatCan(pane).mode) return false;
     await setChatMode(paneId, target);
     return true;
   }

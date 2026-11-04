@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chatProviderOptions, chatUnavailable, currentProblem, missingAccounts, signInLine, sortProviders, type ProviderStatus } from "./providers.ts";
+import { chatProviderId, chatProviderOptions, chatUnavailable, currentProblem, missingAccounts, signInLine, sortProviders, type ProviderStatus } from "./providers.ts";
 
 const p = (over: Partial<ProviderStatus>): ProviderStatus => ({ id: "x", provider: "x", label: "X", installed: true, models: [], caps: [], ...over });
 const claude = (account: string, over: Partial<ProviderStatus> = {}) =>
@@ -51,4 +51,14 @@ test("an account the list hasn't checked yet is missing, so the list is checked 
   assert.equal(missingAccounts(list, ["claude", "work"]), true);
   // Not loaded yet: the first load covers every account.
   assert.equal(missingAccounts(undefined, ["claude", "work"]), false);
+});
+
+test("an OpenCode chat is the current one on its own picker, and Claude starts a new chat", () => {
+  const oc = p({ id: "opencode", provider: "opencode", label: "OpenCode", signedIn: true, auth: "OpenCode Go", caps: ["chat"] });
+  const opts = chatProviderOptions([oc, claude("main")], "main", "opencode");
+  assert.equal(chatProviderId("main", "opencode"), "opencode");
+  assert.equal(opts.find((o) => o.value === "opencode")?.desc, "Signed in · OpenCode Go");
+  assert.equal(opts.find((o) => o.value === "claude:main")?.desc, "Starts a new chat on this account");
+  assert.equal(chatProviderOptions([oc, claude("main")], "main").find((o) => o.value === "opencode")?.desc, "Starts a new OpenCode chat");
+  assert.equal(currentProblem([{ ...oc, signedIn: false }], "main", "opencode"), "Not signed in");
 });

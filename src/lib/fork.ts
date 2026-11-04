@@ -2,6 +2,7 @@ import { useAgents } from "../store/agents";
 import { useLayout } from "../store/layout";
 import { toast } from "../store/ui";
 import { forkChat, releaseChat } from "./chat";
+import { chatCan } from "./chatStart";
 import { shellQuote } from "./launch";
 import { queueInit } from "./terminals";
 
@@ -14,6 +15,10 @@ export function forkConversation(paneId: string): string | null {
   const pane = layout.panes[paneId];
   const agent = useAgents.getState().sessions[paneId];
   if (pane?.mode === "chat") {
+    if (!chatCan(pane).fork) {
+      toast("OpenCode chats can't be forked: a fork would carry on the same session", true);
+      return null;
+    }
     const id = forkChat(paneId);
     if (!id) toast("No conversation to fork in this chat yet", true);
     return id;

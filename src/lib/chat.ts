@@ -9,6 +9,7 @@ import type { ChatDocument } from "./attachments";
 import { workAfterTurn } from "./workBridge";
 import { cacheSafe } from "./effort";
 import { ipc, type ChatEvent, type ChatImage, type CliModel, type ChatUsage, type ContextUsage, type SlashCommand } from "./ipc";
+import { chatCan } from "./chatStart";
 import { startPermissionMode } from "./startMode";
 import { refreshUsageAfterTurn } from "../store/usage";
 import { runGoalCheck } from "../store/goals";
@@ -226,7 +227,11 @@ export async function ensureChat(pane: PaneMeta) {
   const branch = branches.get(pane.id);
   branches.delete(pane.id);
   const fork = !!pane.chatFork;
-  if (resume) {
+  const oc = isOpenCode(pane);
+  if (resume && oc) {
+    // OpenCode keeps the conversation in its own store; the next message continues it.
+    patch(pane.id, (s) => ({ ...s, transcript: addNotice(s.transcript, "Earlier messages are in OpenCode's session; new ones continue it") }));
+  } else if (resume) {
     let lines = await ipc.chatHistory(pane.account, pane.cwd ?? "", resume).catch(() => null);
     // A branch shows the conversation up to the edited message.
     const cut = branch ? (lines?.findIndex((l) => l.uuid === branch.before) ?? -1) : -1;
@@ -250,14 +255,16 @@ export async function ensureChat(pane: PaneMeta) {
   ch.onmessage = (ev) => onEvent(pane.id, token, ev);
   try {
     const r = await ipc.chatSpawn({ paneId: pane.id, cwd: pane.cwd, account: pane.account, env: pane.env, secretEnv: pane.secretEnv, resume, resumeAt: resume ? branch?.at : undefined, fork: !!resume && fork, model: real(chatPicks(pane).model),
-      effort: real(chatPicks(pane).effort),
-      permissionMode: pane.chatPermission || startPermissionMode(getConfig().claudePermissionMode),
+      effort: oc ? undefined : real(chatPicks(pane).effort),
+      permissionMode: oc ? undefined : pane.chatPermission || startPermissionMode(getConfig().claudePermissionMode),
+      provider: pane.provider,
       onEvent: ch,
     });
     if (spawns.get(pane.id) !== token) return;
     const first = firstMessage.get(pane.id);
     firstMessage.delete(pane.id);
     if (first) sendChat(pane.id, first.text, first.att);
+    if (oc) return patch(pane.id, (s) => ({ ...s, status: s.status === "starting" ? "idle" : s.status }));
     void refreshContext(pane.id);
     ipc
       .chatCommands(pane.id)
@@ -274,7 +281,7 @@ export async function ensureChat(pane: PaneMeta) {
       transcript: r.missingCwd ? addNotice(s.transcript, `${r.missingCwd} no longer exists, so this chat started elsewhere`, true) : s.transcript,
     }));
   } catch (e) {
-    if (spawns.get(pane.id) === token) patch(pane.id, (s) => ({ ...s, status: "exited", transcript: addNotice(s.transcript, `Couldn't start Claude: ${e}`, true) }));
+    if (spawns.get(pane.id) === token) patch(pane.id, (s) => ({ ...s, status: "exited", transcript: addNotice(s.transcript, `Couldn't start ${agentName(pane)}: ${e}`, true) }));
   }
 }
 
@@ -285,7 +292,8 @@ export async function ensureChat(pane: PaneMeta) {
 export function forkChat(paneId: string): string | null {
   const layout = useLayout.getState();
   const pane = layout.panes[paneId];
-  if (!pane?.claudeSession) return null;
+  // An OpenCode chat would carry on the same session, not a copy of it.
+  if (!pane?.claudeSession || !chatCan(pane).fork) return null;
   const id = layout.splitPane(paneId, "row", { account: pane.account, cwd: pane.cwd, mode: "chat" });
   layout.updatePane(id, { claudeSession: pane.claudeSession, chatFork: true, chatUsed: true, chatModel: pane.chatModel, chatEffort: pane.chatEffort, chatPermission: pane.chatPermission });
   return id;
@@ -337,11 +345,18 @@ const appliedEffort = new Map<string, string>();
 /** Picks as they stand: unset follows Settings → Auto effort ("auto") or the account's settings. */
 export function chatPicks(pane: PaneMeta | undefined): { model: string; effort: string } {
   const cfg = getConfig().effort;
+  // Auto model and effort are Claude's (src-tauri/src/effort.rs).
+  if (isOpenCode(pane)) return { model: pane?.chatModel ?? "default", effort: "default" };
   return {
     model: pane?.chatModel ?? (cfg?.autoModel ? "auto" : "default"),
     effort: pane?.chatEffort ?? (cfg?.auto === false ? "default" : "auto"),
   };
 }
+
+export const isOpenCode = (pane: PaneMeta | undefined) => pane?.provider === "opencode";
+
+/** Who the chat runs, for its notices. */
+export const agentName = (pane: PaneMeta | undefined) => (isOpenCode(pane) ? "OpenCode" : "Claude");
 
 /** "auto" is ours: the CLI only ever gets a real model or level. */
 const real = (v?: string) => (v === "auto" ? undefined : v);
@@ -415,7 +430,8 @@ async function deliver(paneId: string, text: string, busy: boolean, images: Chat
   try {
     // Switching mid-turn is untested ground: a message queued behind a running turn waits for the next one.
     if (!busy) {
-      const { model, effort, style } = { ...configPending.get(paneId), ...(await autoPicks(paneId, text)) };
+      const oc = isOpenCode(useLayout.getState().panes[paneId]);
+      const { model, effort, style } = { ...configPending.get(paneId), ...(oc ? {} : await autoPicks(paneId, text)) };
       configPending.delete(paneId);
       if (effort) appliedEffort.set(paneId, effort);
       if (model || effort || style) await ipc.chatConfigure(paneId, model, effort, style);
@@ -478,6 +494,8 @@ export async function refreshContext(paneId: string) {
 
 /** Switches the chat's permission mode right away; the CLI confirms it with the new mode. */
 export async function setChatMode(paneId: string, mode: string) {
+  // OpenCode runs on its own permission rules: there is no mode to switch.
+  if (!chatCan(useLayout.getState().panes[paneId]).mode) return;
   patch(paneId, (s) => ({ ...s, mode }));
   useLayout.getState().updatePane(paneId, { chatPermission: mode });
   await ipc.chatSetMode(paneId, mode).catch(() => {});

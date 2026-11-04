@@ -61,26 +61,32 @@ export interface ProviderOption {
   disabled?: string;
 }
 
+/** The picker value of a chat: its provider ("opencode"), or "claude:<account>" for Claude. */
+export function chatProviderId(account: string | undefined, provider?: string): string {
+  return provider ?? `claude:${account}`;
+}
+
 /**
- * The composer's provider list for a chat on `account`. Another Claude account starts a new
- * chat there (a conversation can't move between accounts); the rest are greyed with why.
+ * The composer's provider list for a chat on `account` (or `provider`, when it isn't Claude).
+ * Another one starts a new chat there (a conversation can't move between them); the ones that
+ * can't chat here are greyed with why.
  */
-export function chatProviderOptions(list: ProviderStatus[], account: string | undefined): ProviderOption[] {
+export function chatProviderOptions(list: ProviderStatus[], account: string | undefined, provider?: string): ProviderOption[] {
   return sortProviders(list).map((p) => {
     const why = chatUnavailable(p);
-    const current = p.id === `claude:${account}`;
+    const current = p.id === chatProviderId(account, provider);
     return {
       value: p.id,
       label: p.label,
-      desc: why ?? (current ? signInLine(p) : "Starts a new chat on this account"),
+      desc: why ?? (current ? signInLine(p) : p.provider === "claude" ? "Starts a new chat on this account" : `Starts a new ${p.label} chat`),
       ...(why && { disabled: why }),
     };
   });
 }
 
 /** The current chat's provider when discovery says it can't run: shown on the picker, never hidden. */
-export function currentProblem(list: ProviderStatus[] | undefined, account: string | undefined): string | null {
-  const p = list?.find((x) => x.id === `claude:${account}`);
+export function currentProblem(list: ProviderStatus[] | undefined, account: string | undefined, provider?: string): string | null {
+  const p = list?.find((x) => x.id === chatProviderId(account, provider));
   return p ? chatUnavailable(p) : null;
 }
 

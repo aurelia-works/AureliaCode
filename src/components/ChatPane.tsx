@@ -1,5 +1,5 @@
 import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { steerChat, answerApproval, branchChat, chatPicks, rewindChat, ensureChat, refreshContext, interruptChat, restartChat, sendChat, setChatMode, setChatOptions, useChat, type Approval } from "../lib/chat";
+import { agentName, isOpenCode, steerChat, answerApproval, branchChat, chatPicks, rewindChat, ensureChat, refreshContext, interruptChat, restartChat, sendChat, setChatMode, setChatOptions, useChat, type Approval } from "../lib/chat";
 import type { ChatItem, Segment } from "../lib/chatModel";
 import { fileStats, latestTodos, segments, toolSummary, turnEdits } from "../lib/chatModel";
 import { isLocalUrl, openInBrowserPane } from "../lib/browser";
@@ -19,10 +19,10 @@ import { riskOf } from "../lib/risk";
 import { CHAT_FIND, GOAL_OPEN } from "../lib/shortcuts";
 import { GoalBanner, GoalDialog } from "./GoalBar";
 import { focusedPaneId, useLayout } from "../store/layout";
-import { freshChat } from "../lib/chatStart";
+import { chatCan, freshChat } from "../lib/chatStart";
 import { ChatStart, sendFirst } from "./ChatStart";
 import { loadProviders, useProviders } from "../store/providers";
-import { chatProviderOptions, currentProblem, missingAccounts } from "../lib/providers";
+import { chatProviderId, chatProviderOptions, currentProblem, missingAccounts, type ProviderStatus } from "../lib/providers";
 import { usePaneContext } from "../store/metrics";
 import { freshness, type ContextFill } from "../lib/contextFill";
 import { toggleStash } from "../lib/stash";
@@ -363,7 +363,8 @@ function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatI
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const [undoFiles, setUndoFiles] = useState(true);
-  const canBranch = idle && !!item.uuid && !!item.text;
+  const can = chatCan(useLayout((s) => s.panes[paneId]));
+  const canBranch = idle && !!item.uuid && !!item.text && can.branch;
   const go = (text: string) => {
     if (!item.uuid || !text.trim()) return;
     setEditing(false);
@@ -1146,6 +1147,15 @@ const PERMISSIONS: Option[] = PICKER_MODES.map((k) => ({
   icon: <ShieldIcon className={`chat-mode-icon ${MODES[k].tone ?? ""}`} />,
 }));
 
+/** OpenCode's models ("provider/model" from `opencode models`), after its own default. */
+function openCodeModels(p: ProviderStatus | undefined): Option[] {
+  const icon = <AgentLogo logo="opencode" size={14} />;
+  return [
+    { value: "default", label: "Default", desc: "What your OpenCode config picks", icon },
+    ...(p?.models ?? []).map((m) => ({ value: m, label: m.slice(m.indexOf("/") + 1), desc: m.slice(0, m.indexOf("/")), icon })),
+  ];
+}
+
 /** "claude-opus-5-5" → "Opus 5.5". */
 /** The CLI's own model list (so new models show up by themselves), after Auto; MODELS until it answers. */
 function modelOptions(models?: CliModel[]): Option[] {
@@ -1253,7 +1263,9 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
   const auto = useChat((s) => s.byPane[paneId]?.auto);
   const commands = useChat((s) => s.byPane[paneId]?.commands);
   const cliModels = useChat((s) => s.byPane[paneId]?.models);
-  const models = useMemo(() => modelOptions(cliModels), [cliModels]);
+  const oc = isOpenCode(pane);
+  const ocStatus = useProviders((st) => st.list?.find((p) => p.id === "opencode"));
+  const models = useMemo(() => (oc ? openCodeModels(ocStatus) : modelOptions(cliModels)), [oc, ocStatus, cliModels]);
   const styles = useChat((s) => s.byPane[paneId]?.styles);
   const startStyle = useChat((s) => s.byPane[paneId]?.style);
   const style = pane?.chatStyle ?? startStyle ?? "default";
@@ -1374,12 +1386,16 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
   const firstAccount = useConfig((st) => st.config?.accounts[0]?.name);
   const providerAccount = pane?.account ?? firstAccount;
   const providerOptions = useMemo<Option[]>(
-    () => chatProviderOptions(provs ?? [], providerAccount).map((o) => ({ ...o, icon: o.value.startsWith("claude:") ? CLAUDE : <AgentLogo logo={o.value} size={14} /> })),
-    [provs, providerAccount],
+    () => chatProviderOptions(provs ?? [], providerAccount, pane?.provider).map((o) => ({ ...o, icon: o.value.startsWith("claude:") ? CLAUDE : <AgentLogo logo={o.value} size={14} /> })),
+    [provs, providerAccount, pane?.provider],
   );
-  const providerProblem = currentProblem(provs, providerAccount);
-  const modelLabel =
-    model === "auto"
+  const providerProblem = currentProblem(provs, providerAccount, pane?.provider);
+  const agentIcon = oc ? <AgentLogo logo="opencode" size={14} /> : CLAUDE;
+  const modelLabel = oc
+    ? model === "default"
+      ? "Default"
+      : model.slice(model.indexOf("/") + 1)
+    : model === "auto"
       ? `Auto${runningName ? ` · ${runningName}` : ""}`
       : model === "default"
         ? (runningName ?? "Default")
@@ -1451,7 +1467,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
           rows={2}
           value={text}
           data-chat-input={paneId}
-          placeholder={busy ? "Claude is working. A message now goes after this turn" : "Ask anything. @ files, / commands"}
+          placeholder={busy ? `${agentName(pane)} is working. A message now goes after this turn` : oc ? "Ask anything. @ files" : "Ask anything. @ files, / commands"}
           onChange={(e) => {
             setText(cleanTextarea(e.target));
             setCaret(e.target.selectionStart);
@@ -1493,27 +1509,32 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
               e.target.value = "";
             }}
           />
-          <Picker
-            label={m.label}
-            title={`Permission mode: ${m.what} (Shift+Tab)`}
-            value={mode}
-            options={PERMISSIONS}
-            onPick={(v) => void setChatMode(paneId, v)}
-            icon={<ShieldIcon className={`chat-mode-icon ${m.tone ?? ""}`} />}
-            tone={m.tone}
-            more={{ label: "Saved rules…", onClick: () => setRulesOpen(true) }}
-          />
+          {/* OpenCode runs on its own permission rules (opencode.json). */}
+          {!oc && (
+            <Picker
+              label={m.label}
+              title={`Permission mode: ${m.what} (Shift+Tab)`}
+              value={mode}
+              options={PERMISSIONS}
+              onPick={(v) => void setChatMode(paneId, v)}
+              icon={<ShieldIcon className={`chat-mode-icon ${m.tone ?? ""}`} />}
+              tone={m.tone}
+              more={{ label: "Saved rules…", onClick: () => setRulesOpen(true) }}
+            />
+          )}
           {providerOptions.length > 1 && (
             <Picker
-              label={providerProblem ? `${providerAccount}: ${providerProblem}` : (providerAccount ?? "Claude")}
-              title={providerProblem ? `This chat's account: ${providerProblem}` : "Provider and account for this chat"}
-              value={`claude:${providerAccount}`}
+              label={oc ? `OpenCode${providerProblem ? `: ${providerProblem}` : ""}` : providerProblem ? `${providerAccount}: ${providerProblem}` : (providerAccount ?? "Claude")}
+              title={providerProblem ? `This chat's provider: ${providerProblem}` : "Provider and account for this chat"}
+              value={chatProviderId(providerAccount, pane?.provider)}
               options={providerOptions}
               onPick={(v) => {
-                if (v === `claude:${providerAccount}` || !v.startsWith("claude:")) return;
-                useLayout.getState().newTab({ mode: "chat", account: v.slice("claude:".length), cwd: pane?.cwd });
+                if (v === chatProviderId(providerAccount, pane?.provider)) return;
+                // A conversation can't move between providers or accounts: the pick starts a new chat.
+                if (v.startsWith("claude:")) useLayout.getState().newTab({ mode: "chat", account: v.slice("claude:".length), cwd: pane?.cwd });
+                else if (v === "opencode") useLayout.getState().newTab({ mode: "chat", provider: "opencode", cwd: pane?.cwd });
               }}
-              icon={CLAUDE}
+              icon={agentIcon}
               tone={providerProblem ? "warn" : undefined}
             />
           )}
@@ -1523,16 +1544,18 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             value={model}
             options={models}
             onPick={(v) => setChatOptions(paneId, { model: v })}
-            icon={model === "auto" ? <SparkIcon className="chat-auto-icon" /> : CLAUDE}
+            icon={model === "auto" ? <SparkIcon className="chat-auto-icon" /> : agentIcon}
           />
-          <Picker
-            label={effortLabel}
-            title={effort === "auto" && auto?.effort ? `Auto effort: ${auto.effort.why}` : "Effort for the next message: how hard Claude thinks"}
-            value={effort}
-            options={EFFORTS}
-            onPick={(v) => setChatOptions(paneId, { effort: v })}
-            icon={<GaugeIcon level={Math.max(0, level)} />}
-          />
+          {!oc && (
+            <Picker
+              label={effortLabel}
+              title={effort === "auto" && auto?.effort ? `Auto effort: ${auto.effort.why}` : "Effort for the next message: how hard Claude thinks"}
+              value={effort}
+              options={EFFORTS}
+              onPick={(v) => setChatOptions(paneId, { effort: v })}
+              icon={<GaugeIcon level={Math.max(0, level)} />}
+            />
+          )}
           {styles && styles.length > 1 && (
             <Picker
               label={style === "default" ? "" : style}

@@ -59,3 +59,7 @@ test("the delegation card has its own chat view", () => {
 test("a new chat's opening shows in the start view", () => {
   assert.deepEqual(viewsFor(["src/components/ChatStart.tsx", "src/lib/chatStart.ts"]), ["start"]);
 });
+
+test("the OpenCode chat adapter has its own chat view", () => {
+  assert.deepEqual(viewsFor(["src-tauri/src/opencode_chat.rs"]), ["chat&opencode=1"]);
+});

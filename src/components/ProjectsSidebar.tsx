@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 import { freshChat } from "../lib/chatStart";
-import { useChat } from "../lib/chat";
+import { isOpenCode, useChat } from "../lib/chat";
 import { basename } from "../lib/format";
 import { closePaneSafely, closePanesSafely } from "../lib/openFile";
 import { patchThreads } from "../lib/threadActions";
@@ -242,9 +242,12 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   const task = useTasks((s) => tasksForPane(s.projects, paneId).find((t) => t.status === "doing") ?? tasksForPane(s.projects, paneId)[0]);
   const custom = usePaneAgent(paneId);
   const account = pane?.account ?? agent?.account;
-  const isClaude = !!agent || !!account;
-  const v: Visual | undefined = agent ? visualOf(agent) : isClaude ? (freshChat(pane, 0) ? "idle" : "starting") : undefined;
-  const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher || freshChat(pane, 0) ? "New thread" : custom ? custom.name : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
+  // OpenCode chats have no hooks: their state is the chat's own.
+  const oc = isOpenCode(pane);
+  const ocWorking = useChat((s) => oc && s.byPane[paneId]?.status === "working");
+  const isClaude = !oc && (!!agent || !!account);
+  const v: Visual | undefined = oc ? (ocWorking ? "working" : "idle") : agent ? visualOf(agent) : isClaude ? (freshChat(pane, 0) ? "idle" : "starting") : undefined;
+  const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher || freshChat(pane, 0) ? "New thread" : custom ? custom.name : oc ? "OpenCode" : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
   const label = pane?.title ?? title ?? task?.title ?? kind;
   const dir = paneDir(paneId);
   const repo = basename(git?.repo ?? dir) || "~";

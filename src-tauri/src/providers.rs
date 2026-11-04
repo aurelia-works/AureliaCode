@@ -98,7 +98,7 @@ fn claude(account: &str, config_dir: Option<String>) -> ProviderStatus {
 }
 
 fn opencode() -> ProviderStatus {
-    let (mut s, path) = base("opencode", "opencode", "OpenCode", "opencode", &["--version"], &["resume", "effort", "files", "mcp"]);
+    let (mut s, path) = base("opencode", "opencode", "OpenCode", "opencode", &["--version"], &["chat", "resume", "interrupt", "effort", "files", "mcp"]);
     let Some(path) = path else { return s };
     match run(&path, &["auth", "list"], &[]) {
         Ok((_, out)) => {

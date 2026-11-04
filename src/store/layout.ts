@@ -45,6 +45,8 @@ export interface PaneMeta {
   chatPermission?: string;
   /** A file editor pane (components/EditorPane.tsx) instead of a terminal; line:col is where it opened. */
   editor?: EditorTarget;
+  /** The agent CLI a chat runs when it isn't Claude Code: "opencode" (src-tauri/src/opencode_chat.rs). */
+  provider?: string;
   /** "chat": Claude Code drawn as a conversation (components/ChatPane.tsx) instead of a terminal. */
   mode?: "chat" | "terminal";
   /** Done with for now: listed under Settled in the threads sidebar (set when its PR merges). */
@@ -99,6 +101,8 @@ export interface NewPaneOpts {
   mode?: "chat" | "terminal";
   /** A chat pane's first model pick (a team router's suggestion). */
   chatModel?: string;
+  /** With mode "chat": "opencode" runs an OpenCode chat instead of Claude. */
+  provider?: string;
 }
 
 interface LayoutState {
@@ -179,6 +183,7 @@ function makePane(opts?: NewPaneOpts): PaneMeta {
     editor: opts?.editor,
     mode: opts?.mode === "chat" ? "chat" : undefined,
     chatModel: opts?.chatModel,
+    provider: opts?.mode === "chat" ? opts.provider : undefined,
   });
 }
 

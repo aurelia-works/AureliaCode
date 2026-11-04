@@ -14,3 +14,12 @@ export function launcherToChat(
 export function freshChat(pane: Pick<PaneMeta, "chatUsed" | "claudeSession"> | undefined, items: number): boolean {
   return !!pane && !pane.chatUsed && !pane.claudeSession && items === 0;
 }
+
+/**
+ * Claude Code's extras a chat offers: editing a message (a copy of the conversation cut before
+ * it), forking, permission modes. OpenCode's `run` has none of them (src-tauri/src/opencode_chat.rs).
+ */
+export function chatCan(pane: Pick<PaneMeta, "provider"> | undefined): { branch: boolean; fork: boolean; mode: boolean } {
+  const claude = pane?.provider !== "opencode";
+  return { branch: claude, fork: claude, mode: claude };
+}
