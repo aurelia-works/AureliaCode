@@ -13,8 +13,9 @@ concurrency:
 
 jobs:
   # The back end links WKWebView and AppKit, so it needs macOS. Runs only when src-tauri changes.
+  # Intel: GitHub's arm64 macOS pool left jobs unassigned for 15+ min on 2026-11-04 ("capacity constraints").
   rust:
-    runs-on: macos-latest
+    runs-on: macos-15-intel
     timeout-minutes: 40
     env:
       CARGO_INCREMENTAL: "0"
