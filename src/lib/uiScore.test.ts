@@ -27,3 +27,8 @@ test("the prompt names every image, every category and the line format", () => {
   const p = scorePrompt([".shots/score/chat-after.png", ".shots/score/start-after.png"], "rubric text");
   for (const bit of [".shots/score/chat-after.png", ".shots/score/start-after.png", "rubric text", ...CATEGORIES, "Typography: n/10"]) assert.ok(p.includes(bit), bit);
 });
+
+test("a FIX line that mentions a score doesn't change the category", () => {
+  const r = parseScorecard(`${card([8, 8, 3, 8, 8, 8, 8, 8])}\nFIX: Spacing 9/10 is reachable with one scale`);
+  assert.equal(r.categories.Spacing, 3);
+});

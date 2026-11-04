@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { elapsedLabel, goalAction, goalKickoff, judgeCheck, parseScore, type Goal } from "./goalLoop.ts";
+import { elapsedLabel, goalAction, goalKickoff, goalRound, judgeCheck, parseScore, shouldCheck, type Goal } from "./goalLoop.ts";
 
 const goal = (over: Partial<Goal> = {}): Goal => ({ text: "Make the settings page pass axe", check: "npm run a11y", maxRounds: 3, startedAt: 0, deadline: 60_000, rounds: 0, ...over });
 
@@ -44,9 +44,42 @@ test("an unmet check wakes the agent with the output, until rounds or time run o
     assert.match(a.text, /npm run a11y/);
     assert.match(a.text, /SCORE: 6\/10/);
   }
-  assert.deepEqual(goalAction(goal({ rounds: 3 }), miss, 10_000), { kind: "stop", why: "rounds" });
+  assert.deepEqual(goalAction(goal({ rounds: 2 }), miss, 10_000), { kind: "stop", why: "rounds" });
   assert.deepEqual(goalAction(goal(), miss, 60_000), { kind: "stop", why: "time" });
-  assert.deepEqual(goalAction(goal({ rounds: 3 }), judgeCheck(goal(), 0, ""), 99_999), { kind: "met" });
+  assert.deepEqual(goalAction(goal({ rounds: 2 }), judgeCheck(goal(), 0, ""), 99_999), { kind: "met" });
+});
+
+test("max rounds counts every attempt, the first turn included", () => {
+  // 3 rounds: the kickoff turn and two wakes, so three checks in all.
+  let g = goal({ maxRounds: 3 });
+  const miss = judgeCheck(g, 1, "fail");
+  const kinds: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    const a = goalAction(g, miss, 0);
+    kinds.push(a.kind);
+    if (a.kind !== "wake") break;
+    g = { ...g, rounds: g.rounds + 1 };
+  }
+  assert.deepEqual(kinds, ["wake", "wake", "stop"]);
+});
+
+test("the round shown is the attempt, and doesn't move when the goal ends", () => {
+  assert.equal(goalRound(goal({ rounds: 0 })), 1);
+  assert.equal(goalRound(goal({ rounds: 0, ended: { at: 1, why: "met" } })), 1);
+  assert.equal(goalRound(goal({ rounds: 2, ended: { at: 1, why: "rounds" } })), 3);
+  assert.equal(goalRound(goal({ rounds: 9 })), 3);
+});
+
+test("a check left running by a stopped goal doesn't block the next goal", () => {
+  const next = goal({ startedAt: 2 });
+  // The old goal (startedAt 1) is still checking.
+  assert.equal(shouldCheck(next, 1), true);
+  assert.equal(shouldCheck(next, 2), false);
+  assert.equal(shouldCheck(next, undefined), true);
+  assert.equal(shouldCheck({ ...next, ended: { at: 3, why: "stopped" } }, undefined), false);
+  assert.equal(shouldCheck(next, undefined, { outcome: "interrupted", queued: 0 }), false);
+  assert.equal(shouldCheck(next, undefined, { outcome: "completed", queued: 1 }), false);
+  assert.equal(shouldCheck(next, undefined, { outcome: "failed", queued: 0 }), true);
 });
 
 test("the kickoff says what done means and the budget", () => {

@@ -37,7 +37,7 @@ try {
 }
 const card = parseScorecard(answer);
 for (const c of CATEGORIES) {
-  const line = answer.split("\n").reverse().find((l) => l.toLowerCase().includes(c.toLowerCase()) && /\/\s*10/.test(l));
+  const line = answer.split("\n").reverse().find((l) => l.replace(/^[\s*_#>-]+/, "").toLowerCase().startsWith(c.toLowerCase()) && /\/\s*10/.test(l));
   console.log(line?.replace(/^[\s*-]+/, "").trim() ?? `${c}: missing`);
 }
 for (const l of answer.split("\n").filter((l) => /^\W*FIX:/i.test(l))) console.log(l.trim());

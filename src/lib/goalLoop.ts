@@ -20,15 +20,16 @@ export interface Goal {
   check: string;
   /** Out of 10: the check must also print a score at least this high. */
   target?: number;
+  /** Attempts in all, the first turn included. */
   maxRounds: number;
   startedAt: number;
   /** When the loop gives up (ms since epoch). */
   deadline: number;
-  /** Checks that failed and woke the agent so far. */
+  /** Failed checks that woke the agent so far; the attempt under way is `rounds + 1`. */
   rounds: number;
   last?: GoalCheck & { at: number };
   /** Set once the goal is met or the loop stopped; the banner then shows the outcome. */
-  ended?: { at: number; why: "met" | "rounds" | "time" | "stopped" };
+  ended?: { at: number; why: "met" | "rounds" | "time" | "stopped" | "error"; detail?: string };
 }
 
 export const DEFAULT_ROUNDS = 8;
@@ -64,13 +65,13 @@ function verdictLine(goal: Pick<Goal, "target">, c: GoalCheck): string {
 /** What to do after a check: done, give up, or send the agent the next round. */
 export function goalAction(goal: Goal, c: GoalCheck, now: number): GoalAction {
   if (c.met) return { kind: "met" };
-  if (goal.rounds >= goal.maxRounds) return { kind: "stop", why: "rounds" };
+  if (goal.rounds + 1 >= goal.maxRounds) return { kind: "stop", why: "rounds" };
   if (now >= goal.deadline) return { kind: "stop", why: "time" };
-  const round = goal.rounds + 1;
+  const round = goalRound(goal);
   return {
     kind: "wake",
     text: [
-      `Goal not met yet (round ${round} of ${goal.maxRounds}): \`${goal.check}\` ${verdictLine(goal, c)}.`,
+      `Goal not met yet after round ${round} of ${goal.maxRounds}: \`${goal.check}\` ${verdictLine(goal, c)}.`,
       `Goal: ${goal.text}`,
       "End of its output:",
       "```",
@@ -81,12 +82,27 @@ export function goalAction(goal: Goal, c: GoalCheck, now: number): GoalAction {
   };
 }
 
+/** The attempt to show: the one under way, or the last one once the goal ended. */
+export function goalRound(goal: Pick<Goal, "rounds" | "maxRounds">): number {
+  return Math.min(goal.rounds + 1, goal.maxRounds);
+}
+
+/**
+ * Whether to run the check now. `checkingFor` is the goal (by startedAt) whose check is
+ * running in this pane, if any: a check left over from a stopped goal doesn't block a new one.
+ * `auto` is a turn end; an interrupted turn (you stepped in) or one with more queued doesn't count.
+ */
+export function shouldCheck(goal: Pick<Goal, "startedAt" | "ended">, checkingFor: number | undefined, auto?: { outcome: string; queued: number }): boolean {
+  if (goal.ended || checkingFor === goal.startedAt) return false;
+  return !auto || (auto.outcome !== "interrupted" && auto.queued === 0);
+}
+
 export function goalKickoff(goal: Goal): string {
   const budget = elapsedLabel(goal.deadline - goal.startedAt);
   const done = goal.target === undefined ? `\`${goal.check}\` exits 0` : `\`${goal.check}\` exits 0 and prints a last SCORE: n/10 of at least ${goal.target}`;
   return [
     `Goal: ${goal.text}`,
-    `Done when ${done}. After each of your turns I run it in this folder and send you its output until it passes, for up to ${goal.maxRounds} rounds or ${budget}.`,
+    `Done when ${done}. After each of your turns I run it in this folder and send you its output until it passes, for up to ${goal.maxRounds} rounds (this one included) or ${budget}.`,
     "Work towards it now. Don't edit the check to make it pass.",
   ].join("\n");
 }

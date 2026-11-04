@@ -52,8 +52,13 @@ fn run(cwd: &str, command: &str, timeout: Duration) -> Result<CheckRun, String> 
     });
     let mut timed_out = false;
     let status = loop {
-        if let Some(s) = child.try_wait().map_err(|e| e.to_string())? {
-            break Some(s);
+        match child.try_wait() {
+            Ok(Some(s)) => break Some(s),
+            Ok(None) => {}
+            Err(e) => {
+                unsafe { libc::killpg(pid, libc::SIGKILL) };
+                return Err(e.to_string());
+            }
         }
         if started.elapsed() >= timeout {
             timed_out = true;

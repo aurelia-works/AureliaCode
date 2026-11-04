@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { sendChat } from "../lib/chat";
-import { DEFAULT_HOURS, DEFAULT_ROUNDS, elapsedLabel, type Goal } from "../lib/goalLoop";
+import { DEFAULT_HOURS, DEFAULT_ROUNDS, elapsedLabel, goalRound, type Goal } from "../lib/goalLoop";
 import { clearGoal, runGoalCheck, startGoal, stopGoal, useGoalRuns } from "../store/goals";
 import { useLayout } from "../store/layout";
 
@@ -9,6 +9,7 @@ const ENDED: Record<NonNullable<Goal["ended"]>["why"], string> = {
   rounds: "Goal stopped: out of rounds",
   time: "Goal stopped: out of time",
   stopped: "Goal stopped",
+  error: "Goal stopped: the check couldn't run",
 };
 
 function lastLine(g: Goal): string | null {
@@ -23,7 +24,7 @@ function lastLine(g: Goal): string | null {
 /** Above the composer while a chat has a goal: what it is, the round, the time, the last check. */
 export function GoalBanner({ paneId }: { paneId: string }) {
   const goal = useLayout((s) => s.panes[paneId]?.goal);
-  const checking = useGoalRuns((s) => !!s.checking[paneId]);
+  const checkingFor = useGoalRuns((s) => s.checking[paneId]);
   const [, tick] = useState(0);
   useEffect(() => {
     if (!goal || goal.ended) return;
@@ -31,10 +32,11 @@ export function GoalBanner({ paneId }: { paneId: string }) {
     return () => clearInterval(t);
   }, [goal]);
   if (!goal) return null;
+  const checking = !goal.ended && checkingFor === goal.startedAt;
   const send = (t: string) => void sendChat(paneId, t);
   const end = goal.ended;
   const took = elapsedLabel((end?.at ?? Date.now()) - goal.startedAt);
-  const last = lastLine(goal);
+  const last = goal.ended?.why === "error" ? (goal.ended.detail ?? null) : lastLine(goal);
   return (
     <div className={`chat-goal${end ? ` ended ${end.why}` : ""}`} role="status">
       <span className="chat-goal-mark" aria-hidden>
@@ -49,7 +51,7 @@ export function GoalBanner({ paneId }: { paneId: string }) {
         </div>
         <div className="chat-goal-meta num">
           <span title={`Each round runs \`${goal.check}\` after a turn`}>
-            Round {Math.min(goal.rounds + (end ? 0 : 1), goal.maxRounds)} of {goal.maxRounds}
+            Round {goalRound(goal)} of {goal.maxRounds}
           </span>
           <span>{took}</span>
           {checking ? <span className="chat-goal-checking">Checking…</span> : last && <span title={goal.last?.tail.slice(-400)}>{last}</span>}
@@ -86,10 +88,12 @@ export function GoalDialog({ paneId, onClose }: { paneId: string; onClose: () =>
   const score = target.trim() === "" ? undefined : Number(target);
   const bad =
     !text.trim() ? "Say what the goal is" : !check.trim() ? "Give the command that proves it" : score !== undefined && !(score > 0 && score <= 10) ? "A score target is 1 to 10" : !(Number(rounds) >= 1) ? "At least 1 round" : !(Number(hours) > 0) ? "Give it some time" : null;
+  const [refused, setRefused] = useState<string | null>(null);
   const start = () => {
     if (bad) return;
-    startGoal(paneId, { text: text.trim(), check: check.trim(), ...(score !== undefined && { target: score }), maxRounds: Math.round(Number(rounds)), hours: Number(hours) }, (t) => void sendChat(paneId, t));
-    onClose();
+    const why = startGoal(paneId, { text: text.trim(), check: check.trim(), ...(score !== undefined && { target: score }), maxRounds: Math.round(Number(rounds)), hours: Number(hours) }, (t) => void sendChat(paneId, t));
+    if (why) setRefused(why);
+    else onClose();
   };
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
@@ -132,11 +136,11 @@ export function GoalDialog({ paneId, onClose }: { paneId: string; onClose: () =>
             </label>
           </div>
           <p className="hint">
-            With a score, the check must also print a line like <code>SCORE: 8.5/10</code>; the last one counts.
+            With a score, the check must also print a line like <code>SCORE: 8.5/10</code>; the last one counts. Rounds count every attempt, the first included. No new round starts once the time is up; a turn already running isn't stopped.
           </p>
         </div>
         <div className="modal-foot actions">
-          <span className="msg">{bad ?? (prev && !prev.ended ? "replaces the current goal" : "sends Claude the goal now")}</span>
+          <span className="msg">{refused ?? bad ?? (prev && !prev.ended ? "replaces the current goal" : "sends Claude the goal now")}</span>
           <button type="button" onClick={onClose}>
             Cancel
           </button>
