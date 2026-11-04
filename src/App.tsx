@@ -35,6 +35,7 @@ export function App() {
   const activeTabId = useLayout((s) => s.activeTabId);
   const agentPanelOpen = useUi((s) => s.agentPanelOpen);
   const nav = useUi((s) => s.nav);
+  const navRight = useUi((s) => s.prefs.navRight);
   const single = useUi((s) => s.single);
   const railTab = useUi((s) => s.railTab);
   const railWidth = useUi((s) => s.railWidths[s.railTab]);
@@ -86,7 +87,7 @@ export function App() {
   return (
     <div className={`app mode-${mode}`}>
       <TitleBar />
-      <div className="frame">
+      <div className={`frame${navRight ? " nav-right" : ""}`}>
         {nav && <Navigator view={nav} />}
         <main className="stage">
           <ThreadHeader />

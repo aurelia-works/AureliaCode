@@ -38,3 +38,8 @@ test("slugs are file-name safe", () => {
   assert.equal(viewSlug("settings&section=accounts"), "settings-section-accounts");
   assert.equal(viewSlug("chat"), "chat");
 });
+
+test("the goal banner and dialog have their own chat views", () => {
+  assert.deepEqual(viewsFor(["src/components/GoalBar.tsx"]), ["chat&goal=1", "chat&goal=dialog"]);
+  assert.deepEqual(viewsFor(["src/store/goals.ts", "src/lib/goalLoop.ts"]), ["chat&goal=1", "chat&goal=dialog"]);
+});

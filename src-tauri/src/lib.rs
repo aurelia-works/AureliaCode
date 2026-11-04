@@ -14,6 +14,7 @@ mod hud;
 mod ledger;
 mod spend;
 mod ide;
+mod goal;
 mod integration;
 mod orchestrator;
 mod links;
@@ -304,6 +305,8 @@ pub fn run() {
             ide::file_mtime,
             ide::search_project,
             ide::check_project,
+            goal::run_check,
+            goal::stop_check,
             ide::transcript_thread,
             suggest::suggest_command,
             suggest::set_api_key,

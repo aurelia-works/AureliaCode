@@ -667,6 +667,7 @@ if (view === "review") useUi.setState({ reviewOpen: true });
 if (view === "weekly") useUi.setState({ weeklyOpen: true });
 if (view === "roadmap") useUi.setState({ roadmapOpen: true, roadmapProject: params.get("project") });
 if (view === "settings") useUi.setState({ settingsOpen: true, settingsSection: params.get("section") });
+if (params.get("nav") === "right") useUi.setState((s) => ({ prefs: { ...s.prefs, navRight: true } }));
 if (view === "palette") useUi.setState({ paletteOpen: true });
 if (view === "permissions") useUi.setState({ permissionsOpen: true });
 if (view === "files") useUi.setState({ nav: "files" });
@@ -748,6 +749,28 @@ if (view === "agentview") {
   host.style.cssText = "position:fixed;inset:0;z-index:70;background:var(--bg);";
   document.body.append(host);
   createRoot(host).render(createElement(AgentView));
+}
+if (view === "chat" && params.get("goal")) {
+  // A goal two rounds in, the last check short of its score (&goal=1), or the set-goal dialog (&goal=dialog).
+  const now = Date.now();
+  useLayout.getState().updatePane("p10", {
+    goal: {
+      text: "The settings page scores 8/10 or better on the UI rubric",
+      check: "npm run ui-score -- settings",
+      target: 8,
+      maxRounds: 8,
+      startedAt: now - 47 * 60_000,
+      deadline: now + 3 * 3600_000,
+      rounds: 2,
+      last: { met: false, code: 0, score: 6.5, tail: "Typography 7/10\nSpacing 6/10\nSCORE: 6.5/10", at: now - 60_000 },
+    },
+  });
+  if (params.get("goal") === "dialog") {
+    const { GOAL_OPEN } = await import("../../src/lib/shortcuts.ts");
+    await sleep(100);
+    window.dispatchEvent(new CustomEvent(GOAL_OPEN, { detail: "p10" }));
+  }
+  await sleep(200);
 }
 if (view === "chat" && params.get("scroll") === "up") {
   // Scrolled back through the conversation, the way a wheel would: the jump-back button shows.

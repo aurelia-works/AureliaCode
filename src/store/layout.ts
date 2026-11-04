@@ -1,3 +1,4 @@
+import type { Goal } from "../lib/goalLoop";
 import { create } from "zustand";
 import { paneForLayout } from "../lib/paneKind";
 
@@ -60,6 +61,8 @@ export interface PaneMeta {
   babysit?: boolean;
   /** How many times babysitting has woken it; stops at a cap so a loop can't run forever. */
   babysitWakes?: number;
+  /** Keep working until a check passes (lib/goalLoop.ts, store/goals.ts). */
+  goal?: Goal;
   /** PR review comments already seen (Details or the badge was opened); more means new feedback. */
   prSeenFeedback?: number;
   /** When this thread next finishes a turn, send `text` to the thread in pane `paneId` (once). */
