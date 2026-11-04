@@ -119,8 +119,15 @@ function publish(files) {
   const folder = `${branch.replace(/[^a-z0-9._-]+/gi, "-")}/${git("rev-parse", "--short", "HEAD")}`;
   const dir = mkdtempSync(join(tmpdir(), "pr-shots-"));
   const run = (...a) => execFileSync("git", a, { cwd: dir, ...quiet }).trim();
+  // ls-remote exits 2 only when the branch doesn't exist; anything else (offline, auth) stops here.
   let hasRemote = true;
-  try { git("fetch", "-q", "origin", "pr-shots"); } catch { hasRemote = false; }
+  try {
+    git("ls-remote", "--exit-code", "--heads", "origin", "pr-shots");
+  } catch (e) {
+    if (e.status !== 2) throw new Error(`can't reach origin to publish: ${String(e.stderr || e.message).trim()}`);
+    hasRemote = false;
+  }
+  if (hasRemote) git("fetch", "-q", "origin", "pr-shots");
   git("worktree", "add", "-q", "--detach", dir, hasRemote ? "FETCH_HEAD" : "HEAD");
   try {
     if (!hasRemote) {

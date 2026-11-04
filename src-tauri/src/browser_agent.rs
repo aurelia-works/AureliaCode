@@ -18,6 +18,8 @@ const SCRIPT: &str = include_str!("browser_agent.js");
 /// How long to wait for a new pane's webview to appear.
 const APPEAR: Duration = Duration::from_secs(5);
 const MAX_WAIT_MS: u64 = 15_000;
+/// control.rs stops waiting for an answer at 30 s; a call answers inside this, page load included.
+const CALL_BUDGET: Duration = Duration::from_secs(27);
 
 pub const ACTIONS: [&str; 7] = ["open", "snapshot", "act", "wait", "resize", "inspect", "screenshot"];
 
@@ -128,10 +130,20 @@ async fn wait_load(wv: &Webview, pane: &str, url: Option<&str>, budget: Duration
     }
 }
 
+/// The script's own wait and how long Rust waits for its answer, once `spent` went on the page
+/// load: whatever is asked, the whole call ends inside `CALL_BUDGET`.
+fn fit_budget(timeout_ms: u64, spent: Duration) -> (u64, Duration) {
+    let left = CALL_BUDGET.saturating_sub(spent);
+    let answer = Duration::from_secs(5).min(left).max(Duration::from_secs(1));
+    let ms = timeout_ms.min(left.saturating_sub(answer).as_millis() as u64);
+    (ms, Duration::from_millis(ms) + answer)
+}
+
 /// Runs one agent browser action against a pane. Async: WebKit answers on the main thread,
 /// so the command must not hold it.
 #[tauri::command]
 pub async fn browser_agent(app: AppHandle, pane: String, action: String, args: Option<Value>) -> Result<Value, String> {
+    let started = Instant::now();
     let args = args.unwrap_or(Value::Null);
     let req = request(&action, &args)?;
     let wv = webview(&app, &pane).await?;
@@ -175,7 +187,8 @@ pub async fn browser_agent(app: AppHandle, pane: String, action: String, args: O
                 m.remove("expect");
             }
             wait_load(&wv, &pane, expect, budget).await?;
-            let limit = Duration::from_millis(req["timeoutMs"].as_u64().unwrap_or(5000) + 5000);
+            let (ms, limit) = fit_budget(req["timeoutMs"].as_u64().unwrap_or(5000), started.elapsed());
+            req["timeoutMs"] = json!(ms);
             let raw = native::call_js(&wv, SCRIPT, &req.to_string(), limit).await;
             match (action.as_str(), raw) {
                 // The action itself runs before the script's first await; losing the context
@@ -399,6 +412,20 @@ mod tests {
         assert!(request("inspect", &json!({})).is_err());
         assert!(request("snapshot", &json!("x")).is_err());
         assert_eq!(request("snapshot", &Value::Null).unwrap().unwrap(), json!({ "action": "snapshot" }));
+    }
+
+    #[test]
+    fn a_slow_load_leaves_the_script_only_what_the_socket_allows() {
+        // 15 s spent waiting for the page: a 15 s wait would end at 35 s, past the socket's 30 s.
+        let (ms, limit) = fit_budget(15_000, Duration::from_secs(15));
+        assert!(Duration::from_secs(15) + limit <= CALL_BUDGET, "{limit:?}");
+        assert!(ms < limit.as_millis() as u64, "the script answers before Rust stops waiting");
+        // A quick load keeps the asked timeout and the usual 5 s to answer.
+        assert_eq!(fit_budget(5000, Duration::from_millis(100)), (5000, Duration::from_secs(10)));
+        // Nothing left: the script gets no time to wait, Rust still asks once.
+        let (ms, limit) = fit_budget(15_000, CALL_BUDGET);
+        assert_eq!(ms, 0);
+        assert!(limit >= Duration::from_secs(1));
     }
 
     #[test]

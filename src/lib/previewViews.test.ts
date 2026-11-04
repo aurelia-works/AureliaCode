@@ -9,6 +9,11 @@ test("a component maps to its own view", () => {
   assert.deepEqual(viewsFor(["src/components/ChangesPanel.tsx"]), ["threads&rail=changes"]);
 });
 
+test("shared pieces map to every view that shows them", () => {
+  assert.deepEqual(viewsFor(["src/components/AgentLogos.tsx"]), ["threads", "chat", "start"]);
+  assert.deepEqual(viewsFor(["src/components/SkillsPanel.tsx"]), ["start"]);
+});
+
 test("shared styles and the shell map to the core views", () => {
   assert.deepEqual(viewsFor(["src/styles/tokens.css"]), CORE_VIEWS);
   assert.deepEqual(viewsFor(["src/App.tsx"]), CORE_VIEWS);

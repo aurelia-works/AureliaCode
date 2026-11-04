@@ -257,7 +257,8 @@ async function act() {
 
 async function wait() {
   const start = Date.now();
-  const until = start + Math.min(Number(A.timeoutMs) || 5000, 15000);
+  // Rust may cut the wait to what's left of the call, down to 0 (check once).
+  const until = start + Math.min(Number(A.timeoutMs ?? 5000), 15000);
   const cond = () => {
     if (A.selector) {
       const el = document.querySelector(A.selector);
