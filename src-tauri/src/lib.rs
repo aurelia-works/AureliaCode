@@ -207,6 +207,7 @@ pub fn run() {
             media::clipboard_image,
             chat::chat_spawn,
             chat::chat_send,
+            chat::read_attachment,
             chat::chat_interrupt,
             chat::chat_configure,
             chat::chat_set_mode,

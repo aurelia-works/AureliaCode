@@ -538,8 +538,7 @@ function Bloom() {
 
 const PERMISSIONS = [
   { mode: "auto", label: "Auto", what: "Claude decides what's safe to run. Recommended." },
-  { mode: "acceptEdits", label: "Auto-edit", what: "Edits files on its own, asks before commands." },
-  { mode: "default", label: "Ask", what: "Asks before every edit and command." },
+  { mode: "default", label: "Manual", what: "Asks before every edit and command." },
   { mode: "plan", label: "Plan", what: "Reads and plans, changes nothing." },
 ];
 

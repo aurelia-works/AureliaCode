@@ -35,3 +35,8 @@ test("a queued message taken mid-turn still says it was queued", () => {
   const r = takeReplay(emptyTranscript(), [{ text: "two", uuid: "u2", via: "queued" as const }], echo("u2", "two"));
   assert.equal((r?.transcript.items[0] as { via?: string }).via, "queued");
 });
+
+test("a queued message keeps the names of its files", () => {
+  const r = takeReplay(emptyTranscript(), [{ text: "two", uuid: "u2", files: ["spec.pdf"] }], echo("u2", "two"));
+  assert.deepEqual((r?.transcript.items[0] as { files?: string[] }).files, ["spec.pdf"]);
+});
