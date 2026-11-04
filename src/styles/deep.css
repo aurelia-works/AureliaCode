@@ -957,14 +957,14 @@ body {
   border-color: var(--line-2);
 }
 .chat-approval-actions button.primary {
-  background: var(--accent);
-  color: var(--accent-ink);
-  border-color: var(--accent);
-  font-weight: 500;
+  background: var(--primary);
+  color: var(--primary-ink);
+  border-color: var(--primary);
+  font-weight: 600;
   box-shadow: none;
 }
 .chat-approval-actions button.primary:hover {
-  background: var(--accent-strong);
+  background: color-mix(in srgb, var(--primary) 86%, var(--surface));
   box-shadow: none;
 }
 .chat-approval-actions input {
@@ -1756,13 +1756,13 @@ body.resizing-row .rail-grip {
   background: var(--s4);
 }
 .settings-bar button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 500;
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  font-weight: 600;
 }
 .settings-bar button.primary:hover:not(:disabled) {
-  background: var(--accent-strong);
+  background: color-mix(in srgb, var(--primary) 86%, var(--surface));
 }
 .settings-bar button:disabled {
   opacity: 0.4;
