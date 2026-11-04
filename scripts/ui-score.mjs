@@ -5,7 +5,7 @@
 //
 //   npm run ui-score -- chat,start            views to score (default: chat)
 //   npm run ui-score -- chat --model sonnet   reviewer model (default: haiku)
-//   npm run ui-score -- chat --min 8          exit 1 below 8
+//   npm run ui-score -- chat --min 7          exit 1 below 7 (default 8, the rubric's ship bar)
 //
 // Uses the `claude` CLI and your Claude account: each run is one model call.
 import { execFileSync } from "node:child_process";
@@ -22,7 +22,7 @@ const opt = (name, fallback) => {
 };
 const views = (args.find((a, i) => !a.startsWith("--") && !args[i - 1]?.startsWith("--")) ?? "chat").split(",").map((v) => v.trim()).filter(Boolean);
 const model = opt("model", "haiku");
-const min = opt("min", "");
+const min = opt("min", "8");
 const out = ".shots/score";
 
 execFileSync(process.execPath, [join(root, "scripts/preview-shots.mjs"), "--no-before", "--views", views.join(","), "--out", out], { cwd: root, stdio: ["ignore", "ignore", "inherit"] });
@@ -37,7 +37,7 @@ try {
 }
 const card = parseScorecard(answer);
 for (const c of CATEGORIES) console.log(card.lines[c] ?? `${c}: missing`);
-for (const l of answer.split("\n").filter((l) => /^\W*FIX:/i.test(l))) console.log(l.trim());
+for (const l of answer.split("\n").filter((l) => /^[^A-Za-z\n]*FIX\b[^A-Za-z\n]*:/i.test(l))) console.log(l.trim());
 if (card.missing.length) console.log(`Missing from the review: ${card.missing.join(", ")}`);
 console.log(`SCORE: ${card.score}/10 (${model}, ${views.join(", ")})`);
 if (min && card.score < Number(min)) process.exit(1);

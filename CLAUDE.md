@@ -36,7 +36,7 @@ For a PR, `npm run shots` captures before (merge base) and after shots of the vi
 shot boxes and numbers each changed area, and a legend under the table says where each one is.
 
 `npm run ui-score -- <views>` scores the after shots against `design/review/UI-RUBRIC.md` with Haiku
-(one model call, about 30 s) and prints `SCORE: n/10`. It can be a thread goal's check.
+(one model call, about 30 s), prints `SCORE: n/10` and exits 1 below 8 (`--min` to change). It can be a thread goal's check.
 
 ## Review
 

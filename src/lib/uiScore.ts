@@ -20,13 +20,13 @@ export function parseScorecard(text: string): Scorecard {
   const categories: Partial<Record<Category, number>> = {};
   const lines: Partial<Record<Category, string>> = {};
   // The scores come before the FIX lines (scorePrompt); what follows can't rescore.
-  const fix = text.search(/^[ \t]*[-*]?[ \t]*\**FIX:/im);
+  const fix = text.search(/^[^A-Za-z\n]*FIX\b[^A-Za-z\n]*:/im);
   const scores = fix < 0 ? text : text.slice(0, fix);
   for (const c of CATEGORIES) {
     // Only a top-level line scores: the category at the start (after one list mark, a number or
     // bold marks) and a colon. A FIX line, an indented sub-point or a wrapped reason that
     // mentions a score can't change it.
-    const re = new RegExp(`^(?:[-*>#]+[ \\t]*)?(?:\\d+[.)][ \\t]*)?[*_]*${escape(c)}[*_ \\t]*:[*_ \\t]*(\\d+(?:\\.\\d+)?)[ \\t]*/[ \\t]*10\\b.*$`, "gim");
+    const re = new RegExp(`^(?:[-*>#]+[ \\t]*)?(?:\\d+[.)][ \\t]*)?[*_]*${escape(c).replace(" and ", " (?:and|&) ")}[*_ \\t]*:[*_ \\t]*(\\d+(?:\\.\\d+)?)[ \\t]*/[ \\t]*10\\b.*$`, "gim");
     for (const m of scores.matchAll(re)) {
       const n = Number(m[1]);
       if (n >= 0 && n <= 10) {

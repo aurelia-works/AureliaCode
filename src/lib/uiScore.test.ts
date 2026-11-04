@@ -59,3 +59,15 @@ test("nothing after the first FIX line scores, bullets without the prefix includ
   const r = parseScorecard(`${card([8, 8, 4, 8, 8, 8, 8, 8])}\nFIX: one spacing scale\n- Spacing: 9/10 reachable with one scale`);
   assert.equal(r.categories.Spacing, 4);
 });
+
+test("every common way of writing a FIX line ends the scores", () => {
+  for (const fix of ["FIX: one scale", "**FIX**: one scale", "1. FIX: one scale", "### FIX: one scale", "> FIX: one scale", "FIX : one scale", "- FIX: one scale"]) {
+    const r = parseScorecard(`${card([8, 8, 4, 8, 8, 8, 8, 8])}\n${fix}\nSpacing: 9/10 - after the fixes`);
+    assert.equal(r.categories.Spacing, 4, fix);
+  }
+});
+
+test("a category spelled with & still scores", () => {
+  const r = parseScorecard(card([8, 8, 8, 6, 8, 8, 8, 8]).replace("Color and contrast", "Color & contrast"));
+  assert.equal(r.categories["Color and contrast"], 6);
+});
