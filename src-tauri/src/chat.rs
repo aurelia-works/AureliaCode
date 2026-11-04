@@ -528,6 +528,40 @@ pub fn chat_spawn(
     Ok(ChatSpawned { missing_cwd })
 }
 
+/// A message's attachments together may not pass this (the API refuses requests over 32 MB).
+const MAX_ATTACHMENT: u64 = 32 * 1024 * 1024;
+
+#[derive(Serialize, Debug)]
+pub struct AttachmentFile {
+    name: String,
+    size: u64,
+    /// base64; empty unless asked to read.
+    data: String,
+}
+
+fn read_attachment_at(path: &Path, read: bool) -> Result<AttachmentFile, String> {
+    let meta = std::fs::metadata(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    if !meta.is_file() {
+        return Err(format!("{} isn't a file", path.display()));
+    }
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    if !read {
+        return Ok(AttachmentFile { name, size: meta.len(), data: String::new() });
+    }
+    if meta.len() > MAX_ATTACHMENT {
+        return Err(format!("{name} is over the 32 MB a message can carry"));
+    }
+    use base64::Engine as _;
+    let bytes = std::fs::read(path).map_err(|e| format!("{name}: {e}"))?;
+    Ok(AttachmentFile { name, size: meta.len(), data: base64::engine::general_purpose::STANDARD.encode(bytes) })
+}
+
+/// A file dropped on a chat, for its chip: the size, and with `read` the bytes.
+#[tauri::command]
+pub async fn read_attachment(path: String, read: bool) -> Result<AttachmentFile, String> {
+    tauri::async_runtime::spawn_blocking(move || read_attachment_at(Path::new(&config::expand_path(&path)), read)).await.map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 pub fn chat_send(
     state: State<'_, ChatState>,
@@ -846,6 +880,19 @@ mod tests {
         assert_eq!(content[0]["source"], json!({ "type": "base64", "media_type": "image/png", "data": "AAAA" }));
         assert_eq!(content[1], json!({ "type": "text", "text": "what is this?" }));
         assert_eq!(sent(&p.send_message("plain", &[], None))[0]["message"]["content"], json!("plain"));
+    }
+
+    #[test]
+    fn a_dropped_file_is_read_as_base64_and_a_folder_is_refused() {
+        let dir = std::env::temp_dir().join(format!("attach-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let f = dir.join("rows.csv");
+        std::fs::write(&f, "a,b\n").unwrap();
+        let r = read_attachment_at(&f, true).unwrap();
+        assert_eq!((r.name.as_str(), r.size, r.data.as_str()), ("rows.csv", 4, "YSxiCg=="));
+        assert_eq!(read_attachment_at(&f, false).unwrap().data, "");
+        assert!(read_attachment_at(&dir, true).unwrap_err().contains("isn't a file"));
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

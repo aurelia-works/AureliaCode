@@ -5,6 +5,7 @@ import { getConfig } from "../store/config";
 import { onPanesClosed, useLayout, type PaneMeta } from "../store/layout";
 import { addNotice, addUser, applyLine, emptyTranscript, endTurn, toolSummary, type SentVia, type Transcript } from "./chatModel";
 import { takeReplay } from "./chatReplay";
+import type { ChatDocument } from "./attachments";
 import { workAfterTurn } from "./workBridge";
 import { cacheSafe } from "./effort";
 import { ipc, type ChatEvent, type ChatImage, type CliModel, type ChatUsage, type ContextUsage, type SlashCommand } from "./ipc";

@@ -103,7 +103,7 @@ export interface Config {
   defaultWorkspace: string;
   /** Claude panes restored at launch reopen the conversation they last ran. */
   resumeOnLaunch: boolean;
-  /** `--permission-mode` for Claude panes started here ("acceptEdits", "plan", …); empty = Auto-edit, "default" = Claude's own ask-before-edits. */
+  /** `--permission-mode` for Claude panes started here ("auto", "plan", …); empty or the old "acceptEdits" = Auto, "default" = Manual. */
   claudePermissionMode: string;
   /** The one-time setup on the start screen was answered; Settings changes it from then on. */
   setupDone: boolean;
@@ -429,8 +429,8 @@ export const ipc = {
   removePermissionRule: (cwd: string, account: string | null, path: string, kind: RuleKind, rule: string) =>
     invoke<void>("remove_permission_rule", { cwd, account, path, kind, rule }),
   chatSend: (paneId: string, text: string, images?: ChatImage[], uuid?: string, documents?: ChatDocument[]) => invoke<void>("chat_send", { paneId, text, images, documents, uuid }),
-  /** A dropped file's bytes (base64), for the composer's chips. Refuses files over 32 MB. */
-  readAttachment: (path: string) => invoke<{ name: string; size: number; data: string }>("read_attachment", { path }),
+  /** A dropped file's size and, with `read`, its bytes (base64), for the composer's chips. Refuses reading over 32 MB. */
+  readAttachment: (path: string, read: boolean) => invoke<{ name: string; size: number; data: string }>("read_attachment", { path, read }),
   chatRewind: (paneId: string, uuid: string, dryRun: boolean) =>
     invoke<{ canRewind: boolean; filesChanged?: string[]; insertions?: number; deletions?: number }>("chat_rewind", { paneId, uuid, dryRun }),
   /** Switches a running chat's model and/or effort for its next turns. */

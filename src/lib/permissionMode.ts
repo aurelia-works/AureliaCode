@@ -2,7 +2,10 @@ import { useAgents } from "../store/agents";
 import { useLayout } from "../store/layout";
 import { toast } from "../store/ui";
 import { setChatMode, useChat } from "./chat";
+import { CHAT_CYCLE } from "./startMode";
 import { screenText, writeToPane } from "./terminals";
+
+export { CHAT_CYCLE, PICKER_MODES } from "./startMode";
 
 export interface ModeInfo {
   label: string;
@@ -18,8 +21,9 @@ export interface ModeInfo {
  * allows them; don't-ask only when started in it.
  */
 export const MODES: Record<string, ModeInfo> = {
-  default: { label: "Ask", short: "ask", what: "Asks before edits and commands" },
-  acceptEdits: { label: "Auto-edit", short: "auto-edit", what: "Accepts file edits, asks for commands", tone: "warn" },
+  default: { label: "Manual", short: "manual", what: "Asks before edits and commands" },
+  // Not offered any more; shown only when Claude reports it (e.g. a terminal pane's own Shift+Tab).
+  acceptEdits: { label: "Accept edits", short: "accept edits", what: "Accepts file edits, asks for commands", tone: "warn" },
   plan: { label: "Plan", short: "plan", what: "Reads and plans, changes nothing" },
   auto: { label: "Auto", short: "auto", what: "Claude decides what's safe to run", tone: "warn" },
   bypassPermissions: { label: "Bypass", short: "bypass", what: "Never asks", tone: "danger" },
@@ -47,9 +51,6 @@ function record(paneId: string, mode: string) {
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-
-/** Shift+Tab's order in a chat. Bypass stays a deliberate pick in the mode menu. */
-export const CHAT_CYCLE = ["default", "acceptEdits", "plan", "auto"];
 
 /** Presses Shift+Tab in the pane (Claude Code's own mode switch) and records where it landed. */
 export async function cyclePermissionMode(paneId: string): Promise<string> {

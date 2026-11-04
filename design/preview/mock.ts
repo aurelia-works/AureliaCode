@@ -571,6 +571,19 @@ mockIPC(
           };
         }
         return { text: "", mtimeMs: 0 };
+      case "read_attachment": {
+        // &attach=1: files dropped from Finder, by name. big.pdf is over the 32 MB cap.
+        const path = String(args.path);
+        const name = path.split("/").pop()!;
+        if (name === "big.pdf" && args.read) throw "big.pdf is over the 32 MB a message can carry";
+        const data: Record<string, string> = {
+          "shot.png": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+          "spec.pdf": "JVBERi0xLjQK",
+          "rows.csv": btoa("name,score\nada,9\n"),
+        };
+        const size: Record<string, number> = { "shot.png": 70, "spec.pdf": 284_000, "rows.csv": 18, "Deck.pptx": 2_400_000, "big.pdf": 41_000_000 };
+        return { name, size: size[name] ?? 1000, data: args.read ? (data[name] ?? "") : "" };
+      }
       case "project_files":
         return ["src/App.tsx", "src/components/Composer.tsx", "src/components/ChatPane.tsx", "src/lib/chat.ts", "package.json", "README.md"];
       case "app_bundle_path":
@@ -623,7 +636,7 @@ const minutesAgo = (m: number) => Date.now() - m * 60_000;
 for (const p of ["p1", "p2", "p3", "p4", "p5", "p8"]) ev(p, "SessionStart");
 ev("p1", "UserPromptSubmit");
 ev("p1", "Notification", { notification_type: "permission_prompt", message: "Claude needs your permission to use Bash" });
-ev("p2", "UserPromptSubmit", { permission_mode: "acceptEdits" });
+ev("p2", "UserPromptSubmit", { permission_mode: "auto" });
 ev("p2", "PreToolUse", { tool_name: "Edit" });
 ev("p3", "UserPromptSubmit");
 ev("p3", "Stop");
@@ -699,7 +712,7 @@ if (view === "chat") {
           files: [],
           seq: 9,
           items: [
-            { kind: "user", id: id(), text: "Which keyboard layout does the composer assume?", at: Date.now() - 600_000 },
+            { kind: "user", id: id(), text: "Which keyboard layout does the composer assume?", files: ["keymap-spec.pdf", "layouts.csv"], at: Date.now() - 600_000 },
             { kind: "tool", id: id(), toolId: "t0", name: "Read", input: { file_path: "/Users/you/dev/web/src/lib/keys.ts" }, partial: "", result: "...", steps: 0, at: Date.now() - 590_000 },
             { kind: "text", id: id(), text: "None: it reads `KeyboardEvent.key`, so the OS layout decides. The only hard-coded keys are Enter, Escape and the arrows, all layout-independent.", done: true, final: true, at: Date.now() - 548_000 },
             { kind: "turn", id: id(), outcome: "completed", files: [], ms: 52_000, at: Date.now() - 548_000 },
@@ -748,6 +761,12 @@ if (view === "agentview") {
   host.style.cssText = "position:fixed;inset:0;z-index:70;background:var(--bg);";
   document.body.append(host);
   createRoot(host).render(createElement(AgentView));
+}
+if (view === "chat" && params.get("attach") === "1") {
+  // One chip of each kind, dropped from Finder: image, PDF, text, a path-only file, and one over the cap.
+  const { attachToChat } = await import("../../src/lib/chatComposer.ts");
+  attachToChat("p10", ["/Users/you/shot.png", "/Users/you/specs/spec.pdf", "/Users/you/data/rows.csv", "/Users/you/Deck.pptx", "/Users/you/big.pdf"]);
+  await sleep(400);
 }
 if (view === "chat" && params.get("scroll") === "up") {
   // Scrolled back through the conversation, the way a wheel would: the jump-back button shows.

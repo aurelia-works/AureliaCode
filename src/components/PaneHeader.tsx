@@ -5,7 +5,7 @@ import { openInBrowserPane } from "../lib/browser";
 import { closePaneSafely, openFile, useEditors } from "../lib/openFile";
 import { useOutbox } from "../lib/outbox";
 import { useChat } from "../lib/chat";
-import { modeKey, MODES, setPermissionMode } from "../lib/permissionMode";
+import { modeKey, MODES, PICKER_MODES, setPermissionMode } from "../lib/permissionMode";
 import { useUi } from "../store/ui";
 import { toggleVoice, useVoice } from "../lib/voice";
 import { useAgents } from "../store/agents";
@@ -102,7 +102,7 @@ export function ModeChip({ paneId }: { paneId: string }) {
         createPortal(
           <div className="account-menu" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()}>
             <div className="account-menu-head">Permission mode · Shift+Tab in Claude</div>
-            {(["default", "acceptEdits", "plan", "auto", "bypassPermissions"] as const).map((k) => (
+            {PICKER_MODES.map((k) => (
               <button
                 key={k}
                 className={k === mode ? "on" : ""}

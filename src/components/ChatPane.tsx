@@ -8,10 +8,13 @@ import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
 import { cleanTextarea } from "../lib/controlChars";
 import { liveToolLabel, pickBySeed, THINKING, toolPhrase } from "../lib/toolPhrase";
+import { ACCEPT, capError, forSend, sentBytes, type Attachment } from "../lib/attachments";
+import { draftAttachment, readFile, readPath } from "../lib/attachRead";
+import { AttachChips, SentFiles } from "./AttachChips";
 import { ipc, type ChatImage, type CliModel, type RuleFile, type RuleKind, type SlashCommand } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
 import { openFile } from "../lib/openFile";
-import { cyclePermissionMode, MODES, modeKey } from "../lib/permissionMode";
+import { cyclePermissionMode, MODES, modeKey, PICKER_MODES } from "../lib/permissionMode";
 import { riskOf } from "../lib/risk";
 import { CHAT_FIND } from "../lib/shortcuts";
 import { focusedPaneId, useLayout } from "../store/layout";
@@ -22,7 +25,7 @@ import { composerEnter, followUpAction } from "../lib/threadTools";
 import { toast, useUi } from "../store/ui";
 import { useConfig } from "../store/config";
 import { AgentLogo } from "./AgentLogos";
-import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, FileIcon, GaugeIcon, GlobeIcon, PenIcon, PlusIcon, SearchIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
+import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, CollapseIcon, ExpandIcon, FileIcon, GaugeIcon, GlobeIcon, PenIcon, PlusIcon, SearchIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
 
 const MAX_ROWS = 12;
 /** Tool output shown when a call is opened; the rest stays in the transcript. */
@@ -105,9 +108,11 @@ export function ChatPane({ paneId }: { paneId: string }) {
     return () => window.removeEventListener(CHAT_FIND, open);
   }, [paneId]);
 
+  const [composing, setComposing] = useState(false);
+
   return (
     <div
-      className="chat"
+      className={`chat${composing ? " composing" : ""}`}
       tabIndex={-1}
       style={{ outline: "none" }}
       onKeyDown={(e) => {
@@ -176,7 +181,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
               <li key={q.uuid}>
                 <span className="chat-queue-n num">{i === 0 ? "Next" : i + 1}</span>
                 <span className="chat-queue-text" title={q.text}>
-                  {q.text || (q.images && q.images.length > 1 ? `${q.images.length} images` : "Image")}
+                  {q.text || (q.files?.length ? q.files.join(", ") : q.images && q.images.length > 1 ? `${q.images.length} images` : "Image")}
                 </span>
               </li>
             ))}
@@ -192,7 +197,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
             </button>
           </div>
         ) : (
-          <ChatComposer paneId={paneId} busy={busy} />
+          <ChatComposer paneId={paneId} busy={busy} expanded={composing} onExpand={setComposing} />
         )}
       </div>
     </div>
@@ -399,6 +404,7 @@ function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatI
             ))}
           </div>
         )}
+        {item.files && <SentFiles names={item.files} />}
         {item.text}
       </div>
       {canBranch && (
@@ -894,11 +900,11 @@ function ApprovalBar({ paneId, approval, more, cwd }: { paneId: string; approval
           <button
             type="button"
             className="primary"
-            onClick={() => answerApproval(paneId, approval.id, true, false, undefined, { permissions: [{ type: "setMode", mode: "acceptEdits", destination: "session" }] })}
-            title="Start, and accept file edits without asking (commands still ask)"
+            onClick={() => answerApproval(paneId, approval.id, true).then(() => setChatMode(paneId, "auto"))}
+            title="Start in Auto: Claude decides what's safe to run"
             autoFocus
           >
-            Start, accept edits
+            Start in Auto
           </button>
           <button type="button" onClick={() => answerApproval(paneId, approval.id, true)} title="Start, and ask before each edit">
             Start, ask first
@@ -1062,7 +1068,7 @@ const EFFORTS: Option[] = [
 ];
 
 /** Claude Code's permission modes, in its Shift+Tab order; Bypass last and marked. */
-const PERMISSIONS: Option[] = (["default", "acceptEdits", "plan", "auto", "bypassPermissions"] as const).map((k) => ({
+const PERMISSIONS: Option[] = PICKER_MODES.map((k) => ({
   value: k,
   label: MODES[k].label,
   desc: MODES[k].what,
@@ -1103,14 +1109,17 @@ function modelName(id?: string): string | undefined {
 
 const cap = (s?: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
+function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; busy: boolean; expanded: boolean; onExpand: (on: boolean) => void }) {
+  const setExpanded = onExpand;
   const prefs = useUi((s) => s.prefs);
   const [text, setText] = useState(() => drafts.get(paneId)?.text ?? "");
-  const [images, setImages] = useState<ChatImage[]>(() => drafts.get(paneId)?.images ?? []);
+  const [atts, setAtts] = useState<Attachment[]>(() => drafts.get(paneId)?.atts ?? []);
+  const attsRef = useRef(atts);
+  attsRef.current = atts;
   useEffect(() => {
-    if (text || images.length) drafts.set(paneId, { text, images });
+    if (text || atts.length) drafts.set(paneId, { text, atts });
     else drafts.delete(paneId);
-  }, [paneId, text, images]);
+  }, [paneId, text, atts]);
   // ↑ in an empty composer (or on its first line) walks back through what you sent, like a shell.
   const items = useChat((s) => s.byPane[paneId]?.transcript.items);
   const sent = useMemo(() => (items ?? []).flatMap((i) => (i.kind === "user" && i.text ? [i.text] : [])), [items]);
@@ -1130,12 +1139,35 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
   };
   const [rulesOpen, setRulesOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const addImages = (files: File[]) => {
-    for (const f of files.filter((f) => f.type.startsWith("image/")))
-      void readImage(f).then(
-        (img) => setImages((cur) => (cur.length < MAX_IMAGES ? [...cur, img] : cur)),
-        () => {},
-      );
+  const patchAtt = (id: string, p: Partial<Attachment>) => setAtts((cur) => cur.map((a) => (a.id === id ? { ...a, ...p } : a)));
+  /** New chips, each refused with its reason when the message would go over the cap; then read in the background. */
+  const addAtts = (list: { a: Attachment; read: () => Promise<Partial<Attachment>> }[]) => {
+    const next = [...attsRef.current];
+    const reads: typeof list = [];
+    for (const item of list) {
+      const why = capError(next, sentBytes(item.a));
+      if (why) next.push({ ...item.a, status: "error", error: why });
+      else {
+        next.push(item.a);
+        reads.push(item);
+      }
+    }
+    attsRef.current = next;
+    setAtts(next);
+    for (const { a, read } of reads) void read().then((p) => patchAtt(a.id, p), (e) => patchAtt(a.id, { status: "error", error: String(e) }));
+  };
+  const addFiles = (files: File[]) => addAtts(files.map((f) => {
+    const a = draftAttachment(f.name || "pasted", f.size, f.type);
+    return { a, read: () => readFile(a, f) };
+  }));
+  const attachPaths = (paths: string[]) => addAtts(paths.map((path) => {
+    const a = draftAttachment(path.split("/").pop() || path, 0, "", path);
+    return { a, read: () => readPath(a) };
+  }));
+  const pickFiles = (accept: string) => {
+    if (!fileInput.current) return;
+    fileInput.current.accept = accept;
+    fileInput.current.click();
   };
   const ref = useRef<HTMLTextAreaElement>(null);
   const pane = useLayout((s) => s.panes[paneId]);
@@ -1191,6 +1223,7 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
       registerComposer(paneId, {
         insert: (t) => setText((cur) => appendText(cur, t)),
         focus: () => ref.current?.focus(),
+        attach: (paths) => attachPaths(paths),
       }),
     [paneId],
   );
@@ -1213,23 +1246,32 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    // Expanded, the box fills the pane (CSS); otherwise it grows with the text up to MAX_ROWS.
+    if (expanded) {
+      el.style.height = "";
+      return;
+    }
     el.style.height = "auto";
     const line = parseFloat(getComputedStyle(el).lineHeight) || 22;
     el.style.height = `${Math.min(el.scrollHeight, line * MAX_ROWS + 8)}px`;
-  }, [text]);
+  }, [text, expanded]);
 
   /** Enter sends; ⌘Enter does the opposite of the Queue/Steer mode for this one message. */
   const send = (opposite = false) => {
     const t = text.trim();
-    if (!t && !images.length) return;
+    if (atts.some((a) => a.status === "reading")) return toast("Still reading the attached files", true);
+    const { images, documents, refs } = forSend(atts);
+    const body = [t, refs].filter(Boolean).join(t && refs ? "\n\n" : "");
+    if (!body && !images.length && !documents.length) return;
     // Steer: stop the running turn and send once it has ended, so the new message is a normal turn.
     const steer = prefs.steerKey && followUpAction(busy, prefs.followUp, opposite) === "steer";
     setText("");
-    setImages([]);
+    setAtts([]);
     setHist(null);
-    void (steer ? steerChat(paneId, t, images) : sendChat(paneId, t, images));
+    setExpanded(false);
+    void (steer ? steerChat(paneId, body, { images, documents }) : sendChat(paneId, body, { images, documents }));
   };
-  const empty = !text.trim() && !images.length;
+  const empty = !text.trim() && !atts.some((a) => a.status !== "error");
   /** ⌘⌥Enter: send, then open a fresh start tab in the same folder so the next task can begin while this one runs. */
   const sendBackground = () => {
     if (empty) return;
@@ -1240,7 +1282,7 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
   const stashKey = () => {
     // The stash is text-only. Restoring a draft while an image is attached would send
     // an unrelated prompt with that image, so refuse until the image is sent/removed.
-    if (images.length) return toast("Stashing images isn't supported yet; send or remove the image first", true);
+    if (atts.length) return toast("Stashing attachments isn't supported yet; send or remove them first", true);
     const r = toggleStash(useUi.getState().stash, text);
     if (r.did === "nothing") return toast("No stashed draft");
     useUi.getState().set({ stash: r.list });
@@ -1300,6 +1342,9 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
             // Claude Code's own mode cycle.
             e.preventDefault();
             void cyclePermissionMode(paneId);
+          } else if (e.key === "Escape" && expanded) {
+            e.preventDefault();
+            setExpanded(false);
           } else if (e.key === "Escape" && busy && e.target === ref.current) {
             e.preventDefault();
             interruptChat(paneId);
@@ -1312,18 +1357,10 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           }
         }}
       >
-        {images.length > 0 && (
-          <div className="chat-attach">
-            {images.map((img, i) => (
-              <span key={i} className="chat-thumb">
-                <img src={`data:${img.mediaType};base64,${img.data}`} alt={`Pasted image ${i + 1}`} />
-                <button type="button" aria-label="Remove image" title="Remove" onClick={() => setImages((cur) => cur.filter((_, j) => j !== i))}>
-                  ×
-                </button>
-              </span>
-            ))}
-          </div>
-        )}
+        <button type="button" className="chat-expand" aria-pressed={expanded} aria-label={expanded ? "Shrink the composer" : "Expand the composer"} title={expanded ? "Shrink (Esc)" : "Expand to write a long message"} onClick={() => { setExpanded(!expanded); ref.current?.focus(); }}>
+          {expanded ? <CollapseIcon /> : <ExpandIcon />}
+        </button>
+        {atts.length > 0 && <AttachChips atts={atts} onRemove={(id) => setAtts((cur) => cur.filter((a) => a.id !== id))} />}
         <textarea
           ref={ref}
           rows={2}
@@ -1337,17 +1374,17 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           }}
           onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onPaste={(e) => {
-            const files = [...e.clipboardData.files].filter((f) => f.type.startsWith("image/"));
+            const files = [...e.clipboardData.files];
             if (!files.length) return;
             e.preventDefault();
-            addImages(files);
+            addFiles(files);
           }}
           spellCheck={false}
         />
         <div className="chat-card-bar">
           <PlusMenu
-            onImages={() => fileInput.current?.click()}
-            onPicked={(img) => void pngFile(img.data).then((f) => addImages([f]))}
+            onPick={pickFiles}
+            onPicked={(img) => void pngFile(img.data).then((f) => addFiles([f]))}
             onFiles={() => {
               const at = ref.current?.selectionStart ?? text.length;
               const lead = at > 0 && !/\s/.test(text[at - 1]) ? " @" : "@";
@@ -1362,11 +1399,11 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           <input
             ref={fileInput}
             type="file"
-            accept="image/*"
+            accept={ACCEPT.images}
             multiple
             hidden
             onChange={(e) => {
-              addImages([...(e.target.files ?? [])]);
+              addFiles([...(e.target.files ?? [])]);
               e.target.value = "";
             }}
           />
@@ -1505,33 +1542,6 @@ function RulesDialog({ cwd, account, onClose }: { cwd: string; account: string |
   );
 }
 
-const MAX_IMAGES = 10;
-/** Claude's limit is 5 MB per image (base64); bigger ones are scaled down to fit. */
-const IMAGE_MAX_BYTES = 3_500_000;
-const IMAGE_MAX_SIDE = 2000;
-
-async function readImage(file: File): Promise<ChatImage> {
-  const supported = ["image/png", "image/jpeg", "image/gif", "image/webp"].includes(file.type);
-  if (supported && file.size <= IMAGE_MAX_BYTES) return { mediaType: file.type, data: await base64(file) };
-  const bitmap = await createImageBitmap(file);
-  const scale = Math.min(1, IMAGE_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(bitmap.width * scale);
-  canvas.height = Math.round(bitmap.height * scale);
-  canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  const blob = await new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error("encode"))), "image/jpeg", 0.85));
-  return { mediaType: "image/jpeg", data: await base64(blob) };
-}
-
-function base64(blob: Blob): Promise<string> {
-  return new Promise((ok, fail) => {
-    const r = new FileReader();
-    r.onload = () => ok(String(r.result).split(",", 2)[1] ?? "");
-    r.onerror = () => fail(r.error);
-    r.readAsDataURL(blob);
-  });
-}
-
 /** A project's file list for the @ menu, fetched when first needed and kept for a minute. */
 const fileCache = new Map<string, { at: number; files: Promise<string[]> }>();
 function useProjectFiles(cwd: string | undefined): string[] {
@@ -1652,8 +1662,8 @@ interface Option {
   tone?: "warn" | "danger";
 }
 
-/** The composer's +: images from the Mac's picker, a screenshot, the clipboard, or an @ file mention. */
-function PlusMenu({ onImages, onPicked, onFiles }: { onImages: () => void; onPicked: (img: ChatImage) => void; onFiles: () => void }) {
+/** The composer's +: files from the Mac's picker by kind, a screenshot, the clipboard, or an @ file mention. */
+function PlusMenu({ onPick, onPicked, onFiles }: { onPick: (accept: string) => void; onPicked: (img: ChatImage) => void; onFiles: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1667,7 +1677,9 @@ function PlusMenu({ onImages, onPicked, onFiles }: { onImages: () => void; onPic
     run();
   };
   const items = [
-    { key: "images", label: "Add images", desc: "PNG, JPEG, GIF or WebP from your Mac", run: onImages },
+    { key: "images", label: "Images", desc: "PNG, JPEG, GIF, WebP; HEIC is converted", run: () => onPick(ACCEPT.images + ",image/heic,image/heif,image/tiff") },
+    { key: "pdfs", label: "PDFs", desc: "Claude reads the pages, text and figures", run: () => onPick(ACCEPT.pdfs) },
+    { key: "text", label: "Text or code", desc: "Markdown, CSV, JSON, source files", run: () => onPick(ACCEPT.text) },
     {
       key: "shot",
       label: "Take screenshot",
@@ -1680,11 +1692,11 @@ function PlusMenu({ onImages, onPicked, onFiles }: { onImages: () => void; onPic
       desc: "the image on the clipboard",
       run: () => void ipc.clipboardImage().then((img) => (img ? onPicked(img) : toast("There's no image on the clipboard")), (e) => toast(`Couldn't read the clipboard: ${e}`, true)),
     },
-    { key: "files", label: "Add files", desc: "mention a file with @", run: onFiles },
+    { key: "files", label: "Project file", desc: "mention a file with @", run: onFiles },
   ];
   return (
     <div className="chat-pick chat-plus-menu" ref={ref}>
-      <button type="button" className={`chat-pick-btn chat-plus${open ? " on" : ""}`} aria-haspopup="menu" aria-expanded={open} aria-label="Add" title="Add images, a screenshot or files" onClick={() => setOpen((o) => !o)}>
+      <button type="button" className={`chat-pick-btn chat-plus${open ? " on" : ""}`} aria-haspopup="menu" aria-expanded={open} aria-label="Add" title="Attach files, a screenshot or a project file" onClick={() => setOpen((o) => !o)}>
         <PlusIcon />
       </button>
       {open && (

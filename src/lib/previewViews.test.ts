@@ -38,3 +38,7 @@ test("slugs are file-name safe", () => {
   assert.equal(viewSlug("settings&section=accounts"), "settings-section-accounts");
   assert.equal(viewSlug("chat"), "chat");
 });
+
+test("attachment files map to the attach view", () => {
+  assert.deepEqual(viewsFor(["src/components/AttachChips.tsx", "src/lib/attachRead.ts"]), ["chat&attach=1"]);
+});
