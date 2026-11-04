@@ -22,7 +22,8 @@ const opt = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
   return i >= 0 && args[i + 1] ? args[i + 1] : fallback;
 };
-const git = (...a) => execFileSync("git", a, { cwd: root, encoding: "utf8" }).trim();
+const quiet = { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] };
+const git = (...a) => execFileSync("git", a, { cwd: root, ...quiet }).trim();
 
 const hasRef = (ref) => {
   try { return Boolean(git("rev-parse", "--verify", "-q", ref)); } catch { return false; }
@@ -117,7 +118,7 @@ function publish(files) {
   const branch = git("branch", "--show-current") || "detached";
   const folder = `${branch.replace(/[^a-z0-9._-]+/gi, "-")}/${git("rev-parse", "--short", "HEAD")}`;
   const dir = mkdtempSync(join(tmpdir(), "pr-shots-"));
-  const run = (...a) => execFileSync("git", a, { cwd: dir, encoding: "utf8" }).trim();
+  const run = (...a) => execFileSync("git", a, { cwd: dir, ...quiet }).trim();
   let hasRemote = true;
   try { git("fetch", "-q", "origin", "pr-shots"); } catch { hasRemote = false; }
   git("worktree", "add", "-q", "--detach", dir, hasRemote ? "FETCH_HEAD" : "HEAD");
