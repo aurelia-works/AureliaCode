@@ -361,7 +361,7 @@ fn write_files(files: &[Attachment]) -> Result<Vec<std::path::PathBuf>, String> 
     }
     let dir = std::env::temp_dir().join(format!("aurelia-opencode-{}", uuid_ish()));
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    files
+    let written: Result<Vec<_>, String> = files
         .iter()
         .enumerate()
         .map(|(i, f)| {
@@ -373,7 +373,11 @@ fn write_files(files: &[Attachment]) -> Result<Vec<std::path::PathBuf>, String> 
             let path = sub.join(name);
             std::fs::write(&path, &f.bytes).map(|_| path).map_err(|e| e.to_string())
         })
-        .collect()
+        .collect();
+    if written.is_err() {
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    written
 }
 
 /// The run's attachment folder (see write_files) with everything in it.

@@ -1,3 +1,4 @@
+import { chatCan } from "./chatStart";
 import { useAgents } from "../store/agents";
 import { useLayout } from "../store/layout";
 import { toast } from "../store/ui";
@@ -54,7 +55,10 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Presses Shift+Tab in the pane (Claude Code's own mode switch) and records where it landed. */
 export async function cyclePermissionMode(paneId: string): Promise<string> {
-  if (useLayout.getState().panes[paneId]?.mode === "chat") {
+  const pane = useLayout.getState().panes[paneId];
+  // OpenCode runs on its own permission rules: nothing to cycle.
+  if (pane?.mode === "chat" && !chatCan(pane).mode) return modeKey(useChat.getState().byPane[paneId]?.mode);
+  if (pane?.mode === "chat") {
     const mode = CHAT_CYCLE[(CHAT_CYCLE.indexOf(modeKey(useChat.getState().byPane[paneId]?.mode)) + 1) % CHAT_CYCLE.length];
     await setChatMode(paneId, mode);
     record(paneId, mode);
