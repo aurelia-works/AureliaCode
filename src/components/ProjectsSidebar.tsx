@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { freshChat } from "../lib/chatStart";
 import { useChat } from "../lib/chat";
 import { basename } from "../lib/format";
 import { closePaneSafely, closePanesSafely } from "../lib/openFile";
@@ -242,8 +243,8 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   const custom = usePaneAgent(paneId);
   const account = pane?.account ?? agent?.account;
   const isClaude = !!agent || !!account;
-  const v: Visual | undefined = agent ? visualOf(agent) : isClaude ? "starting" : undefined;
-  const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher ? "New thread" : custom ? custom.name : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
+  const v: Visual | undefined = agent ? visualOf(agent) : isClaude ? (freshChat(pane, 0) ? "idle" : "starting") : undefined;
+  const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher || freshChat(pane, 0) ? "New thread" : custom ? custom.name : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
   const label = pane?.title ?? title ?? task?.title ?? kind;
   const dir = paneDir(paneId);
   const repo = basename(git?.repo ?? dir) || "~";
@@ -488,7 +489,8 @@ export function ProjectsSidebar() {
   const groups: Group[] = [
     { key: "pinned", label: "Pinned", ids: pinnedIds },
     { key: "needs", label: "Needs you", ids: active.filter((id) => st(id) === "needs_input") },
-    { key: "work", label: "Working", ids: active.filter((id) => st(id) === "working" || st(id) === "starting" || (!sessions[id] && (panes[id]?.account || panes[id]?.mode === "chat"))) },
+    // A chat nobody has written in yet is a new thread (Recent), not work in progress.
+    { key: "work", label: "Working", ids: active.filter((id) => !freshChat(panes[id], 0) && (st(id) === "working" || st(id) === "starting" || (!sessions[id] && (panes[id]?.account || panes[id]?.mode === "chat")))) },
     { key: "recent", label: "Recent", ids: [] },
   ];
   const grouped = new Set(groups.flatMap((g) => g.ids));

@@ -71,6 +71,10 @@ export function DiagnosticsSection({ notify }: SectionProps) {
           <span>Legacy terminal panes</span>
         </label>
         <label className="field check">
+          <input type="checkbox" checked={prefs.startScreen} onChange={(e) => useUi.getState().set({ prefs: { ...prefs, startScreen: e.target.checked } })} />
+          <span>Start screen in new tabs</span>
+        </label>
+        <label className="field check">
           <input type="checkbox" checked={prefs.permissionDrag} onChange={(e) => useUi.getState().set({ prefs: { ...prefs, permissionDrag: e.target.checked } })} />
           <span>Drag-into-Settings permission helper</span>
         </label>

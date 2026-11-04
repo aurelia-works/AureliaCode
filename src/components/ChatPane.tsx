@@ -19,6 +19,8 @@ import { riskOf } from "../lib/risk";
 import { CHAT_FIND, GOAL_OPEN } from "../lib/shortcuts";
 import { GoalBanner, GoalDialog } from "./GoalBar";
 import { focusedPaneId, useLayout } from "../store/layout";
+import { freshChat } from "../lib/chatStart";
+import { ChatStart, sendFirst } from "./ChatStart";
 import { loadProviders, useProviders } from "../store/providers";
 import { chatProviderOptions, currentProblem, missingAccounts } from "../lib/providers";
 import { usePaneContext } from "../store/metrics";
@@ -47,6 +49,7 @@ type Tool = Extract<ChatItem, { kind: "tool" }>;
 export function ChatPane({ paneId }: { paneId: string }) {
   const session = useChat((s) => s.byPane[paneId]);
   const cwd = useLayout((s) => s.panes[paneId]?.cwd);
+  const fresh = useLayout((s) => freshChat(s.panes[paneId], 0));
   const logRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   // Scrolled up from the latest: shows the jump-back button.
@@ -152,7 +155,8 @@ export function ChatPane({ paneId }: { paneId: string }) {
         onClick={(e) => openLink(e, paneId)}
       >
         <div className="chat-col">
-          {items.length === 0 && (
+          {items.length === 0 && fresh && <ChatStart paneId={paneId} starting={status === "starting"} />}
+          {items.length === 0 && !fresh && (
             <div className="chat-empty">
               <AureliaMark width={34} height={34} />
               <p>{status === "starting" ? "Starting Claude…" : `What should Claude do in ${basename(cwd) || "this folder"}?`}</p>
@@ -1339,7 +1343,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
     writeAtts(() => []);
     setHist(null);
     setExpanded(false);
-    void (steer ? steerChat(paneId, body, { images, documents }) : sendChat(paneId, body, { images, documents }));
+    void (steer ? steerChat(paneId, body, { images, documents }) : sendFirst(paneId, body, { images, documents }));
   };
   const empty = !text.trim() && !atts.some((a) => a.status !== "error");
   /** ⌘⌥Enter: send, then open a fresh start tab in the same folder so the next task can begin while this one runs. */

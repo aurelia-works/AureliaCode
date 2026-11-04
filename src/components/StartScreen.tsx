@@ -543,7 +543,7 @@ const PERMISSIONS = [
 ];
 
 /** Asked once, before the first thread: how Claude starts. Settings changes it after. */
-function FirstRunSetup() {
+export function FirstRunSetup() {
   const config = useConfig((s) => s.config);
   const [mode, setMode] = useState(config?.claudePermissionMode || "auto");
   const [autoModel, setAutoModel] = useState(config?.effort?.autoModel ?? false);

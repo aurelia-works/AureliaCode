@@ -55,3 +55,7 @@ test("the goal banner and dialog have their own chat views", () => {
 test("the delegation card has its own chat view", () => {
   assert.deepEqual(viewsFor(["src/lib/delegation.ts"]), ["chat&delegate=1"]);
 });
+
+test("a new chat's opening shows in the start view", () => {
+  assert.deepEqual(viewsFor(["src/components/ChatStart.tsx", "src/lib/chatStart.ts"]), ["start"]);
+});
