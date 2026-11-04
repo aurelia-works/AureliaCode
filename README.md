@@ -1,19 +1,20 @@
-# AureliaSpace
+# AureliaCode
 
-Personal macOS terminal (Tauri 2 + React + xterm.js) for running several Claude Code
-accounts side by side. See `PRD.md` for scope.
+Personal macOS agent IDE (Tauri 2 + React + xterm.js), formerly AureliaSpace: several Claude
+Code accounts and other agent CLIs side by side, as chats or terminals, with a board of what
+each one needs. See `PRD.md` for scope and `PLAN-AGENT-IDE.md` for the agent-IDE phases.
 
 ## Run
 
 ```sh
 npm install
 npm run app:dev     # dev window with hot reload
-npm run app:build   # → src-tauri/target/release/bundle/macos/AureliaSpace.app
+npm run app:build   # → src-tauri/target/release/bundle/macos/AureliaCode.app
 ```
 
 Builds are signed with your "Apple Development" certificate (`bundle.macOS.signingIdentity`;
 in dev, `src-tauri/.cargo/config.toml` runs `scripts/dev-sign.sh`) under the fixed id
-`space.aurelia.terminal`. macOS ties folder-access and Keychain grants to that signature, so
+`space.aurelia.code`. macOS ties folder-access and Keychain grants to that signature, so
 they survive rebuilds instead of being asked for again on every launch.
 
 ## Shortcuts
@@ -126,10 +127,26 @@ they survive rebuilds instead of being asked for again on every launch.
 - **Orchestration**: `aurelia-space mcp` also serves `aurelia_*` tools (list, read and
   message panes, open a Claude pane, show an HTML page), answered by the app over a
   user-only socket (`control.rs`, `src/lib/control.ts`).
-- **Phone remote**: permission prompts get Allow / Always / Deny on the phone, showing the
-  command; answers are matched to the request they were for.
+- **Browser for agents**: `aurelia_browser` lets a pane's agent open, read (element refs),
+  click, type, wait on, inspect and screenshot the browser pane beside it (`browser_agent.rs`).
+- **Delegation**: `aurelia_delegate` / `aurelia_delegation` hand a task to OpenCode, `claude -p`
+  or Grok and follow it in a card in the chat (`delegate.rs`, `src/lib/delegation.ts`).
+- **Other providers as chats**: OpenCode runs as a chat too, picked in the composer.
+- **AureliaBot (phone remote)**: from the phone, see every agent's status, last reply, goal and
+  approvals; read and answer a chat (send, stop, Allow / Always / Deny); start a new agent with
+  a provider, model, folder and task. The Mac checks every action (`src/lib/aureliaBot.ts`).
+  Reached on this Mac or over the tailnet with `tailscale serve` only; `tailscale.rs` refuses
+  any call that mentions Funnel.
 - **State**: `layout.json` (tabs, splits, cwd and account per pane), `tasks.json`,
   `ui.json`, `prompts.json`, `routines.json`, all in the app support dir.
+
+## Design checks
+
+- `npm run shots` takes before (merge base) and after screenshots of the preview views a diff
+  touches; `--publish` pushes them for the PR's Screenshots table.
+- `npm run ui-score -- <views>` scores those views against `design/review/UI-RUBRIC.md` with
+  Haiku and prints `SCORE: n/10`.
+- `npm run contrast` checks every text/background token pair in both themes for 4.5:1.
 
 ## Setup for suggestions
 
