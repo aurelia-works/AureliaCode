@@ -20,7 +20,7 @@ export function DiagnosticsSection({ notify }: SectionProps) {
   useEffect(() => {
     void getVersion().then((v) => setVersion(v || "dev"), () => setVersion("dev"));
     void getTauriVersion().then((v) => setTauri(v || "—"), () => setTauri("—"));
-    void db.health().then(setStore, () => setStore(null));
+    void db.health().then(setStore, (e) => setStore({ ok: false, threads: 0, events: 0, path: String(e) }));
   }, []);
 
   const reload = async () => {

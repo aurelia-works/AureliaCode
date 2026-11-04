@@ -132,7 +132,7 @@ body {
 }
 .u-logo {
   display: grid;
-  color: #d97757;
+  color: var(--brand-mark);
 }
 .u-name {
   color: var(--text-dim);
@@ -439,7 +439,7 @@ body {
   gap: 6px;
   margin-top: 2px;
   color: var(--text-dim);
-  font: 12px var(--font-mono);
+  font: 12px var(--font-ui);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -1430,16 +1430,26 @@ body {
 .btn:active:not(:disabled) {
   translate: 0 1px;
 }
-.btn.solid {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-  font-weight: 500;
+/* One primary look app-wide: inverted ink, same as .btn.primary. */
+.btn.solid,
+.btn.primary {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--primary-ink);
+  font-weight: 600;
 }
-.btn.solid:hover:not(:disabled) {
-  background: var(--accent-strong);
-  border-color: var(--accent-strong);
-  box-shadow: 0 6px 22px color-mix(in srgb, var(--accent) 28%, transparent);
+.btn.solid:hover:not(:disabled),
+.btn.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--primary) 86%, var(--surface));
+  border-color: transparent;
+}
+/* Secondary actions next to a primary: no box until hovered. */
+.btn.quiet {
+  border-color: transparent;
+  color: var(--text-dim);
+}
+.btn.quiet:hover:not(:disabled) {
+  color: var(--text);
 }
 .btn[aria-pressed="true"] {
   border-color: color-mix(in srgb, var(--work) 40%, transparent);
@@ -2458,10 +2468,10 @@ body.resizing-row .rail-grip {
   box-shadow: inset 0 0 0 1px var(--line-2);
 }
 .chat-user-wrap.steered .chat-user {
-  box-shadow: inset 2px 0 0 var(--accent, #818cf8);
+  box-shadow: inset 2px 0 0 var(--text-faint);
 }
 .chat-user-wrap.steered .chat-user-via {
-  color: var(--accent, #818cf8);
+  color: var(--text-dim);
 }
 .chat-ctx-src {
   margin: -2px 0 8px;
@@ -2570,7 +2580,7 @@ body.resizing-row .rail-grip {
 .th-goal {
   margin-left: 4px;
   font-size: 11px;
-  color: var(--accent);
+  color: var(--text-dim);
   white-space: nowrap;
 }
 
@@ -2915,4 +2925,11 @@ body.resizing-row .rail-grip {
 }
 .chat-pick-menu [role="option"]:disabled:hover {
   background: none;
+}
+
+/* Board card: how far a thread goal has got. */
+.card-goal {
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+  white-space: nowrap;
 }

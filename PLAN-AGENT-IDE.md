@@ -48,7 +48,7 @@ Estimates: agent time and rough tokens incl. cache reads, from PLAN-T3 / PLAN-AU
 | 4 | Providers: discovery, capabilities, model selector | 2-2.5 h, 2-3M | | Opus 5.5 medium | todo |
 | 5 | Delegation v2 (any provider, async, cards in chat) | 2.5-3 h, 3M | | Opus 5.5 medium | todo |
 | 6 | Non-Claude chat (OpenCode first) + terminal UI out | 3 h, 3-4M (may split) | | Opus 5.5 medium | todo |
-| 7 | Design council: baseline, scores, 2 rounds | 1.5-2 h, 2M | | Opus 5.5 medium | todo |
+| 7 | Design council: baseline, scores, 2 rounds | 1.5-2 h, 2M | not measured | Opus 5.5 | done 2026-11-04 (ui-score 5.5 → 5.6 → 5.6; contrast AA in both themes) |
 | 8 | Shorter PR template + screenshot evidence | 45-60 min, 1M | | Sonnet 5.5 medium | todo |
 
 Total about 15-18 h of agent time, 16-22M tokens. Order is by impact and dependency; 1, 2, 3, 8 stand alone.

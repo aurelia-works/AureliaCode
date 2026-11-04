@@ -732,10 +732,11 @@ input[type="checkbox"] {
 
 /* ---------- Toast ---------- */
 
+/* Top centre under the title bar: clear of composers, footers and the notice stack. */
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--statusbar-h) + 14px);
+  top: calc(var(--titlebar-h) + 10px);
   transform: translateX(-50%);
   z-index: 200;
   max-width: min(560px, 80vw);
@@ -754,7 +755,7 @@ input[type="checkbox"] {
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translate(-50%, 6px);
+    transform: translate(-50%, -6px);
   }
 }
 @keyframes fade-in {
