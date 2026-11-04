@@ -42,3 +42,8 @@ test("slugs are file-name safe", () => {
 test("provider files map to the providers settings and the chat composer", () => {
   assert.deepEqual(viewsFor(["src/lib/providers.ts"]), ["chat", "settings&section=providers"]);
 });
+
+test("the goal banner and dialog have their own chat views", () => {
+  assert.deepEqual(viewsFor(["src/components/GoalBar.tsx"]), ["chat&goal=1", "chat&goal=dialog"]);
+  assert.deepEqual(viewsFor(["src/store/goals.ts", "src/lib/goalLoop.ts"]), ["chat&goal=1", "chat&goal=dialog"]);
+});

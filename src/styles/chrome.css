@@ -1516,3 +1516,10 @@ body.prompt-dragging * {
   text-align: center;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
 }
+
+/* Settings → Threads: the thread list on the right; the chat stays in the middle. */
+.frame.nav-right .navigator {
+  order: 2;
+  border-right: none;
+  border-left: 1px solid var(--line);
+}

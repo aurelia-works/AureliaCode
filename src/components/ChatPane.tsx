@@ -13,7 +13,8 @@ import { renderMarkdown } from "../lib/markdown";
 import { openFile } from "../lib/openFile";
 import { cyclePermissionMode, MODES, modeKey } from "../lib/permissionMode";
 import { riskOf } from "../lib/risk";
-import { CHAT_FIND } from "../lib/shortcuts";
+import { CHAT_FIND, GOAL_OPEN } from "../lib/shortcuts";
+import { GoalBanner, GoalDialog } from "./GoalBar";
 import { focusedPaneId, useLayout } from "../store/layout";
 import { loadProviders, useProviders } from "../store/providers";
 import { chatProviderOptions, currentProblem } from "../lib/providers";
@@ -107,6 +108,13 @@ export function ChatPane({ paneId }: { paneId: string }) {
     return () => window.removeEventListener(CHAT_FIND, open);
   }, [paneId]);
 
+  const [goalOpen, setGoalOpen] = useState(false);
+  useEffect(() => {
+    const open = (e: Event) => (e as CustomEvent<string>).detail === paneId && setGoalOpen(true);
+    window.addEventListener(GOAL_OPEN, open);
+    return () => window.removeEventListener(GOAL_OPEN, open);
+  }, [paneId]);
+
   return (
     <div
       className="chat"
@@ -120,6 +128,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
         }
       }}
     >
+      {goalOpen && <GoalDialog paneId={paneId} onClose={() => setGoalOpen(false)} />}
       {finding > 0 && <FindBar logRef={logRef} items={items} focusKey={finding} onClose={() => setFinding(0)} />}
       <div
         className="chat-log"
@@ -165,6 +174,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
             {busy && <span className="chat-jump-dot" aria-hidden />}
           </button>
         )}
+        <GoalBanner paneId={paneId} />
         <TodoPanel items={items} busy={busy} />
         {session?.approvals[0] &&
           (session.approvals[0].tool === "AskUserQuestion" ? (
@@ -1357,6 +1367,7 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
         />
         <div className="chat-card-bar">
           <PlusMenu
+            onGoal={() => window.dispatchEvent(new CustomEvent(GOAL_OPEN, { detail: paneId }))}
             onImages={() => fileInput.current?.click()}
             onPicked={(img) => void pngFile(img.data).then((f) => addImages([f]))}
             onFiles={() => {
@@ -1680,7 +1691,7 @@ interface Option {
 }
 
 /** The composer's +: images from the Mac's picker, a screenshot, the clipboard, or an @ file mention. */
-function PlusMenu({ onImages, onPicked, onFiles }: { onImages: () => void; onPicked: (img: ChatImage) => void; onFiles: () => void }) {
+function PlusMenu({ onImages, onPicked, onFiles, onGoal }: { onImages: () => void; onPicked: (img: ChatImage) => void; onFiles: () => void; onGoal: () => void }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -1708,6 +1719,7 @@ function PlusMenu({ onImages, onPicked, onFiles }: { onImages: () => void; onPic
       run: () => void ipc.clipboardImage().then((img) => (img ? onPicked(img) : toast("There's no image on the clipboard")), (e) => toast(`Couldn't read the clipboard: ${e}`, true)),
     },
     { key: "files", label: "Add files", desc: "mention a file with @", run: onFiles },
+    { key: "goal", label: "Set a goal", desc: "keep going until a check passes", run: onGoal },
   ];
   return (
     <div className="chat-pick chat-plus-menu" ref={ref}>
