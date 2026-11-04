@@ -3,6 +3,7 @@ import { addUser, type SentVia, type Transcript } from "./chatModel.ts";
 export interface QueuedMsg {
   text: string;
   images?: string[];
+  files?: string[];
   uuid: string;
   via?: SentVia;
 }
@@ -16,7 +17,7 @@ export function takeReplay(transcript: Transcript, queued: QueuedMsg[], msg: Rec
   if (msg.type !== "user" || msg.isReplay !== true || typeof msg.uuid !== "string") return null;
   const uuid = msg.uuid;
   const q = queued.find((m) => m.uuid === uuid);
-  if (q) return { transcript: addUser(transcript, q.text, Date.now(), { images: q.images, uuid, via: q.via }), queued: queued.filter((m) => m !== q) };
+  if (q) return { transcript: addUser(transcript, q.text, Date.now(), { images: q.images, files: q.files, uuid, via: q.via }), queued: queued.filter((m) => m !== q) };
   if (transcript.items.some((i) => i.kind === "user" && i.uuid === uuid)) return { transcript, queued };
   return null;
 }

@@ -1,3 +1,4 @@
+import type { ChatDocument } from "./attachments";
 import { Channel, invoke } from "@tauri-apps/api/core";
 
 export interface Account {
@@ -427,7 +428,9 @@ export const ipc = {
   permissionRules: (cwd: string, account: string | null) => invoke<RuleFile[]>("permission_rules", { cwd, account }),
   removePermissionRule: (cwd: string, account: string | null, path: string, kind: RuleKind, rule: string) =>
     invoke<void>("remove_permission_rule", { cwd, account, path, kind, rule }),
-  chatSend: (paneId: string, text: string, images?: ChatImage[], uuid?: string) => invoke<void>("chat_send", { paneId, text, images, uuid }),
+  chatSend: (paneId: string, text: string, images?: ChatImage[], uuid?: string, documents?: ChatDocument[]) => invoke<void>("chat_send", { paneId, text, images, documents, uuid }),
+  /** A dropped file's bytes (base64), for the composer's chips. Refuses files over 32 MB. */
+  readAttachment: (path: string) => invoke<{ name: string; size: number; data: string }>("read_attachment", { path }),
   chatRewind: (paneId: string, uuid: string, dryRun: boolean) =>
     invoke<{ canRewind: boolean; filesChanged?: string[]; insertions?: number; deletions?: number }>("chat_rewind", { paneId, uuid, dryRun }),
   /** Switches a running chat's model and/or effort for its next turns. */

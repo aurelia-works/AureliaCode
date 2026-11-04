@@ -129,9 +129,11 @@ function publish(files) {
   }
   if (hasRemote) git("fetch", "-q", "origin", "pr-shots");
   git("worktree", "add", "-q", "--detach", dir, hasRemote ? "FETCH_HEAD" : "HEAD");
+  // The first publish needs a local orphan branch; it's deleted once pushed.
+  const orphan = hasRemote ? "" : `pr-shots-${Date.now()}`;
   try {
-    if (!hasRemote) {
-      run("checkout", "-q", "--orphan", `pr-shots-${Date.now()}`);
+    if (orphan) {
+      run("checkout", "-q", "--orphan", orphan);
       run("rm", "-rfq", ".");
     }
     mkdirSync(join(dir, folder), { recursive: true });
@@ -143,6 +145,7 @@ function publish(files) {
     return (file) => `https://raw.githubusercontent.com/${slug}/${sha}/${folder}/${file.split("/").pop()}`;
   } finally {
     git("worktree", "remove", "--force", dir);
+    if (orphan) try { git("branch", "-D", orphan); } catch {}
   }
 }
 
