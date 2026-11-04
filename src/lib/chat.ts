@@ -3,12 +3,13 @@ import { create } from "zustand";
 import { useAgents } from "../store/agents";
 import { getConfig } from "../store/config";
 import { onPanesClosed, useLayout, type PaneMeta } from "../store/layout";
-import { addNotice, addUser, applyLine, emptyTranscript, endTurn, toolSummary, type Transcript } from "./chatModel";
+import { addNotice, addUser, applyLine, emptyTranscript, endTurn, toolSummary, type SentVia, type Transcript } from "./chatModel";
 import { takeReplay } from "./chatReplay";
 import { workAfterTurn } from "./workBridge";
 import { cacheSafe } from "./effort";
 import { ipc, type ChatEvent, type ChatImage, type CliModel, type ChatUsage, type ContextUsage, type SlashCommand } from "./ipc";
 import { startPermissionMode } from "./startMode";
+import { refreshUsageAfterTurn } from "../store/usage";
 
 /**
  * Chat panes' live state, kept outside React like terminals.ts keeps xterm: a pane that
@@ -30,6 +31,7 @@ export interface Queued {
   text: string;
   images?: string[];
   uuid: string;
+  via?: SentVia;
 }
 
 export interface ChatSession {
@@ -120,6 +122,7 @@ function reduce(paneId: string, s: ChatSession, ev: ChatEvent): ChatSession {
       return { ...s, approvals: [...s.approvals, { id: ev.id, tool: ev.tool, input: ev.input, description: ev.description }] };
     case "turnEnd": {
       void refreshContext(paneId);
+      queueMicrotask(() => refreshUsageAfterTurn(paneId));
       const forked = forkIds.get(paneId);
       if (forked) {
         forkIds.delete(paneId);
@@ -372,7 +375,7 @@ export async function rewindChat(paneId: string, uuid: string, dryRun: boolean) 
   return r;
 }
 
-export function sendChat(paneId: string, text: string, images: ChatImage[] = []) {
+export function sendChat(paneId: string, text: string, images: ChatImage[] = [], via?: SentVia) {
   if (!images.length && localCommand(paneId, text)) return Promise.resolve();
   if (!useLayout.getState().panes[paneId]?.chatUsed) useLayout.getState().updatePane(paneId, { chatUsed: true });
   const status = useChat.getState().byPane[paneId]?.status;
@@ -381,8 +384,8 @@ export function sendChat(paneId: string, text: string, images: ChatImage[] = [])
   const uuid = msg.uuid;
   patch(paneId, (s) =>
     s.status === "working" || s.status === "waiting"
-      ? { ...s, queued: [...s.queued, msg] }
-      : { ...s, status: "working", transcript: addUser(s.transcript, text, Date.now(), msg) },
+      ? { ...s, queued: [...s.queued, { ...msg, via: "queued" }] }
+      : { ...s, status: "working", transcript: addUser(s.transcript, text, Date.now(), { ...msg, via }) },
   );
   const run = (sending.get(paneId) ?? Promise.resolve()).then(() => deliver(paneId, text, busy, images, uuid));
   sending.set(paneId, run);
@@ -473,13 +476,13 @@ const isBusy = (paneId: string) => {
 const steering = new Set<string>();
 export async function steerChat(paneId: string, text: string, images: ChatImage[] = [], timeoutMs = 5000) {
   // A second steer while one is stopping the turn joins it: it queues behind instead of interrupting again.
-  if (steering.has(paneId)) return sendChat(paneId, text, images);
+  if (steering.has(paneId)) return sendChat(paneId, text, images, "steered");
   steering.add(paneId);
   interruptChat(paneId);
   const t0 = Date.now();
   while (isBusy(paneId) && Date.now() - t0 < timeoutMs) await new Promise((r) => setTimeout(r, 60));
   steering.delete(paneId);
-  return sendChat(paneId, text, images);
+  return sendChat(paneId, text, images, "steered");
 }
 
 export function interruptChat(paneId: string) {

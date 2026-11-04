@@ -5,6 +5,7 @@ import { useConfig } from "./config";
 import { useLayout } from "./layout";
 import { offerForAccount } from "../lib/limits";
 import { alertUser, useNotices } from "./notifications";
+import { timerDue, turnEndDue } from "../lib/usageRefresh";
 
 export type WindowId = "5h" | "7d";
 export type Forecasts = Record<WindowId, Forecast>;
@@ -144,6 +145,14 @@ export const useUsage = create<UsageState>((set, get) => ({
   },
 }));
 
+/** A turn finished on this pane: read its account's usage now (forced past the CLI cache), unless a read just happened. */
+export function refreshUsageAfterTurn(paneId: string) {
+  const account = useLayout.getState().panes[paneId]?.account;
+  if (!account) return;
+  const { fetchedAt, refresh } = useUsage.getState();
+  if (turnEndDue(fetchedAt[account], Date.now(), inflight.has(account))) void refresh(account, true);
+}
+
 /** Refreshes usage for every account that has a pane open. */
 export function startUsagePolling() {
   const tick = () => {
@@ -157,7 +166,7 @@ export function startUsagePolling() {
     );
     const { fetchedAt, refresh } = useUsage.getState();
     used.forEach((a) => {
-      if (Date.now() - (fetchedAt[a] ?? 0) >= every) refresh(a);
+      if (timerDue(fetchedAt[a], Date.now(), every)) refresh(a);
     });
   };
   tick();

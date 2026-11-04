@@ -8,8 +8,11 @@
  * a `parent_tool_use_id` belong to a subagent and only count towards its Task call.
  */
 
+/** How a message reached Claude when it wasn't sent to an idle chat: held for the turn's end, or cut the turn short. */
+export type SentVia = "queued" | "steered";
+
 export type ChatItem = (
-  | { kind: "user"; id: string; text: string; images?: string[]; uuid?: string }
+  | { kind: "user"; id: string; text: string; images?: string[]; uuid?: string; via?: SentVia }
   | { kind: "text"; id: string; msg?: string; text: string; done: boolean; final?: boolean }
   | { kind: "thinking"; id: string; msg?: string; text: string; done: boolean; final?: boolean }
   | {
@@ -135,8 +138,8 @@ function findTool(t: Transcript, toolId: string) {
 }
 
 /** Shows a message the user sent (the CLI doesn't echo them back). */
-export function addUser(t: Transcript, text: string, at = Date.now(), extra: { images?: string[]; uuid?: string } = {}): Transcript {
-  return push({ ...t }, { kind: "user", text, at, ...(extra.images?.length && { images: extra.images }), ...(extra.uuid && { uuid: extra.uuid }) });
+export function addUser(t: Transcript, text: string, at = Date.now(), extra: { images?: string[]; uuid?: string; via?: SentVia } = {}): Transcript {
+  return push({ ...t }, { kind: "user", text, at, ...(extra.images?.length && { images: extra.images }), ...(extra.uuid && { uuid: extra.uuid }), ...(extra.via && { via: extra.via }) });
 }
 
 export function addNotice(t: Transcript, text: string, error = false): Transcript {
