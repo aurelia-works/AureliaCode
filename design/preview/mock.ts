@@ -426,9 +426,14 @@ const plannerMock = {  version: 1,
 mockWindows("main");
 mockIPC(
   (cmd, args: any) => {
+    // Checks read what the UI asked the backend for (e.g. the phone remote's wiring).
+    ((window as any).__cmds ??= []).push({ cmd, args });
     switch (cmd) {
       case "store_health":
         return { ok: true, threads: 42, events: 1318, path: "/Users/jah/Library/Application Support/space.aurelia.code/aurelia.db" };
+      case "remote_snapshot":
+        (window as any).__remoteSnap = args.snapshot;
+        return null;
       case "proxy_status":
         return { installed: true, running: false, signedIn: false };
       case "tray_accounts":

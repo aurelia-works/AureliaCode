@@ -99,5 +99,9 @@ Baseline screenshots of every preview view, scores (typography, hierarchy, colou
 ### 8. PR template
 Template to What / Why / Details / Screenshots / Tests / Limits, about half today's length, keeping Risk and Revert as one line each. A script that captures before/after preview screenshots for changed views.
 
+### 9. AureliaBot (remote agent manager)
+Jah 2026-11-04: "AureliaBot is Aurelia's remotely accessible AI agent manager, inspired by Grokbot. It lets me chat with Aurelia from a web interface hosted privately through Tailscale, choose an AI provider/model, delegate tasks, and spawn or manage multiple coding agents running on my Mac. My Mac is the execution host... It should support agent status, conversations, task progress, and approval requests. Access must remain private through Tailscale Serve HTTPS, never public Funnel. Treat this as a core part of Aurelia's long-term product direction."
+First slice (built on the phone remote, `remote.rs` + `src/remote/`): agent list with status, last reply, goal progress and approvals; a conversation view per chat agent (read, send, queue, stop, Allow/Always/Deny); "New agent" with provider, model, folder and task. Every phone action is checked on the Mac (`refuse` in `src/lib/aureliaBot.ts`). `tailscale.rs` refuses any CLI call that mentions Funnel. Later slices: delegation across agents from the phone, team runs, push notifications, attachments.
+
 ## Answered (Jah 2026-11-04)
 Plan and order approved. No Codex. Phase 2 WIP committed before Phase 1. Bundle id stays `space.aurelia.code`.

@@ -44,8 +44,18 @@ fn cli() -> Option<&'static str> {
     CLIS.into_iter().find(|p| std::path::Path::new(p).exists())
 }
 
+/// The remote (AureliaBot) is private to the tailnet: `tailscale serve` only. Funnel would put
+/// it on the public internet, so no call that mentions it ever reaches the CLI.
+fn only_serve(args: &[&str]) -> Result<(), String> {
+    if args.iter().any(|a| a.to_ascii_lowercase().contains("funnel")) {
+        return Err("AureliaCode never turns on Tailscale Funnel: the remote stays on your tailnet (Serve only).".into());
+    }
+    Ok(())
+}
+
 /// Runs the CLI; Ok(stdout) on success, Err(stderr + stdout) on failure or timeout.
 fn run(args: &[&str], timeout: Duration) -> Result<String, String> {
+    only_serve(args)?;
     let cli = cli().ok_or("Tailscale isn't installed")?;
     let child = Command::new(cli)
         .args(args)
@@ -193,6 +203,16 @@ pub fn serve_off(https_port: u16) -> Result<(), String> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn funnel_is_never_run() {
+        // AureliaBot stays on the tailnet: Serve only, never the public internet.
+        assert!(only_serve(&["funnel", "443", "on"]).is_err());
+        assert!(only_serve(&["serve", "--bg", "--funnel", "http://127.0.0.1:4747"]).is_err());
+        assert!(only_serve(&["FUNNEL", "status"]).is_err());
+        assert!(only_serve(&["serve", "--bg", "--https=443", "http://127.0.0.1:4747"]).is_ok());
+        assert!(only_serve(&["status", "--json"]).is_ok());
+    }
 
     #[test]
     fn running_tailnet_with_https() {

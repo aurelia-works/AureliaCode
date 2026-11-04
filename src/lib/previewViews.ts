@@ -12,10 +12,15 @@ export const ALL_VIEWS: PreviewView[] = [
   "threads", "threads&single=1", "threads&rail=changes", "threads&nav=right", "chat", "chat&opencode=1", "chat&attach=1", "chat&delegate=1", "chat&goal=1", "chat&goal=dialog", "start", "board", "work", "review",
   "settings", "settings&section=accounts", "settings&section=providers", "palette", "files", "terminals", "permissions", "commit",
   "history", "agentview", "tray", "weekly", "roadmap",
+  "remote", "remote&pane=chat", "remote&sheet=new",
 ];
+
+/** Views of the phone remote (AureliaBot): design/preview/remote.html at phone size. */
+export const isPhoneView = (v: PreviewView) => v === "remote" || v.startsWith("remote&");
 
 // First match wins. Paths are repo-relative with forward slashes.
 const RULES: [RegExp, PreviewView[]][] = [
+  [/^src\/remote\/|^src\/lib\/(remote|aureliaBot)\.ts$|^remote\.html$|^design\/preview\/remote/, ["remote", "remote&pane=chat", "remote&sheet=new"]],
   [/^src\/styles\/board\.css$/, ["board"]],
   [/^src\/styles\/agentview\.css$/, ["agentview"]],
   [/^src\/styles\/|^src\/App\.tsx$|^src\/main\.tsx$|^src\/components\/(Icons|TitleBar|StatusBar|Toast|UndoToast|Notices)\.tsx$|^src\/lib\/(theme|uiAppearance|palettes)\.ts$|^index\.html$|^design\/preview\//, CORE_VIEWS],

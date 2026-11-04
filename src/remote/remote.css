@@ -536,3 +536,128 @@ button {
   color: var(--err);
   background: color-mix(in srgb, var(--err) 12%, transparent);
 }
+
+/* ---------- AureliaBot: chat agents ---------- */
+
+.rm-goal {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  min-width: 0;
+}
+.rm-goal-bar {
+  flex: none;
+  width: 48px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.rm-goal-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--work);
+}
+.rm-goal .num {
+  flex: none;
+  white-space: nowrap;
+}
+.rm-goal-last {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rm-chat-meta {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  padding: 6px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+.rm-chat-goal {
+  flex: none;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13.5px;
+}
+
+.rm-conv {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+.rm-msg {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.rm-msg.me {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 16px;
+  background: var(--surface-3);
+}
+.rm-tool,
+.rm-note {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  overflow-wrap: anywhere;
+}
+.rm-tool code {
+  font: 12.5px ui-monospace, Menlo, monospace;
+}
+.rm-tool.failed,
+.rm-note.failed {
+  color: var(--err);
+}
+.rm-chat .rm-approve {
+  flex: none;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.rm-task {
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 84px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font: 16px/1.35 -apple-system, system-ui, sans-serif;
+  resize: vertical;
+}
+.rm-start {
+  margin: 10px 0 4px;
+}
+.rm-btn:disabled,
+.rm-chip:disabled {
+  opacity: 0.45;
+}
+.rm-chip-why {
+  font-size: 12px;
+}
+.rm-send:disabled {
+  opacity: 0.4;
+}
+.rm-send.stop {
+  background: var(--surface-3);
+  color: var(--text);
+}
