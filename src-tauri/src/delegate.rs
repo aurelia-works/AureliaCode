@@ -475,6 +475,25 @@ mod tests {
         assert_eq!(r.error.as_deref(), Some("You are not authenticated."));
     }
 
+    /// Runs the real `claude` (Haiku, read mode) in a scratch folder with a planted bug and
+    /// prints the report. Manual: `cargo test --lib delegate::tests::real -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn real_claude_read_run_on_this_mac() {
+        let dir = std::env::temp_dir().join(format!("delegate-real-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("calc.py"), "def add(a, b):\n    return a - b\n").unwrap();
+        let req = parse(&json!({ "provider": "claude", "model": "haiku", "mode": "read",
+            "task": "Read calc.py and say in one line what add(2, 3) returns. Then fix it." }), "").unwrap();
+        let cwd = dir.to_string_lossy().into_owned();
+        let cmd = build(&locate("claude").expect("claude isn't installed"), &req, &cwd);
+        let o = run_job(cmd, Kind::Claude, &cwd, Duration::from_secs(300), "real", &Running::default(), |_, _| {}).unwrap();
+        let (report, failed) = render(&o, "Claude", "haiku", Mode::Read);
+        println!("{report}\nfailed: {failed}");
+        assert!(!failed && report.contains("-1"), "{report}");
+        assert_eq!(std::fs::read_to_string(dir.join("calc.py")).unwrap(), "def add(a, b):\n    return a - b\n", "read mode edited the file");
+    }
+
     #[test]
     fn a_waiting_run_can_be_cancelled_by_its_id() {
         let running = Running::default();
