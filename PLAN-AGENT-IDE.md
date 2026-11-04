@@ -50,6 +50,8 @@ Estimates: agent time and rough tokens incl. cache reads, from PLAN-T3 / PLAN-AU
 | 6 | Non-Claude chat (OpenCode first) + terminal UI out | 3 h, 3-4M (may split) | | Opus 5.5 medium | todo |
 | 7 | Design council: baseline, scores, 2 rounds | 1.5-2 h, 2M | not measured | Opus 5.5 | done 2026-11-04 (ui-score 5.5 → 5.6 → 5.6; contrast AA in both themes) |
 | 8 | Shorter PR template + screenshot evidence | 45-60 min, 1M | | Sonnet 5.5 medium | todo |
+| 9 | AureliaBot: remote agent manager over Tailscale Serve | not estimated (added 2026-11-04) | not measured | Opus 5.5 | done 2026-11-04, first slice (#12) |
+| 10 | Redesign to ui-score ≥ 8 in 3 attempts | not estimated | not measured | Opus 5.5 | stopped at 6.3/10 after 3 attempts (5.6 → 6 → 6.3), see section 10 |
 
 Total about 15-18 h of agent time, 16-22M tokens. Order is by impact and dependency; 1, 2, 3, 8 stand alone.
 
@@ -102,6 +104,9 @@ Template to What / Why / Details / Screenshots / Tests / Limits, about half toda
 ### 9. AureliaBot (remote agent manager)
 Jah 2026-11-04: "AureliaBot is Aurelia's remotely accessible AI agent manager, inspired by Grokbot. It lets me chat with Aurelia from a web interface hosted privately through Tailscale, choose an AI provider/model, delegate tasks, and spawn or manage multiple coding agents running on my Mac. My Mac is the execution host... It should support agent status, conversations, task progress, and approval requests. Access must remain private through Tailscale Serve HTTPS, never public Funnel. Treat this as a core part of Aurelia's long-term product direction."
 First slice (built on the phone remote, `remote.rs` + `src/remote/`): agent list with status, last reply, goal progress and approvals; a conversation view per chat agent (read, send, queue, stop, Allow/Always/Deny); "New agent" with provider, model, folder and task. Every phone action is checked on the Mac (`refuse` in `src/lib/aureliaBot.ts`). `tailscale.rs` refuses any CLI call that mentions Funnel. Later slices: delegation across agents from the phone, team runs, push notifications, attachments.
+
+### 10. Redesign to ui-score ≥ 8
+Three attempts, Haiku reviewer, views threads, board, chat, settings: 5.6 → 6 → 6.3. Not met. What moved it: one word for waiting ("Needs you"), the board's Needs-you lane above Signals, labelled meters ("38% left", "context", "Tab 1"), state colours only on states, a quieter empty grid, and no frozen toast in preview shots (`&toast=1` keeps a view for it). What the reviewer still asks for, and needs Jah's call: a one-line status instead of the empty state in grid panes, one pane-header pattern across Threads and chat, visible labels on the icon-only header controls. It also repeats that placeholders are under 4.5:1, which `npm run contrast` measures as passing.
 
 ## Answered (Jah 2026-11-04)
 Plan and order approved. No Codex. Phase 2 WIP committed before Phase 1. Bundle id stays `space.aurelia.code`.

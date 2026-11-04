@@ -48,6 +48,7 @@ export function UsageStrip() {
             </span>
             <span className="u-name">{a.name}</span>
             <span className="u-pct num">{left === null ? "–" : `${left}%`}</span>
+            {left !== null && <span className="u-left">left</span>}
             <span className="u-bar">
               <b style={{ width: `${left ?? 0}%` }} />
             </span>

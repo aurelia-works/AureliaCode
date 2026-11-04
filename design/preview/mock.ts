@@ -883,6 +883,11 @@ if (view === "chat" && params.get("goal")) {
   }
   await sleep(200);
 }
+// Toasts go after 3 s in the app; a screenshot shouldn't freeze one over the header. `&toast=1` keeps it.
+if (params.get("toast") !== "1") {
+  useUi.setState({ toast: null });
+  useUi.subscribe((s) => s.toast && useUi.setState({ toast: null }));
+}
 if (view === "chat" && params.get("scroll") === "up") {
   // Scrolled back through the conversation, the way a wheel would: the jump-back button shows.
   await sleep(300);
