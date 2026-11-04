@@ -60,7 +60,7 @@ export async function offerHandoff(paneId: string, message?: string) {
     actions.push({ label: "Wait", run: () => {} });
     alertUser({
       kind: "limit",
-      key: `handoff:${paneId}`,
+      key: `offer:${from}:${paneId}`,
       paneId,
       title: `${from} hit its limit${reset ? ` · resets ${reset}` : ""}`,
       body: alts.length

@@ -87,6 +87,10 @@ export interface Config {
   /** Phone alerts through an ntfy topic (src/lib/push.ts). */
   push: { enabled: boolean; server: string; topic: string; detail: boolean };
   hud: { enabled: boolean };
+  /** Menu bar squid and streamer mode. `color` empty: follow the menu bar. */
+  tray: { enabled: boolean; animate: boolean; size: number; color: string; streamer: boolean };
+  /** Route chats through a local CLIProxyAPI hub. */
+  proxy: { enabled: boolean; port: number };
   discord: { enabled: boolean; clientId: string; hideProject: boolean };
   /** Account new Claude panes use when none is chosen; empty = ask. */
   defaultAccount: string;
@@ -354,6 +358,33 @@ export interface ChatUsage {
   contextWindow?: number | null;
 }
 
+export interface Identity {
+  name: string;
+  email?: string | null;
+  plan?: string | null;
+}
+
+export interface LedgerWindow {
+  id: "24h" | "7d" | "30d";
+  usd: number;
+  tokens: number;
+  models: { model: string; usd: number; tokens: number }[];
+  unpriced: string[];
+}
+
+export interface LedgerSummary {
+  windows: LedgerWindow[];
+  /** Epoch seconds of the price list; 0 when there is none. */
+  pricesAt: number;
+}
+
+export interface RealSpend {
+  provider: string;
+  /** USD over 1, 7 and 30 days. */
+  days: [number, number, number] | null;
+  note: string | null;
+}
+
 export const ipc = {
   ptySpawn(args: {
     paneId: string;
@@ -507,6 +538,14 @@ export const ipc = {
   /** Merges a clean worktree's branch into the main checkout; aborts on conflict. */
   gitMergeWorktree: (path: string) => invoke<string>("git_merge_worktree", { path }),
 
+  proxyStatus: () => invoke<{ installed: boolean; running: boolean; signedIn: boolean }>("proxy_status"),
+  proxyApply: () => invoke<void>("proxy_apply"),
+  proxyLogin: () => invoke<void>("proxy_login"),
+  trayAccounts: () => invoke<Identity[]>("tray_accounts"),
+  ledgerSummary: () => invoke<LedgerSummary>("ledger_summary"),
+  realSpend: () => invoke<RealSpend[]>("real_spend"),
+  spendKeySet: (provider: string, key: string) => invoke<void>("spend_key_set", { provider, key }),
+  spendKeyHas: (provider: string) => invoke<boolean>("spend_key_has", { provider }),
   fetchUsage: (account: string, force = false) => invoke<Usage | null>("fetch_usage", { account, force }),
 
   handoffPrepare: (transcriptPath: string, toAccount: string) =>

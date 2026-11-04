@@ -425,6 +425,7 @@ pub fn chat_spawn(
         .current_dir(&dir)
         .env_clear()
         .envs(vars)
+        .envs(crate::proxy::chat_env(&cfg))
         // Lets a turn's file changes be undone with `rewind_files` (chat_rewind).
         .env("CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING", "1")
         .stdin(Stdio::piped())
@@ -631,15 +632,34 @@ fn parent_of(text: &str, uuid: &str) -> Result<Option<String>, String> {
     let line = text
         .lines()
         .filter_map(|l| serde_json::from_str::<Value>(l).ok())
-        .find(|m| m["uuid"] == uuid)
+        .find(|m| m["uuid"] == uuid || m["attachment"]["source_uuid"] == uuid)
         .ok_or("that message isn't in the saved conversation yet")?;
     Ok(line["parentUuid"].as_str().map(String::from))
+}
+
+/// A message sent while Claude worked is saved as a `queued_command` attachment at the point
+/// Claude took it, not as a user line. Task notifications travel the same way and aren't messages.
+fn mid_turn_message(m: &Value) -> Option<Value> {
+    let a = &m["attachment"];
+    if m["type"] != "attachment" || a["type"] != "queued_command" || a["commandMode"] == "task-notification" {
+        return None;
+    }
+    let uuid = a["source_uuid"].as_str()?;
+    Some(json!({
+        "type": "user",
+        "uuid": uuid,
+        "parentUuid": m["parentUuid"],
+        "timestamp": m["timestamp"],
+        "isSidechain": m["isSidechain"],
+        "message": { "role": "user", "content": a["prompt"] },
+    }))
 }
 
 fn history_lines(text: &str, limit: usize) -> Vec<Value> {
     let mut lines: Vec<Value> = text
         .lines()
         .filter_map(|l| serde_json::from_str::<Value>(l).ok())
+        .filter_map(|m| mid_turn_message(&m).or(Some(m)))
         .filter(|m| matches!(m["type"].as_str(), Some("user" | "assistant")))
         // Subagent turns and injected context aren't part of the conversation shown.
         .filter(|m| m["isSidechain"] != true && m["isMeta"] != true)
@@ -744,6 +764,29 @@ mod tests {
         assert_eq!(u.cost_usd, 0.001);
         assert_eq!((u.context_tokens, u.context_window), (Some(28317), Some(1000000)));
         assert_eq!(ev[2], &ChatEvent::Status { status: Status::Idle });
+    }
+
+    // Trimmed from claude 2.1.316: a message sent mid-turn is saved as an attachment, not a user line.
+    const MID_TURN: &str = r#"{"type":"user","uuid":"u1","parentUuid":null,"message":{"role":"user","content":"first"}}
+{"type":"assistant","uuid":"a1","parentUuid":"u1","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Bash","input":{}}]}}
+{"type":"user","uuid":"r1","parentUuid":"a1","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"done"}]}}
+{"type":"attachment","uuid":"q1","parentUuid":"r1","timestamp":"2026-11-02T16:00:00.000Z","attachment":{"type":"queued_command","prompt":"also this","source_uuid":"sent-2"}}
+{"type":"attachment","uuid":"e1","parentUuid":"q1","attachment":{"type":"date","date":"2026-11-02"}}
+{"type":"assistant","uuid":"a2","parentUuid":"e1","message":{"role":"assistant","content":[{"type":"text","text":"answered both"}]}}"#;
+
+    #[test]
+    fn a_reopened_chat_keeps_a_mid_turn_message_where_claude_got_it() {
+        let got = history_lines(MID_TURN, 400);
+        let ids: Vec<_> = got.iter().map(|l| l["uuid"].as_str().unwrap()).collect();
+        assert_eq!(ids, ["u1", "a1", "r1", "sent-2", "a2"]);
+        assert_eq!(got[3]["type"], "user");
+        assert_eq!(got[3]["message"]["content"], "also this");
+        assert_eq!(got[3]["timestamp"], "2026-11-02T16:00:00.000Z");
+    }
+
+    #[test]
+    fn a_mid_turn_message_can_be_edited_like_any_other() {
+        assert_eq!(parent_of(MID_TURN, "sent-2").unwrap().as_deref(), Some("r1"));
     }
 
     #[test]

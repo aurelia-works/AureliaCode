@@ -12,6 +12,7 @@ import { applyPaletteVars } from "./lib/palettes";
 import { primeNotifications } from "./lib/notify";
 import { primeSounds } from "./lib/sounds";
 import { startHudBridge } from "./lib/hudBridge";
+import { startTrayIcon } from "./lib/trayIcon";
 import { startControl } from "./lib/control";
 import { startDispatchWatch } from "./lib/dispatch";
 import { startOutbox } from "./lib/outbox";
@@ -127,6 +128,7 @@ async function boot() {
   primeNotifications();
   primeSounds();
   startHudBridge().catch(() => {});
+  startTrayIcon();
   startRemote().catch(() => {});
   startOutbox();
   startChains();

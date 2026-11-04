@@ -3,8 +3,39 @@ import { shortenPath } from "../../lib/format";
 import { ipc } from "../../lib/ipc";
 import { notify as banner } from "../../lib/notify";
 import { newTopic, pushTest } from "../../lib/push";
+import type { AlertPrefs } from "../../lib/prefs";
 import { playSound, SOUND_DEFAULTS, SOUND_EVENTS, SOUNDS, type SoundEvent } from "../../lib/sounds";
+import { useUi } from "../../store/ui";
 import type { SectionProps } from "./registry";
+
+const ALERTS: { id: keyof AlertPrefs; label: string }[] = [
+  { id: "finished", label: "A thread finished" },
+  { id: "needs_input", label: "A thread needs input" },
+  { id: "context", label: "Context nearly full" },
+  { id: "cache", label: "Prompt cache cooling or cold" },
+  { id: "burn", label: "Burning tokens fast" },
+  { id: "limit", label: "Usage limit close or reached" },
+];
+
+function AlertSwitches() {
+  const prefs = useUi((s) => s.prefs);
+  return (
+    <section className="set-group">
+      <h3>What alerts you</h3>
+      <p className="hint">Permission prompts and errors always come through.</p>
+      {ALERTS.map((a) => (
+        <label className="field check" key={a.id}>
+          <input
+            type="checkbox"
+            checked={prefs.alerts[a.id]}
+            onChange={(e) => useUi.getState().set({ prefs: { ...prefs, alerts: { ...prefs.alerts, [a.id]: e.target.checked } } })}
+          />
+          <span>{a.label}</span>
+        </label>
+      ))}
+    </section>
+  );
+}
 
 function SoundPick({ value, volume, onChange }: { value: string; volume: number; onChange(id: string): void }) {
   return (
@@ -36,6 +67,7 @@ export function SoundsSection({ draft, update, notify }: SectionProps) {
 
   return (
     <>
+      <AlertSwitches />
       <section className="set-group">
         <h3>Alert sounds</h3>
         <label className="field check">

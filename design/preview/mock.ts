@@ -197,6 +197,19 @@ const layout = {
 };
 
 // Agent view: label a few preview panes as saved agents, so the live list shows chips.
+if (view === "tray") {
+  const { createElement } = await import("react");
+  const { createRoot } = await import("react-dom/client");
+  await import("../../src/tray/tray.css");
+  const { Tray } = await import("../../src/tray/Tray.tsx");
+  const host = document.createElement("div");
+  host.style.cssText = "position:fixed;inset:0;z-index:70;background:#3a4a5c;padding:24px;";
+  const inner = document.createElement("div");
+  inner.style.cssText = "width:320px;";
+  host.append(inner);
+  document.body.append(host);
+  createRoot(inner).render(createElement(Tray));
+}
 if (view === "agentview") {
   Object.assign(layout.panes.p1, { customAgent: "ag1" });
   Object.assign(layout.panes.p2, { customAgent: "ag2" });
@@ -216,6 +229,10 @@ const config = {
   palette: params.get("palette") ?? "aurelia",
   notifications: true,
   hud: { enabled: false },
+  sounds: { enabled: true, volume: 60, events: {}, projects: {} },
+  push: { enabled: false, server: "", topic: "", detail: false },
+  proxy: { enabled: false, port: 8317 },
+  tray: { enabled: true, animate: false, size: 18, color: "", streamer: params.get("streamer") === "1" },
   discord: { enabled: false, clientId: "", hideProject: false },
   defaultAccount: "claude",
   // ?setup=1 shows the one-time setup on the start screen.
@@ -410,6 +427,32 @@ mockWindows("main");
 mockIPC(
   (cmd, args: any) => {
     switch (cmd) {
+      case "proxy_status":
+        return { installed: true, running: false, signedIn: false };
+      case "tray_accounts":
+        return [
+          { name: "a", email: "jah@aurelia.space", plan: "Max 5x" },
+          { name: "b", email: "studio@aurelia.space", plan: "Max 20x" },
+        ];
+      case "ledger_summary": {
+        const win = (id: string, f: number) => ({
+          id,
+          usd: 41.27 * f,
+          tokens: 58_400_000 * f,
+          models: [
+            { model: "opus-5-5", usd: 33.12 * f, tokens: 41_000_000 * f },
+            { model: "sonnet-5-5", usd: 7.9 * f, tokens: 16_000_000 * f },
+            { model: "haiku-5-5", usd: 0.25 * f, tokens: 1_400_000 * f },
+          ],
+          unpriced: [],
+        });
+        return { windows: [win("24h", 0.2), win("7d", 1), win("30d", 3.4)], pricesAt: Date.now() / 1000 };
+      }
+      case "real_spend":
+        return [
+          { provider: "anthropic", days: null, note: "no key" },
+          { provider: "openai", days: [0.4, 2.1, 9.8], note: null },
+        ];
       case "remote_status":
       case "remote_unpair":
       case "remote_reset_token":
@@ -612,7 +655,7 @@ useAgents.setState((s) => ({
   ),
 }));
 const m = (contextPct: number, totalTokens: number, costUsd: number, hot = false) => ({
-  contextTokens: contextPct * 2000, contextPct, totalTokens, costUsd, tokensPerMin: hot ? 180_000 : 20_000, hot, updatedAt: Date.now(),
+  contextTokens: contextPct * 2000, contextAt: Date.now(), totalTokens, costUsd, tokensPerMin: hot ? 180_000 : 20_000, hot, updatedAt: Date.now(),
 });
 useMetrics.setState({
   byPane: { p1: m(38, 412_000, 1.84), p2: m(57, 903_000, 3.12), p3: m(22, 188_000, 0.71), p4: m(88, 2_410_000, 7.9, true), p5: m(31, 260_000, 0.95), p8: m(9, 41_000, 0.12) },

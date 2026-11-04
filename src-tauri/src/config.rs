@@ -243,6 +243,41 @@ pub struct HudConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
+pub struct ProxyConfig {
+    /// Route chats through a local CLIProxyAPI hub (src-tauri/src/proxy.rs).
+    pub enabled: bool,
+    pub port: u16,
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self { enabled: false, port: 8317 }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TrayConfig {
+    /// The menu bar squid.
+    pub enabled: bool,
+    /// Sway while a thread is working.
+    pub animate: bool,
+    /// Points, 14-22.
+    pub size: u32,
+    /// `#rrggbb`, or empty to follow the menu bar (a template icon).
+    pub color: String,
+    /// Streamer mode: account details blurred until hovered 3 s or clicked.
+    pub streamer: bool,
+}
+
+impl Default for TrayConfig {
+    fn default() -> Self {
+        Self { enabled: true, animate: false, size: 18, color: String::new(), streamer: false }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
 pub struct SoundsConfig {
     /// Alert sounds play from inside the app, so macOS Focus doesn't mute them.
     pub enabled: bool,
@@ -390,6 +425,8 @@ pub struct Config {
     pub cache: CacheConfig,
     pub voice: VoiceConfig,
     pub hud: HudConfig,
+    pub tray: TrayConfig,
+    pub proxy: ProxyConfig,
     pub discord: DiscordConfig,
     /// Account new Claude panes use when none is chosen; empty = ask.
     pub default_account: String,
@@ -446,6 +483,8 @@ impl Default for Config {
             cache: CacheConfig::default(),
             voice: VoiceConfig::default(),
             hud: HudConfig::default(),
+            tray: TrayConfig::default(),
+            proxy: ProxyConfig::default(),
             discord: DiscordConfig::default(),
             default_account: String::new(),
             workspace_accounts: Default::default(),

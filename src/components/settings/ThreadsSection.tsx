@@ -35,7 +35,7 @@ export function ThreadsSection() {
       <p className="hint">Each switch hides a feature without removing it. Changes apply straight away.</p>
       {SWITCHES.map((s) => (
         <label key={s.key} className="field check">
-          <input type="checkbox" checked={prefs[s.key]} onChange={(e) => set({ [s.key]: e.target.checked })} />
+          <input type="checkbox" checked={prefs[s.key] as boolean} onChange={(e) => set({ [s.key]: e.target.checked })} />
           <span>
             {s.label}
             {s.hint && <span className="hint inline"> · {s.hint}</span>}

@@ -10,6 +10,8 @@ mod files;
 mod git;
 mod handoff;
 mod hud;
+mod ledger;
+mod spend;
 mod ide;
 mod integration;
 mod orchestrator;
@@ -23,6 +25,7 @@ pub mod panic_log;
 mod privacy;
 mod pr;
 mod pty;
+mod proxy;
 mod ptyhost;
 mod remote;
 mod rules;
@@ -30,6 +33,7 @@ mod review;
 mod store;
 mod subagents;
 mod suggest;
+mod tray;
 mod transcript;
 mod usage;
 mod voice;
@@ -169,7 +173,11 @@ pub fn run() {
             voice::listen(app.handle().clone());
             remote::init(app.handle());
             control::start(app.handle().clone());
+            proxy::setup();
             app.set_menu(build_menu(app.handle())?)?;
+            if let Err(e) = tray::setup(app.handle()) {
+                eprintln!("[aurelia] menu bar icon: {e}");
+            }
             app.on_menu_event(|app, event| {
                 if event.id() == "settings" {
                     let _ = app.emit("menu-settings", ());
@@ -266,6 +274,18 @@ pub fn run() {
             checkpoints::checkpoint_list,
             checkpoints::checkpoint_restore,
             usage::fetch_usage,
+            ledger::ledger_summary,
+            proxy::proxy_status,
+            proxy::proxy_apply,
+            proxy::proxy_login,
+            tray::tray_set_icon,
+            tray::tray_visible,
+            tray::tray_resize,
+            tray::tray_open_main,
+            tray::tray_accounts,
+            spend::real_spend,
+            spend::spend_key_set,
+            spend::spend_key_has,
             hud::hud_show,
             hud::hud_hide,
             hud::hud_resize,
@@ -312,6 +332,11 @@ pub fn run() {
                 }
             }
         }
+        if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Focused(false), .. } = &event {
+            if label == "tray" {
+                tray::on_blur(handle);
+            }
+        }
         if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } = &event {
             if label == "main" {
                 hud::close(handle);
@@ -327,6 +352,7 @@ pub fn run() {
         if let RunEvent::Exit = event {
             pty::kill_all(&handle.state::<pty::PtyState>());
             chat::kill_all(&handle.state::<chat::ChatState>());
+            proxy::shutdown();
             voice::cleanup();
         }
     });

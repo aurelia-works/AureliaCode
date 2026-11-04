@@ -18,7 +18,7 @@ Estimates are agent time and rough tokens (from PLAN-T3 actuals: about 60-75 min
 | --- | --- | --- | --- | --- | --- |
 | 0 | Research + plan | 30-45 min | scout 4.7 min, 103k tok; main session not measured | Haiku scout + Opus | done, approved 2026-11-02 |
 | 1 | Rename, move, re-sign; terminal out; chat-first window with working select/copy | 2-3 h, ~3-4M tok | | Sonnet 5.5 medium | todo |
-| 2 | Squid menubar: account, usage, spend, providers, privacy blur; CLIProxyAPI (Claude routed, risk accepted); notification accuracy | 2.5-3.5 h, ~3-4M tok | | Opus 5.5 medium | todo |
+| 2 | Squid menubar: account, usage, spend, providers, privacy blur; CLIProxyAPI (Claude routed, risk accepted); notification accuracy | 2.5-3.5 h, ~3-4M tok | | Opus 5.5 medium | done 2026-11-02; Jah-only left: real Admin keys, CLIProxyAPI sign-in/routed turn, notification choices (see HANDOFF.md) |
 | 3 | Grok Bot-style features Jah picks from the teardown | 1-3 h (depends on picks) | | Sonnet 5.5 medium | todo |
 
 Phase 1 and 2 are each near the one-thread limit; if one runs long it stops and is marked "part done".

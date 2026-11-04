@@ -55,6 +55,8 @@ export interface ChatSession {
   style?: string;
   /** What fills the context window, from the CLI's own count; refreshed after each turn. */
   context?: ContextUsage;
+  /** When that count came. */
+  contextAt?: number;
   /** What auto model / auto effort last chose, and why (shown on the pickers). */
   auto?: { model?: { pick: string; why: string }; effort?: { pick?: string; why: string } };
 }
@@ -91,6 +93,8 @@ function reduce(paneId: string, s: ChatSession, ev: ChatEvent): ChatSession {
       // The CLI's echo of a message it took (often mid-turn): it leaves the queue now.
       const taken = takeReplay(s.transcript, s.queued, ev.msg);
       if (taken) return { ...s, ...taken };
+      // Compaction happens without a turn ending; the number falls now, not at the next request.
+      if (ev.msg.type === "system" && ev.msg.subtype === "compact_boundary") void refreshContext(paneId);
       return { ...s, transcript: applyLine(s.transcript, ev.msg), model: reportedModel(ev.msg) ?? s.model, mode: reportedMode(paneId, ev.msg) ?? s.mode };
     }
     case "controlError":
@@ -442,7 +446,7 @@ export async function refreshContext(paneId: string) {
   contextLoading.add(paneId);
   try {
     const context = await ipc.chatContextUsage(paneId);
-    patch(paneId, (s) => ({ ...s, context }));
+    patch(paneId, (s) => ({ ...s, context, contextAt: Date.now() }));
   } catch {
     // An older CLI, or the chat stopped: the ring falls back to the last turn's usage.
   } finally {

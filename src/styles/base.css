@@ -768,3 +768,17 @@ input[type="checkbox"] {
     transform: translateY(6px);
   }
 }
+
+/* Streamer mode: account details stay blurred until 3 s under the pointer, or a click. */
+.private {
+  filter: blur(5px);
+  transition: filter 0.3s ease;
+  cursor: pointer;
+}
+.private:hover {
+  filter: blur(0);
+  transition: filter 1.2s ease 3s;
+}
+.private.shown {
+  filter: none;
+}

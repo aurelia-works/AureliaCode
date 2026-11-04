@@ -5,7 +5,7 @@ import { answerPermission, permissionOptions, type PermissionChoice } from "../l
 import { sendPrompt } from "../lib/effort";
 import { riskOf } from "../lib/risk";
 import { useAgents } from "../store/agents";
-import { useMetrics } from "../store/metrics";
+import { useMetrics, usePaneContext } from "../store/metrics";
 import { useNotices } from "../store/notifications";
 import { toast } from "../store/ui";
 import { ReplyIcon } from "./Icons";
@@ -68,14 +68,20 @@ export function PermissionButtons({ paneId, keys }: { paneId: string; keys?: boo
 /** Context bar, tokens and cost; a hot marker with a hand-off button when burning fast. */
 export function MetricsLine({ paneId }: { paneId: string }) {
   const m = useMetrics((s) => s.byPane[paneId]);
+  const fill = usePaneContext(paneId);
   if (!m || (!m.totalTokens && !m.contextTokens)) return null;
-  const level = m.contextPct > 85 ? "hot" : m.contextPct > 65 ? "warn" : "";
+  const pct = fill?.pct;
+  const level = pct === undefined ? "" : pct > 85 ? "hot" : pct > 65 ? "warn" : "";
   return (
     <span className="metrics-line">
-      <span className="ctx-bar" title={`Context ${formatTokens(m.contextTokens)} (${Math.round(m.contextPct)}%)`}>
-        <span className={`ctx-fill ${level}`} style={{ width: `${m.contextPct}%` }} />
-      </span>
-      <span>{Math.round(m.contextPct)}%</span>
+      {pct !== undefined && fill && (
+        <>
+          <span className="ctx-bar" title={`Context ${formatTokens(fill.tokens)} (${Math.round(pct)}%)`}>
+            <span className={`ctx-fill ${level}`} style={{ width: `${pct}%` }} />
+          </span>
+          <span>{Math.round(pct)}%</span>
+        </>
+      )}
       <span title="Input + output, cache included">{formatTokens(m.totalTokens)}</span>
       <span title="Estimated at API prices">{formatCost(m.costUsd)}</span>
       {m.hot && (

@@ -15,6 +15,7 @@ import { cyclePermissionMode, MODES, modeKey } from "../lib/permissionMode";
 import { riskOf } from "../lib/risk";
 import { CHAT_FIND } from "../lib/shortcuts";
 import { focusedPaneId, useLayout } from "../store/layout";
+import { usePaneContext } from "../store/metrics";
 import { toggleStash } from "../lib/stash";
 import { composerEnter, followUpAction } from "../lib/threadTools";
 import { toast, useUi } from "../store/ui";
@@ -1825,9 +1826,10 @@ function ContextRing({ paneId }: { paneId: string }) {
   }, [open, paneId]);
 
   const ctx = s?.context;
-  const used = ctx?.totalTokens ?? s?.last?.contextTokens ?? 0;
-  const size = ctx?.maxTokens ?? s?.last?.contextWindow ?? 0;
-  const pct = used && size ? Math.min(100, Math.round((used / size) * 100)) : 0;
+  const fill = usePaneContext(paneId);
+  const used = fill?.tokens ?? 0;
+  const size = fill?.window ?? 0;
+  const pct = Math.round(fill?.pct ?? 0);
   const r = 7;
   const c = 2 * Math.PI * r;
   const label = size ? `Context: ${formatTokens(used)} of ${formatTokens(size)} (${pct}%)` : "Context";

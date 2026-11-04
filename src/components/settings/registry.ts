@@ -11,6 +11,7 @@ import { EffortSection } from "./EffortSection";
 import { GeneralSection } from "./GeneralSection";
 import { HudSection } from "./HudSection";
 import { IntegrationsSection } from "./IntegrationsSection";
+import { MenubarSection } from "./MenubarSection";
 import { MyAgentsSection } from "./MyAgentsSection";
 import { RemoteSection } from "./RemoteSection";
 import { RoutinesSection } from "./RoutinesSection";
@@ -63,6 +64,7 @@ export const SECTIONS: SettingsSection[] = [
   { id: "planner", label: "Planner", group: "Workspace", keywords: "goals habits signals briefing roadmap weekly", Component: PlannerSection },
   { id: "remote", label: "Remote", group: "Connections", keywords: "phone tailscale port lan", Component: RemoteSection },
   { id: "hud", label: "HUD", group: "Connections", keywords: "hud overlay", Component: HudSection },
+  { id: "menubar", label: "Menu bar", group: "Connections", keywords: "tray squid menubar spend bill streamer blur privacy admin key", Component: MenubarSection },
   { id: "integrations", label: "Integrations", group: "Connections", keywords: "discord push ntfy", Component: IntegrationsSection },
   { id: "voice", label: "Voice", group: "Connections", keywords: "dictation microphone cleanup", Component: VoiceSection },
   { id: "shortcuts", label: "Shortcuts", group: "System", keywords: "keys keyboard", Component: ShortcutsSection },

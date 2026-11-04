@@ -8,6 +8,7 @@ import { ipc } from "../lib/ipc";
 import { useAgents } from "../store/agents";
 import { paneDir, useGit } from "../store/git";
 import { paneIds, useLayout } from "../store/layout";
+import { usePaneContext } from "../store/metrics";
 import { setBabysit, usePrs } from "../store/prs";
 import { toast, useUi } from "../store/ui";
 import { stateLabel, visualOf } from "./StatusGlyph";
@@ -92,6 +93,7 @@ export function DetailsPanel() {
   const pane = useLayout((s) => (paneId ? s.panes[paneId] : undefined));
   const agent = useAgents((s) => (paneId ? s.sessions[paneId] : undefined));
   const chat = useChat((s) => (paneId ? s.byPane[paneId] : undefined));
+  const fill = usePaneContext(paneId ?? "");
   const dir = paneId ? paneDir(paneId) : undefined;
   const git = useGit((s) => (dir ? s.info[dir] : undefined));
   const pr = usePrs((s) => (dir ? s.byDir[dir] : undefined));
@@ -118,12 +120,12 @@ export function DetailsPanel() {
           {pane.account && <Row label="Account">{pane.account}</Row>}
           {(chat?.model || pane.chatModel) && <Row label="Model">{chat?.model ?? pane.chatModel}</Row>}
           {(agent?.permissionMode || chat?.mode) && <Row label="Mode">{MODES[modeKey(chat?.mode ?? agent?.permissionMode)]?.label ?? chat?.mode ?? agent?.permissionMode}</Row>}
-          {chat?.context && (
-            <Row label="Context" title={`${formatTokens(chat.context.totalTokens)} of ${formatTokens(chat.context.maxTokens)}`}>
+          {fill && (
+            <Row label="Context" title={`${formatTokens(fill.tokens)} of ${formatTokens(fill.window)}`}>
               <span className="detail-meter">
-                <span style={{ width: `${Math.min(100, chat.context.percentage)}%` }} />
+                <span style={{ width: `${fill.pct}%` }} />
               </span>
-              {Math.round(chat.context.percentage)}%
+              {Math.round(fill.pct)}%
             </Row>
           )}
           {!!tokens && <Row label="Tokens">{formatTokens(tokens)}</Row>}

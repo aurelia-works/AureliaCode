@@ -1,0 +1,147 @@
+/* Menu bar popover: the window is transparent, the panel supplies the shape. */
+html,
+body,
+#root {
+  background: transparent;
+  overflow: hidden;
+  height: auto;
+  min-height: 0;
+}
+
+.tray-panel {
+  background: color-mix(in srgb, var(--chrome) 96%, transparent);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  font-size: 12px;
+  color: var(--text);
+  cursor: default;
+  user-select: none;
+}
+.tray-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 10px 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.tray-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+}
+.tray-seg {
+  display: flex;
+  gap: 1px;
+}
+.tray-seg button {
+  padding: 2px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-dim);
+  font: inherit;
+  font-size: 11px;
+}
+.tray-seg button.on {
+  background: var(--border-strong);
+  color: var(--text);
+}
+.tray-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.tray-account + .tray-account {
+  margin-top: 6px;
+}
+.tray-who {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.tray-plan {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.tray-meter {
+  display: grid;
+  grid-template-columns: 18px 1fr 30px 48px;
+  align-items: center;
+  gap: 6px;
+  height: 16px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.tray-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  overflow: hidden;
+}
+.tray-bar span {
+  display: block;
+  height: 100%;
+  background: var(--text-dim);
+}
+.tray-bar span.hot {
+  background: var(--attn);
+}
+.tray-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.tray-reset {
+  color: var(--text-faint);
+  text-align: right;
+}
+.tray-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.tray-row.sub {
+  padding-left: 10px;
+  color: var(--text-dim);
+  font-size: 11px;
+}
+.tray-row .num,
+.tray-total b {
+  font-variant-numeric: tabular-nums;
+}
+.tray-total {
+  font-size: 13px;
+}
+.tray-label {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.tray-off {
+  color: var(--text-faint);
+}
+.tray-note {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.tray-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px 7px 12px;
+  color: var(--text-faint);
+  font-size: 11px;
+}
+.tray-foot button {
+  padding: 3px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+}
