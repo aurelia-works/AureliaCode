@@ -10,7 +10,7 @@ export const CORE_VIEWS: PreviewView[] = ["threads", "chat", "start", "settings"
 /** Every view the harness knows, in the order screenshots are listed. */
 export const ALL_VIEWS: PreviewView[] = [
   "threads", "threads&single=1", "threads&rail=changes", "threads&nav=right", "chat", "chat&attach=1", "chat&goal=1", "chat&goal=dialog", "start", "board", "work", "review",
-  "settings", "settings&section=accounts", "palette", "files", "terminals", "permissions", "commit",
+  "settings", "settings&section=accounts", "settings&section=providers", "palette", "files", "terminals", "permissions", "commit",
   "history", "agentview", "tray", "weekly", "roadmap",
 ];
 
@@ -30,6 +30,7 @@ const RULES: [RegExp, PreviewView[]][] = [
   [/^src\/components\/WorkBoard\.tsx$|^src\/lib\/work\.ts$/, ["work"]],
   [/^src\/components\/DiffReview\.tsx$/, ["review"]],
   [/^src\/components\/(AccountPicker|AccountSwitch)\.tsx$|^src\/components\/settings\/AccountsSection\.tsx$/, ["settings&section=accounts"]],
+  [/^src\/components\/settings\/ProvidersSection\.tsx$|^src\/lib\/providers\.ts$|^src\/store\/providers\.ts$/, ["settings&section=providers", "chat"]],
   [/^src\/components\/settings\//, ["settings"]],
   [/^src\/components\/CommandPalette\.tsx$/, ["palette"]],
   [/^src\/components\/(FilesPanel|EditorPane|SearchPanel|ProblemsPanel)\.tsx$/, ["files"]],
