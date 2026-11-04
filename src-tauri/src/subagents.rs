@@ -33,19 +33,19 @@ output in the task or `context`. Mode is read-only unless you pass mode \"write\
 edits and review its changes (git diff) before relying on them. Keep decisions that need this conversation's history.";
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-enum Mode {
+pub(crate) enum Mode {
     Read,
     Write,
 }
 
 #[derive(Debug)]
-struct Job {
-    tasks: Vec<String>,
-    context: Option<String>,
-    mode: Mode,
-    files: Vec<String>,
-    effort: Option<&'static str>,
-    session: Option<String>,
+pub(crate) struct Job {
+    pub tasks: Vec<String>,
+    pub context: Option<String>,
+    pub mode: Mode,
+    pub files: Vec<String>,
+    pub effort: Option<&'static str>,
+    pub session: Option<String>,
 }
 
 fn tool_schema() -> Value {
@@ -127,7 +127,7 @@ fn parse_job(args: &Value) -> Result<Job, String> {
 
 /// The first message. Custom agent prompts aren't applied by `opencode run`, so the
 /// subagent's brief travels with the task.
-fn prompt(job: &Job, cwd: &str) -> String {
+pub(crate) fn prompt(job: &Job, cwd: &str) -> String {
     let mut p = format!(
         "You are a subagent for another coding agent, which reads only your final message. Work in {cwd}.\n{}\n\
 Finish with a short report: what you found or changed, with file:line references. No preamble, no offers of further help.\n",
@@ -175,7 +175,7 @@ fn model_for(model: &str, effort: Option<&str>) -> String {
     }
 }
 
-fn command(bin: &Path, model: &str, job: &Job, cwd: &str) -> Command {
+pub(crate) fn command(bin: &Path, model: &str, job: &Job, cwd: &str) -> Command {
     let mut cmd = Command::new(bin);
     cmd.args(["run", "--standalone", "--format", "json", "-m"])
         .arg(model_for(model, job.effort))
@@ -206,24 +206,41 @@ fn command(bin: &Path, model: &str, job: &Job, cwd: &str) -> Command {
 
 /// Ends an agent and everything it started: a shell command left running would keep
 /// the output pipe open and the report would never finish.
-fn stop(child: &mut Child) {
+pub(crate) fn stop(child: &mut Child) {
     let _ = Command::new("/bin/kill").args(["-KILL", &format!("-{}", child.id())]).status();
     let _ = child.kill();
 }
 
-/// What the agent did, folded from `opencode run --format json` events.
+/// Which CLI's event stream a report reads.
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub(crate) enum Kind {
+    /// `opencode run --format json`.
+    #[default]
+    OpenCode,
+    /// `claude -p --output-format stream-json --verbose`.
+    Claude,
+    /// `grok -p --output-format streaming-json`.
+    Grok,
+}
+
+/// What the agent did, folded from its CLI's JSON event lines.
 #[derive(Default, Debug)]
-struct Report {
+pub(crate) struct Report {
+    pub kind: Kind,
     /// The agent's folder; paths under it are shown relative.
-    root: String,
-    session: Option<String>,
+    pub root: String,
+    pub session: Option<String>,
     /// Text of the latest assistant message: its final answer once the run ends.
     message: Option<String>,
-    text: String,
-    tools: usize,
-    changed: Vec<String>,
-    blocked: Vec<String>,
-    error: Option<String>,
+    pub text: String,
+    pub tools: usize,
+    pub changed: Vec<String>,
+    pub blocked: Vec<String>,
+    pub error: Option<String>,
+    /// Edits not yet known to have worked, by tool call id (Claude, Grok).
+    pending: HashMap<String, String>,
+    /// Grok's text since the last response boundary.
+    cur: String,
 }
 
 fn relative<'a>(path: &'a str, root: &str) -> &'a str {
@@ -241,9 +258,28 @@ fn tool_summary(tool: &str, input: &Value, root: &str) -> String {
 }
 
 impl Report {
-    /// Folds one event line; returns a progress note for a finished tool call.
-    fn fold(&mut self, line: &str) -> Option<String> {
+    pub(crate) fn new(kind: Kind, root: &str) -> Report {
+        Report { kind, root: root.to_string(), ..Default::default() }
+    }
+
+    /// Folds one event line; returns a progress note for a tool call.
+    pub(crate) fn fold(&mut self, line: &str) -> Option<String> {
         let ev: Value = serde_json::from_str(line.trim()).ok()?;
+        match self.kind {
+            Kind::OpenCode => self.fold_opencode(&ev),
+            Kind::Claude => self.fold_claude(&ev),
+            Kind::Grok => self.fold_grok(&ev),
+        }
+    }
+
+    fn changed_file(&mut self, path: &str) {
+        let p = relative(path, &self.root).to_string();
+        if !self.changed.contains(&p) {
+            self.changed.push(p);
+        }
+    }
+
+    fn fold_opencode(&mut self, ev: &Value) -> Option<String> {
         if let Some(s) = ev["sessionID"].as_str() {
             self.session.get_or_insert_with(|| s.to_string());
         }
@@ -272,10 +308,7 @@ impl Report {
                 match state["status"].as_str() {
                     Some("completed") if matches!(tool, "edit" | "write" | "patch") => {
                         if let Some(p) = ["path", "filePath"].iter().find_map(|k| state["input"][*k].as_str()) {
-                            let p = relative(p, &self.root);
-                            if !self.changed.iter().any(|c| c == p) {
-                                self.changed.push(p.to_string());
-                            }
+                            self.changed_file(p);
                         }
                     }
                     Some("error") if state["error"].as_str().is_some_and(|e| e.contains("Permission denied")) => {
@@ -293,21 +326,166 @@ impl Report {
             _ => None,
         }
     }
+
+    /// Claude Code's stream-json: assistant messages carry text and tool_use blocks, the
+    /// next user message their results, and a closing `result` event the final answer.
+    fn fold_claude(&mut self, ev: &Value) -> Option<String> {
+        if let Some(s) = ev["session_id"].as_str() {
+            self.session.get_or_insert_with(|| s.to_string());
+        }
+        match ev["type"].as_str()? {
+            "assistant" => {
+                let msg = ev["message"]["id"].as_str().map(String::from);
+                let mut note = None;
+                for block in ev["message"]["content"].as_array()? {
+                    match block["type"].as_str() {
+                        Some("text") => {
+                            if msg != self.message {
+                                self.message = msg.clone();
+                                self.text.clear();
+                            }
+                            let t = block["text"].as_str().unwrap_or("").trim();
+                            if !t.is_empty() {
+                                if !self.text.is_empty() {
+                                    self.text.push_str("\n\n");
+                                }
+                                self.text.push_str(t);
+                            }
+                        }
+                        Some("tool_use") => {
+                            let name = block["name"].as_str().unwrap_or("tool");
+                            let input = &block["input"];
+                            self.tools += 1;
+                            if matches!(name, "Edit" | "Write" | "MultiEdit" | "NotebookEdit") {
+                                if let (Some(id), Some(p)) = (block["id"].as_str(), input["file_path"].as_str().or(input["notebook_path"].as_str())) {
+                                    self.pending.insert(id.to_string(), p.to_string());
+                                }
+                            }
+                            let arg = ["file_path", "command", "pattern", "path"].iter().find_map(|k| input[*k].as_str()).unwrap_or("");
+                            note = Some(tool_summary(name, &json!({ "path": arg }), &self.root));
+                        }
+                        _ => {}
+                    }
+                }
+                note
+            }
+            "user" => {
+                for block in ev["message"]["content"].as_array()? {
+                    if block["type"].as_str() != Some("tool_result") {
+                        continue;
+                    }
+                    let Some(path) = block["tool_use_id"].as_str().and_then(|id| self.pending.remove(id)) else { continue };
+                    if block["is_error"].as_bool() != Some(true) {
+                        self.changed_file(&path);
+                    }
+                }
+                None
+            }
+            "result" => {
+                if let Some(r) = ev["result"].as_str().map(str::trim).filter(|r| !r.is_empty()) {
+                    self.text = r.to_string();
+                }
+                for d in ev["permission_denials"].as_array().into_iter().flatten() {
+                    let input = &d["tool_input"];
+                    let arg = ["file_path", "command"].iter().find_map(|k| input[*k].as_str()).unwrap_or("");
+                    self.blocked.push(tool_summary(d["tool_name"].as_str().unwrap_or("tool"), &json!({ "path": arg }), &self.root));
+                }
+                if ev["is_error"].as_bool() == Some(true) {
+                    let sub = ev["subtype"].as_str().unwrap_or("error");
+                    self.error = Some(if sub == "success" { "the run ended with an error".into() } else { sub.replace('_', " ") });
+                }
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// Grok's streaming-json: `text` chunks, `tool_call` / `tool_call_update` by id, a
+    /// `usage` line after each model response, `end` last (or `error`).
+    fn fold_grok(&mut self, ev: &Value) -> Option<String> {
+        match ev["type"].as_str()? {
+            "text" => {
+                self.cur.push_str(ev["data"].as_str().unwrap_or(""));
+                None
+            }
+            "usage" => {
+                self.settle_grok_text();
+                None
+            }
+            "tool_call" => {
+                self.settle_grok_text();
+                let name = ev["toolName"].as_str().or(ev["title"].as_str()).unwrap_or("tool");
+                let input = &ev["rawInput"];
+                self.tools += 1;
+                let path = ["path", "file_path", "filePath", "target_file"].iter().find_map(|k| input[*k].as_str());
+                if ev["kind"].as_str() == Some("edit") {
+                    if let (Some(id), Some(p)) = (ev["toolCallId"].as_str(), path) {
+                        self.pending.insert(id.to_string(), p.to_string());
+                    }
+                }
+                let arg = path.or(input["command"].as_str()).or(input["pattern"].as_str()).unwrap_or("");
+                Some(tool_summary(name, &json!({ "path": arg }), &self.root))
+            }
+            "tool_call_update" => {
+                let id = ev["toolCallId"].as_str().unwrap_or("");
+                match ev["status"].as_str() {
+                    Some("completed") => {
+                        if let Some(p) = self.pending.remove(id) {
+                            self.changed_file(&p);
+                        }
+                    }
+                    Some("failed") => {
+                        self.pending.remove(id);
+                    }
+                    _ => {}
+                }
+                None
+            }
+            "end" => {
+                self.settle_grok_text();
+                if let Some(s) = ev["sessionId"].as_str() {
+                    self.session = Some(s.to_string());
+                }
+                if let Some(r) = ev["stopReason"].as_str().filter(|r| !matches!(*r, "end_turn" | "")) {
+                    self.error.get_or_insert_with(|| format!("stopped: {}", r.replace('_', " ")));
+                }
+                None
+            }
+            "error" => {
+                self.error = Some(ev["message"].as_str().unwrap_or("unknown error").to_string());
+                None
+            }
+            _ => None,
+        }
+    }
+
+    /// The text of a finished Grok response becomes the latest answer.
+    fn settle_grok_text(&mut self) {
+        let t = self.cur.trim();
+        if !t.is_empty() {
+            self.text = t.to_string();
+        }
+        self.cur.clear();
+    }
 }
 
-struct Outcome {
-    report: Report,
-    elapsed: Duration,
-    timed_out: bool,
-    exit_ok: bool,
-    stderr: String,
+pub(crate) struct Outcome {
+    /// The CLI that ran: "opencode", "claude", "grok".
+    pub program: String,
+    pub report: Report,
+    pub elapsed: Duration,
+    pub timed_out: bool,
+    pub exit_ok: bool,
+    pub stderr: String,
 }
 
-fn render(o: &Outcome, model: &str, mode: Mode) -> (String, bool) {
+/// The report plus a footer line (`<who> agent · model · mode · N tool calls · Ns`), which
+/// the chat's delegation card reads back (src/lib/delegation.ts).
+pub(crate) fn render(o: &Outcome, who: &str, model: &str, mode: Mode) -> (String, bool) {
     let r = &o.report;
     let mut out = if r.text.is_empty() { "(The agent returned no report.)".to_string() } else { r.text.clone() };
     out.push_str(&format!(
-        "\n\n---\nDeepSeek agent · {model} · {} · {} tool call{} · {:.1}s",
+        "\n\n---\n{who} agent · {model} · {} · {} tool call{} · {:.1}s",
         if mode == Mode::Write { "write" } else { "read-only" },
         r.tools,
         if r.tools == 1 { "" } else { "s" },
@@ -328,21 +506,24 @@ fn render(o: &Outcome, model: &str, mode: Mode) -> (String, bool) {
     } else if let Some(e) = &r.error {
         out.push_str(&format!("\nStopped: {e}"));
     } else if !o.exit_ok {
-        out.push_str("\nStopped: opencode exited with an error.");
+        out.push_str(&format!("\nStopped: {} exited with an error.", o.program));
     }
     if failed && !o.stderr.is_empty() {
-        out.push_str(&format!("\nopencode said:\n{}", o.stderr));
+        out.push_str(&format!("\n{} said:\n{}", o.program, o.stderr));
     }
     (out, failed && r.text.is_empty())
 }
 
-type Running = Arc<Mutex<HashMap<String, Arc<Mutex<Child>>>>>;
+pub(crate) type Running = Arc<Mutex<HashMap<String, Arc<Mutex<Child>>>>>;
 
-fn run_job(bin: &Path, model: &str, job: &Job, cwd: &str, limit: Duration, key: &str, running: &Running, mut progress: impl FnMut(usize, &str)) -> Result<Outcome, String> {
+/// Runs one agent command (its own process group, stdout piped) to the end, the time
+/// limit, or a cancel through `running[key]`, folding its events into a report.
+pub(crate) fn run_job(mut cmd: Command, kind: Kind, cwd: &str, limit: Duration, key: &str, running: &Running, mut progress: impl FnMut(usize, &str)) -> Result<Outcome, String> {
     let started = Instant::now();
-    let mut child = command(bin, model, job, cwd).spawn().map_err(|e| format!("could not start opencode: {e}"))?;
-    let stdout = child.stdout.take().ok_or("opencode has no stdout")?;
-    let stderr = child.stderr.take().ok_or("opencode has no stderr")?;
+    let name = Path::new(cmd.get_program()).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let mut child = cmd.spawn().map_err(|e| format!("could not start {name}: {e}"))?;
+    let stdout = child.stdout.take().ok_or("the agent has no stdout")?;
+    let stderr = child.stderr.take().ok_or("the agent has no stderr")?;
     let child = Arc::new(Mutex::new(child));
     running.lock().unwrap().insert(key.to_string(), child.clone());
 
@@ -366,7 +547,7 @@ fn run_job(bin: &Path, model: &str, job: &Job, cwd: &str, limit: Duration, key: 
         })
     };
 
-    let mut report = Report { root: cwd.to_string(), ..Default::default() };
+    let mut report = Report::new(kind, cwd);
     for line in BufReader::new(stdout).lines() {
         let Ok(line) = line else { break };
         if let Some(note) = report.fold(&line) {
@@ -386,6 +567,7 @@ fn run_job(bin: &Path, model: &str, job: &Job, cwd: &str, limit: Duration, key: 
     let timed_out = watchdog.join().unwrap_or(false);
     running.lock().unwrap().remove(key);
     Ok(Outcome {
+        program: name,
         report,
         elapsed: started.elapsed(),
         timed_out,
@@ -398,12 +580,31 @@ fn id_key(id: &Value) -> String {
     id.to_string()
 }
 
-type Out = Arc<Mutex<std::io::Stdout>>;
+pub(crate) type Out = Arc<Mutex<std::io::Stdout>>;
 
-fn send(out: &Out, msg: Value) {
+pub(crate) fn send(out: &Out, msg: Value) {
     let mut o = out.lock().unwrap();
     let _ = writeln!(o, "{msg}");
     let _ = o.flush();
+}
+
+#[derive(Debug, PartialEq)]
+enum Route {
+    Orchestrator,
+    Delegate,
+    Agent,
+}
+
+/// Which side answers a tool call. The delegate tools are `aurelia_` names too, so they are
+/// matched before the orchestrator, which claims every other `aurelia_` name.
+fn route(name: &str, orchestrator: bool, agents: bool) -> Route {
+    if crate::delegate::handles(name) && agents {
+        Route::Delegate
+    } else if crate::orchestrator::handles(name) && orchestrator {
+        Route::Orchestrator
+    } else {
+        Route::Agent
+    }
 }
 
 fn orchestrator_on() -> bool {
@@ -414,6 +615,7 @@ fn instructions() -> String {
     let mut parts = vec![];
     if available().is_some() {
         parts.push(INSTRUCTIONS);
+        parts.push(crate::delegate::INSTRUCTIONS);
     }
     if orchestrator_on() {
         parts.push(crate::orchestrator::INSTRUCTIONS);
@@ -462,8 +664,8 @@ pub(crate) fn run_read_only(task: String, context: Option<String>, files: Vec<St
     let job = Job { tasks: vec![task], context, mode: Mode::Read, files, effort: None, session: None };
     let limit = Duration::from_secs(cfg.timeout_minutes.max(1) * 60);
     let model = cfg.model.trim().to_string();
-    let o = run_job(&bin, &model, &job, cwd, limit, "app", &Running::default(), |_, _| {})?;
-    let (rendered, failed) = render(&o, &model, Mode::Read);
+    let o = run_job(command(&bin, &model, &job, cwd), Kind::OpenCode, cwd, limit, "app", &Running::default(), |_, _| {})?;
+    let (rendered, failed) = render(&o, "DeepSeek", &model, Mode::Read);
     Ok(AgentRun { report: o.report.text, rendered, failed, model })
 }
 
@@ -488,9 +690,9 @@ fn call(params: &Value, key: &str, running: &Running, out: &Out) -> Value {
                 "params": { "progressToken": token, "progress": n, "message": note } }));
         }
     };
-    match run_job(&bin, cfg.model.trim(), &job, &cwd, limit, key, running, progress) {
+    match run_job(command(&bin, cfg.model.trim(), &job, &cwd), Kind::OpenCode, &cwd, limit, key, running, progress) {
         Ok(o) => {
-            let (text, failed) = render(&o, cfg.model.trim(), job.mode);
+            let (text, failed) = render(&o, "DeepSeek", cfg.model.trim(), job.mode);
             json!({ "content": [{ "type": "text", "text": text }], "isError": failed })
         }
         Err(e) => error(e),
@@ -512,6 +714,9 @@ pub fn serve() {
             ("ping", Some(_)) => send(&out, reply(json!({}))),
             ("tools/list", Some(_)) => {
                 let mut tools = if available().is_some() { vec![tool_schema()] } else { vec![] };
+                if available().is_some() {
+                    tools.extend(crate::delegate::tools());
+                }
                 if orchestrator_on() {
                     tools.extend(crate::orchestrator::tools());
                 }
@@ -522,10 +727,19 @@ pub fn serve() {
                 // Agents run concurrently: Claude may start several in parallel.
                 std::thread::spawn(move || {
                     let name = params["name"].as_str().unwrap_or("");
-                    let result = if crate::orchestrator::handles(name) && orchestrator_on() {
-                        crate::orchestrator::call(name, &params["arguments"])
-                    } else {
-                        call(&params, &id_key(&id), &running, &out)
+                    let result = match route(name, orchestrator_on(), available().is_some()) {
+                        Route::Orchestrator => crate::orchestrator::call(name, &params["arguments"]),
+                        Route::Delegate => {
+                        let token = params["_meta"]["progressToken"].clone();
+                        let progress = |n: usize, note: &str| {
+                            if !token.is_null() {
+                                send(&out, json!({ "jsonrpc": "2.0", "method": "notifications/progress",
+                                    "params": { "progressToken": token, "progress": n, "message": note } }));
+                            }
+                        };
+                        crate::delegate::call(name, &params["arguments"], &id_key(&id), &running, &progress)
+                        }
+                        Route::Agent => call(&params, &id_key(&id), &running, &out),
                     };
                     send(&out, json!({ "jsonrpc": "2.0", "id": id, "result": result }));
                 });
@@ -554,6 +768,14 @@ mod tests {
 
     fn job(args: Value) -> Job {
         parse_job(&args).unwrap()
+    }
+
+    #[test]
+    fn delegate_calls_reach_the_delegate_even_with_the_orchestrator_on() {
+        assert_eq!(route("aurelia_delegate", true, true), Route::Delegate);
+        assert_eq!(route("aurelia_delegation", true, true), Route::Delegate);
+        assert_eq!(route("aurelia_browser", true, true), Route::Orchestrator);
+        assert_eq!(route("deepseek_agent", true, true), Route::Agent);
     }
 
     #[test]
@@ -638,8 +860,8 @@ mod tests {
     fn report_records_a_session_error() {
         let mut r = Report::default();
         r.fold(r#"{"type":"error","sessionID":"ses_x","error":{"type":"unknown","message":"Agent not found: \"x\""}}"#);
-        let o = Outcome { report: r, elapsed: Duration::from_secs(1), timed_out: false, exit_ok: false, stderr: "boom".into() };
-        let (text, failed) = render(&o, "m", Mode::Read);
+        let o = Outcome { program: "opencode".into(), report: r, elapsed: Duration::from_secs(1), timed_out: false, exit_ok: false, stderr: "boom".into() };
+        let (text, failed) = render(&o, "DeepSeek", "m", Mode::Read);
         assert!(failed);
         assert!(text.contains("Stopped: Agent not found") && text.contains("opencode said:\nboom"), "{text}");
     }
@@ -675,7 +897,7 @@ printf '{{"type":"text","sessionID":"ses_t","part":{{"messageID":"m","text":"don
         let running: Running = Default::default();
         let mut notes = vec![];
         let j = job(json!({ "tasks": ["look at a.rs"], "effort": "high", "files": ["a.rs"] }));
-        let o = run_job(&bin, "opencode-go/deepseek-v4.1-flash", &j, d, Duration::from_secs(20), "1", &running, |n, s| notes.push(format!("{n}:{s}"))).unwrap();
+        let o = run_job(command(&bin, "opencode-go/deepseek-v4.1-flash", &j, d), Kind::OpenCode, d, Duration::from_secs(20), "1", &running, |n, s| notes.push(format!("{n}:{s}"))).unwrap();
         assert!(o.exit_ok && !o.timed_out);
         assert_eq!(notes, ["1:read a.rs"]);
         assert_eq!(o.report.text, "done");
@@ -701,9 +923,9 @@ printf '{{"type":"text","sessionID":"ses_t","part":{{"messageID":"m","text":"don
         let running: Running = Default::default();
         let started = Instant::now();
         // Long enough for the partial line to arrive even on a loaded machine.
-        let o = run_job(&bin, "m", &job(json!({ "tasks": ["t"] })), dir.to_str().unwrap(), Duration::from_secs(3), "2", &running, |_, _| {}).unwrap();
+        let o = run_job(command(&bin, "m", &job(json!({ "tasks": ["t"] })), dir.to_str().unwrap()), Kind::OpenCode, dir.to_str().unwrap(), Duration::from_secs(3), "2", &running, |_, _| {}).unwrap();
         assert!(o.timed_out && started.elapsed() < Duration::from_secs(15));
-        let (text, failed) = render(&o, "m", Mode::Read);
+        let (text, failed) = render(&o, "DeepSeek", "m", Mode::Read);
         assert!(!failed, "a partial report is still returned: elapsed {:?}, exit_ok {}, stderr {:?}, report {:?}", o.elapsed, o.exit_ok, o.stderr, o.report);
         assert!(text.starts_with("partial") && text.contains("time limit"), "{text}");
         let _ = std::fs::remove_dir_all(&dir);
