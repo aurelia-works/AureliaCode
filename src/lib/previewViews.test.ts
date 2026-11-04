@@ -51,3 +51,7 @@ test("the goal banner and dialog have their own chat views", () => {
   assert.deepEqual(viewsFor(["src/components/GoalBar.tsx"]), ["chat&goal=1", "chat&goal=dialog"]);
   assert.deepEqual(viewsFor(["src/store/goals.ts", "src/lib/goalLoop.ts"]), ["chat&goal=1", "chat&goal=dialog"]);
 });
+
+test("a new chat's opening shows in the start view", () => {
+  assert.deepEqual(viewsFor(["src/components/ChatStart.tsx", "src/lib/chatStart.ts"]), ["start"]);
+});

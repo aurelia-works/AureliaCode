@@ -1,4 +1,5 @@
 import { basename } from "../lib/format";
+import { freshChat } from "../lib/chatStart";
 import { ipc } from "../lib/ipc";
 import { useAgents } from "../store/agents";
 import { paneDir, useGit } from "../store/git";
@@ -119,7 +120,7 @@ export function ThreadHeader() {
   const chat = pane?.mode === "chat";
   // PaneView drops the pane header for these, so its tools live here.
   const bare = (chat || !!pane?.launcher) && tabRoot?.type !== "split";
-  const name = title ?? (pane?.launcher ? "New thread" : pane?.browser ? "Browser" : pane?.editor ? basename(pane.editor.path) : custom?.name ?? (pane?.account || agent ? "Claude" : "Terminal"));
+  const name = title ?? (pane?.launcher || freshChat(pane, 0) ? "New thread" : pane?.browser ? "Browser" : pane?.editor ? basename(pane.editor.path) : custom?.name ?? (pane?.account || agent ? "Claude" : "Terminal"));
   const prTone = pr && (pr.state === "MERGED" ? "merged" : pr.conflicts || pr.checks === "fail" ? "bad" : pr.checks === "pass" ? "ok" : "");
   const prWhat = pr && (pr.state !== "OPEN" ? pr.state.toLowerCase() : pr.conflicts ? "conflicts" : pr.checks === "none" ? (pr.draft ? "draft" : "open") : `checks ${pr.checks}`);
 

@@ -54,6 +54,8 @@ export interface ThreadPrefs {
   bloom: boolean;
   /** Old AureliaSpace terminal panes (plain zsh, Codex, Gemini, custom agents, teams). Off: chat only. */
   legacyTerminals: boolean;
+  /** New tabs show the old Start screen (skills, briefing, resume list). Off: they open as a chat. */
+  startScreen: boolean;
   /** Full Disk Access toast opens the drag-into-Settings sheet; off: it only opens System Settings. */
   permissionDrag: boolean;
   alerts: AlertPrefs;
@@ -81,6 +83,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   navRight: false,
   bloom: false,
   legacyTerminals: false,
+  startScreen: false,
   permissionDrag: true,
   alerts: DEFAULT_ALERTS,
 };
