@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { capError, chipNote, forSend, formatSize, kindOf, looksLikeText, MAX_ATTACHMENTS, MAX_MESSAGE_BYTES, mediaTypeFor, sentBytes, type Attachment } from "./attachments.ts";
+import { capError, chipNote, forSend, formatSize, kindOf, looksLikeText, MAX_ATTACHMENTS, MAX_MESSAGE_BYTES, mediaTypeFor, sentBytes, settleRead, type Attachment } from "./attachments.ts";
 
 test("files route to the block Claude Code takes for them", () => {
   assert.equal(kindOf("shot.png", "image/png"), "image");
@@ -77,4 +77,17 @@ test("the chip says what will happen to the file", () => {
   assert.equal(chipNote(att({ kind: "pdf", size: 2048 })), "PDF · 2 KB");
   assert.equal(chipNote(att({ status: "reading" })), "Reading…");
   assert.equal(chipNote(att({ status: "error", error: "Not text" })), "Not text");
+});
+
+test("files dropped from Finder (size unknown until read) can't add up past the cap", () => {
+  const draft = (id: string): Attachment => ({ id, name: `${id}.pdf`, size: 0, kind: "pdf", mediaType: "application/pdf", path: `/x/${id}.pdf`, status: "reading" });
+  const read = { size: 15_000_000, data: "A".repeat(20_000_000), status: "ready" as const };
+  let list = [draft("a"), draft("b"), draft("c")];
+  list = settleRead(list, "a", read);
+  list = settleRead(list, "b", read);
+  assert.deepEqual(list.map((a) => a.status), ["ready", "error", "reading"]);
+  assert.match(list[1].error ?? "", /32 MB/);
+  assert.equal(list[1].data, undefined, "a refused file doesn't keep its bytes");
+  list = settleRead(list, "c", { ...read, data: "A".repeat(1000) });
+  assert.equal(list[2].status, "ready");
 });

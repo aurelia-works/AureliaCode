@@ -41,7 +41,7 @@ export const TEXT_EXTENSIONS = [
   "txt", "md", "markdown", "mdx", "json", "jsonl", "csv", "tsv", "yaml", "yml", "toml", "xml", "html", "htm", "css", "scss", "less",
   "js", "jsx", "ts", "tsx", "mjs", "cjs", "py", "rb", "go", "rs", "java", "kt", "kts", "swift", "c", "h", "cc", "cpp", "hpp", "m", "mm",
   "cs", "php", "sh", "zsh", "bash", "fish", "sql", "log", "ini", "cfg", "conf", "env", "lua", "r", "dart", "vue", "svelte", "astro",
-  "gradle", "properties", "graphql", "proto", "tf", "diff", "patch", "srt", "vtt", "tex", "rst", "org", "csv",
+  "gradle", "properties", "graphql", "proto", "tf", "diff", "patch", "srt", "vtt", "tex", "rst", "org",
 ];
 /** For the picker's `accept`. */
 export const ACCEPT = {
@@ -91,6 +91,24 @@ export function capError(list: Pick<Attachment, "kind" | "data" | "size" | "stat
   const used = list.filter((a) => a.status !== "error").reduce((n, a) => n + sentBytes(a), 0);
   if (used + adding > MAX_MESSAGE_BYTES) return `Over the ${formatSize(MAX_MESSAGE_BYTES)} a message can carry (${formatSize(used)} attached)`;
   return null;
+}
+
+/**
+ * Applies a finished read to chip `id`. A dropped file's size is only known once read, so the
+ * cap is checked again here: one that no longer fits becomes an error chip without its bytes.
+ */
+export function settleRead<T extends Attachment>(list: T[], id: string, patch: Partial<Attachment>): T[] {
+  const i = list.findIndex((a) => a.id === id);
+  if (i < 0) return list;
+  const done = { ...list[i], ...patch } as T;
+  if (done.status === "ready") {
+    const why = capError(list.filter((a) => a.id !== id), sentBytes(done));
+    if (why) {
+      const { data: _, ...rest } = done;
+      return list.map((a, j) => (j === i ? ({ ...rest, status: "error", error: why } as T) : a));
+    }
+  }
+  return list.map((a, j) => (j === i ? done : a));
 }
 
 /** "812 B", "14 KB", "3.2 MB". */

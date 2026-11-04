@@ -8,7 +8,7 @@ import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
 import { cleanTextarea } from "../lib/controlChars";
 import { liveToolLabel, pickBySeed, THINKING, toolPhrase } from "../lib/toolPhrase";
-import { ACCEPT, capError, forSend, sentBytes, type Attachment } from "../lib/attachments";
+import { ACCEPT, capError, forSend, sentBytes, settleRead, type Attachment } from "../lib/attachments";
 import { draftAttachment, readFile, readPath } from "../lib/attachRead";
 import { AttachChips, SentFiles } from "./AttachChips";
 import { ipc, type ChatImage, type CliModel, type RuleFile, type RuleKind, type SlashCommand } from "../lib/ipc";
@@ -1139,7 +1139,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
   };
   const [rulesOpen, setRulesOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const patchAtt = (id: string, p: Partial<Attachment>) => setAtts((cur) => cur.map((a) => (a.id === id ? { ...a, ...p } : a)));
+  const patchAtt = (id: string, p: Partial<Attachment>) => setAtts((cur) => settleRead(cur, id, p));
   /** New chips, each refused with its reason when the message would go over the cap; then read in the background. */
   const addAtts = (list: { a: Attachment; read: () => Promise<Partial<Attachment>> }[]) => {
     const next = [...attsRef.current];
