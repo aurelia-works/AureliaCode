@@ -7,7 +7,7 @@ import { basename, formatCost, formatDuration, formatTokens } from "../lib/forma
 import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
 import { cleanTextarea } from "../lib/controlChars";
-import { toolPhrase } from "../lib/toolPhrase";
+import { liveToolLabel, pickBySeed, THINKING, toolPhrase } from "../lib/toolPhrase";
 import { ipc, type ChatImage, type CliModel, type RuleFile, type RuleKind, type SlashCommand } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
 import { openFile } from "../lib/openFile";
@@ -16,6 +16,7 @@ import { riskOf } from "../lib/risk";
 import { CHAT_FIND } from "../lib/shortcuts";
 import { focusedPaneId, useLayout } from "../store/layout";
 import { usePaneContext } from "../store/metrics";
+import { freshness, type ContextFill } from "../lib/contextFill";
 import { toggleStash } from "../lib/stash";
 import { composerEnter, followUpAction } from "../lib/threadTools";
 import { toast, useUi } from "../store/ui";
@@ -41,6 +42,8 @@ export function ChatPane({ paneId }: { paneId: string }) {
   const cwd = useLayout((s) => s.panes[paneId]?.cwd);
   const logRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
+  // Scrolled up from the latest: shows the jump-back button.
+  const [away, setAway] = useState(false);
 
   useEffect(() => {
     const pane = useLayout.getState().panes[paneId];
@@ -53,7 +56,14 @@ export function ChatPane({ paneId }: { paneId: string }) {
   const sentCount = items.filter((i) => i.kind === "user").length;
   useLayoutEffect(() => {
     stick.current = true;
+    setAway(false);
   }, [sentCount]);
+  const jump = () => {
+    stick.current = true;
+    setAway(false);
+    const el = logRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  };
   const toBottom = () => {
     const el = logRef.current;
     if (el && stick.current) el.scrollTop = el.scrollHeight;
@@ -116,6 +126,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
           const el = e.currentTarget;
           if (el.scrollHeight - el.scrollTop - el.clientHeight < 40) stick.current = true;
           else if (userScroll.current) stick.current = false;
+          setAway(!stick.current);
         }}
         onWheel={byUser}
         onKeyDown={byUser}
@@ -146,6 +157,12 @@ export function ChatPane({ paneId }: { paneId: string }) {
         </div>
       </div>
       <div className="chat-dock">
+        {away && (
+          <button type="button" className="chat-jump" onClick={jump} aria-label={busy ? "Scroll to the latest. Claude is still working" : "Scroll to the latest"} title={busy ? "Claude is still working" : "Scroll to the latest"}>
+            <ArrowUpIcon className="chat-jump-arrow" />
+            {busy && <span className="chat-jump-dot" aria-hidden />}
+          </button>
+        )}
         <TodoPanel items={items} busy={busy} />
         {session?.approvals[0] &&
           (session.approvals[0].tool === "AskUserQuestion" ? (
@@ -368,7 +385,12 @@ function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatI
       </div>
     );
   return (
-    <div className="chat-user-wrap">
+    <div className={`chat-user-wrap${item.via ? ` ${item.via}` : ""}`}>
+      {item.via && (
+        <span className="chat-user-via" title={item.via === "queued" ? "Held until Claude finished the turn before" : "Stopped Claude's turn to send this"}>
+          {item.via === "queued" ? "Queued" : "Steered"}
+        </span>
+      )}
       <div className="chat-user">
         {item.images && (
           <div className="chat-user-images">
@@ -474,32 +496,23 @@ function LiveStatus({ label, since }: { label: string; since?: number }) {
 function liveLabel(seg: Work, waiting: boolean): string {
   if (waiting) return "Waiting for you";
   const latest = seg.answer.at(-1) ?? seg.activity.at(-1);
-  if (!latest) return "Thinking";
+  if (!latest) return pickBySeed(THINKING, seg.id);
   if (latest.kind === "tool" && latest.result === undefined) {
     // An agent at work: say what it's doing now.
     const now = latest.sub?.at(-1);
-    if (now) return `Agent: ${TOOL_VERB[now.name] ?? `using ${now.name}`}`;
-    return `${TOOL_VERB[latest.name] ?? `Using ${latest.name}`}`;
+    if (now) {
+      const label = liveToolLabel({ name: now.name, input: (now.input ?? {}) as Record<string, unknown> }, `${latest.toolId}:${latest.sub!.length}`);
+      return `Agent: ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
+    }
+    return liveToolLabel(latest, latest.toolId);
   }
   if (latest.kind === "text" && !latest.done) return "Writing";
-  if (latest.kind === "thinking" && !latest.done) return "Thinking";
+  if (latest.kind === "thinking" && !latest.done) return pickBySeed(THINKING, latest.id);
   return "Working";
 }
 
-const TOOL_VERB: Record<string, string> = {
-  Bash: "Running a command",
-  Edit: "Editing",
-  MultiEdit: "Editing",
-  Write: "Writing a file",
-  NotebookEdit: "Editing a notebook",
-  Read: "Reading",
-  Grep: "Searching",
-  Glob: "Finding files",
-  WebFetch: "Reading the web",
-  WebSearch: "Searching the web",
-  Task: "Running an agent",
-  Agent: "Running an agent",
-};
+/** "Worked for…" blocks the user opened, by pane and segment: kept when the chat remounts (tab switch, split, reload of the view). */
+const openWork = new Set<string>();
 
 /**
  * Claude's work for one message. While it runs: what it's doing, its tool calls grouped
@@ -508,7 +521,15 @@ const TOOL_VERB: Record<string, string> = {
 const WorkBlock = memo(function WorkBlock({ seg, live, waiting, cwd, paneId }: { seg: Work; live: boolean; waiting: boolean; cwd?: string; paneId: string }) {
   const showTime = useConfig((s) => s.config?.chatTimestamps ?? false);
   const answeredAt = seg.answer.at(-1)?.at;
-  const [open, setOpen] = useState(false);
+  const foldKey = `${paneId}:${seg.id}`;
+  const [open, setOpenState] = useState(() => openWork.has(foldKey));
+  const setOpen = (next: (o: boolean) => boolean) =>
+    setOpenState((o) => {
+      const v = next(o);
+      if (v) openWork.add(foldKey);
+      else openWork.delete(foldKey);
+      return v;
+    });
   const ms = seg.end?.ms ?? (seg.startAt && seg.lastAt && seg.lastAt > seg.startAt ? seg.lastAt - seg.startAt : undefined);
   const steps = seg.activity.filter((i) => i.kind === "tool").length;
   const stats = useMemo(() => fileStats(seg.activity), [seg.activity]);
@@ -1802,6 +1823,16 @@ const CTX_COLORS: Record<string, string> = {
 };
 const CTX_SPARE = ["#e58fb4", "#9ccf6a", "#c9a46b", "#7fb7d9"];
 
+/** Where the number came from and its age, ticking while the menu is open. */
+function CtxFreshness({ fill }: { fill: ContextFill }) {
+  useElapsed(fill.at);
+  return (
+    <div className="chat-ctx-src" title={fill.source === "measured" ? "Claude Code's own count" : "From the newest request's token usage; Claude Code's count comes at the turn's end"}>
+      {freshness(fill, Date.now())}
+    </div>
+  );
+}
+
 /**
  * How full the context is, as a ring by the send button. Click it for what fills it, the
  * way Claude Code's `/context` counts: system prompt, tools, MCP, memory, skills, messages.
@@ -1832,7 +1863,8 @@ function ContextRing({ paneId }: { paneId: string }) {
   const pct = Math.round(fill?.pct ?? 0);
   const r = 7;
   const c = 2 * Math.PI * r;
-  const label = size ? `Context: ${formatTokens(used)} of ${formatTokens(size)} (${pct}%)` : "Context";
+  const fresh = fill ? freshness(fill, Date.now()) : "";
+  const label = size ? `Context: ${formatTokens(used)} of ${formatTokens(size)} (${pct}%). ${fresh}` : "Context";
 
   let spare = 0;
   const rows = (ctx?.categories ?? []).map((cat) => ({
@@ -1856,6 +1888,7 @@ function ContextRing({ paneId }: { paneId: string }) {
             <span>Context window</span>
             <span className="num">{size ? `${formatTokens(used)} of ${formatTokens(size)} · ${pct}%` : "…"}</span>
           </div>
+          {fill && <CtxFreshness fill={fill} />}
           {ctx ? (
             <>
               <div className="chat-ctx-bar" aria-hidden>

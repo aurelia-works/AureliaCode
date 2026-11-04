@@ -699,6 +699,16 @@ if (view === "chat") {
           files: [],
           seq: 9,
           items: [
+            { kind: "user", id: id(), text: "Which keyboard layout does the composer assume?", at: Date.now() - 600_000 },
+            { kind: "tool", id: id(), toolId: "t0", name: "Read", input: { file_path: "/Users/you/dev/web/src/lib/keys.ts" }, partial: "", result: "...", steps: 0, at: Date.now() - 590_000 },
+            { kind: "text", id: id(), text: "None: it reads `KeyboardEvent.key`, so the OS layout decides. The only hard-coded keys are Enter, Escape and the arrows, all layout-independent.", done: true, final: true, at: Date.now() - 548_000 },
+            { kind: "turn", id: id(), outcome: "completed", files: [], ms: 52_000, at: Date.now() - 548_000 },
+            { kind: "user", id: id(), text: "And the paste handler?", via: "queued", at: Date.now() - 540_000 },
+            { kind: "text", id: id(), text: "Same story: it takes `clipboardData.getData(\"text/plain\")` and strips control characters before it reaches the textarea (`cleanTextarea` in `lib/controlChars.ts`).", done: true, final: true, at: Date.now() - 520_000 },
+            { kind: "turn", id: id(), outcome: "completed", files: [], ms: 20_000, at: Date.now() - 520_000 },
+            { kind: "user", id: id(), text: "Skip the paste path, look at the arrow keys instead.", via: "steered", at: Date.now() - 500_000 },
+            { kind: "text", id: id(), text: "Arrow keys go straight to the textarea; nothing in the app listens for them while the composer has focus.", done: true, final: true, at: Date.now() - 480_000 },
+            { kind: "turn", id: id(), outcome: "completed", files: [], ms: 20_000, at: Date.now() - 480_000 },
             { kind: "user", id: id(), text: "The composer gets 7 boxes when I press the right arrow instead of moving the caret. Notes did it too. Find out whether it's us." },
             { kind: "tool", id: id(), toolId: "t1", name: "Grep", input: { pattern: "u001d" }, partial: "", result: "No matches", steps: 0 },
             { kind: "tool", id: id(), toolId: "t2", name: "Read", input: { file_path: "/Users/you/dev/web/src/components/Composer.tsx" }, partial: "", result: "...", steps: 0 },
@@ -738,5 +748,13 @@ if (view === "agentview") {
   host.style.cssText = "position:fixed;inset:0;z-index:70;background:var(--bg);";
   document.body.append(host);
   createRoot(host).render(createElement(AgentView));
+}
+if (view === "chat" && params.get("scroll") === "up") {
+  // Scrolled back through the conversation, the way a wheel would: the jump-back button shows.
+  await sleep(300);
+  const log = [...document.querySelectorAll<HTMLElement>(".chat-log")].find((el) => el.clientHeight > 0);
+  log?.dispatchEvent(new WheelEvent("wheel", { deltaY: -400, bubbles: true }));
+  if (log) log.scrollTop = 0;
+  await sleep(100);
 }
 (window as any).__ready = true;

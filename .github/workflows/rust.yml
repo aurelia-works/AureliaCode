@@ -1,0 +1,34 @@
+name: rust
+
+on:
+  pull_request:
+    paths: ["src-tauri/**", ".github/workflows/rust.yml"]
+  push:
+    branches: [main]
+    paths: ["src-tauri/**", ".github/workflows/rust.yml"]
+
+concurrency:
+  group: rust-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # The back end links WKWebView and AppKit, so it needs macOS. Runs only when src-tauri changes.
+  rust:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v4
+      # tauri's generate_context! only checks that frontendDist exists; the web workflow builds the real one.
+      - run: mkdir -p dist && touch dist/index.html
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          # Only main writes the cache; PRs restore main's, so caches don't pile up per branch.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: Back-end tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml --locked

@@ -2389,3 +2389,82 @@ body.resizing-row .rail-grip {
 .chat-answer-tools.with-time {
   opacity: 1;
 }
+
+/* ---------- Chat: back to the latest, queued/steered messages, context freshness ---------- */
+.chat-dock {
+  position: relative;
+}
+.chat-jump {
+  position: absolute;
+  top: -44px;
+  left: 50%;
+  translate: -50% 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--line-2);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  animation: rise-in var(--t-fast) var(--ease);
+  transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+}
+.chat-jump:hover {
+  color: var(--text);
+  border-color: var(--line-3, var(--line-2));
+}
+.chat-jump-arrow {
+  width: 14px;
+  height: 14px;
+  rotate: 180deg;
+}
+.chat-jump-dot {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--working, #60a5fa);
+  box-shadow: 0 0 0 2px var(--surface-2);
+  animation: chat-jump-pulse 1.6s ease-in-out infinite;
+}
+@keyframes chat-jump-pulse {
+  50% { opacity: 0.45; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chat-jump,
+  .chat-jump-dot { animation: none; }
+}
+.chat-user-wrap.queued,
+.chat-user-wrap.steered {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+.chat-user-via {
+  font: 500 11px var(--font-ui);
+  letter-spacing: 0.01em;
+  color: var(--text-faint);
+  padding-right: 4px;
+}
+.chat-user-wrap.queued .chat-user {
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--line-2);
+}
+.chat-user-wrap.steered .chat-user {
+  box-shadow: inset 2px 0 0 var(--accent, #818cf8);
+}
+.chat-user-wrap.steered .chat-user-via {
+  color: var(--accent, #818cf8);
+}
+.chat-ctx-src {
+  margin: -2px 0 8px;
+  font: 11.5px var(--font-ui);
+  color: var(--text-faint);
+}
