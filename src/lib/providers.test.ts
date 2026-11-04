@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { chatProviderOptions, chatUnavailable, currentProblem, signInLine, sortProviders, type ProviderStatus } from "./providers.ts";
+import { chatProviderOptions, chatUnavailable, currentProblem, missingAccounts, signInLine, sortProviders, type ProviderStatus } from "./providers.ts";
 
 const p = (over: Partial<ProviderStatus>): ProviderStatus => ({ id: "x", provider: "x", label: "X", installed: true, models: [], caps: [], ...over });
 const claude = (account: string, over: Partial<ProviderStatus> = {}) =>
@@ -43,4 +43,12 @@ test("a chat whose own account is signed out says so instead of falling back", (
   assert.equal(currentProblem([claude("main", { signedIn: false })], "main"), "Not signed in");
   assert.equal(currentProblem([claude("main")], "main"), null);
   assert.equal(currentProblem(undefined, "main"), null);
+});
+
+test("an account the list hasn't checked yet is missing, so the list is checked again", () => {
+  const list = [claude("claude"), p({ id: "opencode" })];
+  assert.equal(missingAccounts(list, ["claude"]), false);
+  assert.equal(missingAccounts(list, ["claude", "work"]), true);
+  // Not loaded yet: the first load covers every account.
+  assert.equal(missingAccounts(undefined, ["claude", "work"]), false);
 });

@@ -83,3 +83,8 @@ export function currentProblem(list: ProviderStatus[] | undefined, account: stri
   const p = list?.find((x) => x.id === `claude:${account}`);
   return p ? chatUnavailable(p) : null;
 }
+
+/** True when a Claude account in the config isn't in the loaded list yet (added since it loaded). */
+export function missingAccounts(list: ProviderStatus[] | undefined, accounts: string[]): boolean {
+  return !!list && accounts.some((a) => !list.some((p) => p.id === `claude:${a}`));
+}

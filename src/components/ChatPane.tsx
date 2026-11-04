@@ -20,7 +20,7 @@ import { CHAT_FIND, GOAL_OPEN } from "../lib/shortcuts";
 import { GoalBanner, GoalDialog } from "./GoalBar";
 import { focusedPaneId, useLayout } from "../store/layout";
 import { loadProviders, useProviders } from "../store/providers";
-import { chatProviderOptions, currentProblem } from "../lib/providers";
+import { chatProviderOptions, currentProblem, missingAccounts } from "../lib/providers";
 import { usePaneContext } from "../store/metrics";
 import { freshness, type ContextFill } from "../lib/contextFill";
 import { toggleStash } from "../lib/stash";
@@ -1309,7 +1309,9 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
   const runningName = modelName(running);
   const familyRuns = (fam: string) => runningName?.toLowerCase().startsWith(fam);
   const provs = useProviders((st) => st.list);
-  useEffect(() => void loadProviders(), []);
+  const accountNames = useConfig((st) => st.config?.accounts.map((a) => a.name).join("\n") ?? "");
+  // Loads once; an account added since then is checked again, so the picker offers it.
+  useEffect(() => void loadProviders(missingAccounts(useProviders.getState().list, accountNames ? accountNames.split("\n") : [])), [accountNames]);
   const firstAccount = useConfig((st) => st.config?.accounts[0]?.name);
   const providerAccount = pane?.account ?? firstAccount;
   const providerOptions = useMemo<Option[]>(

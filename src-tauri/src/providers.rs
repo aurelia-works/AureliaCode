@@ -135,15 +135,32 @@ fn grok() -> ProviderStatus {
     let (mut s, path) = base("grok", "grok", "Grok", "grok", &["version"], &["resume", "effort", "mcp"]);
     let Some(path) = path else { return s };
     match run(&path, &["models"], &[]) {
-        Ok((_, out)) => {
-            let g = parse_grok_models(&out);
-            s.signed_in = Some(g.signed_in);
+        Ok((code, out)) => {
+            let (g, why) = grok_status(code, &out);
+            s.signed_in = g.signed_in;
             s.models = g.models;
             s.default_model = g.default;
+            s.error = why;
         }
         Err(e) => s.error = Some(e),
     }
     s
+}
+
+struct GrokStatus {
+    signed_in: Option<bool>,
+    models: Vec<String>,
+    default: Option<String>,
+}
+
+/// `grok models` with its exit code: a failure that doesn't say "not authenticated" leaves the
+/// sign-in unknown and passes on why, rather than reading as signed in.
+fn grok_status(code: i32, out: &str) -> (GrokStatus, Option<String>) {
+    let g = parse_grok_models(out);
+    let says_out = !g.signed_in;
+    let failed = code != 0 && !says_out;
+    let signed_in = if failed { None } else { Some(g.signed_in) };
+    (GrokStatus { signed_in, models: g.models, default: g.default }, failed.then(|| first_line(out)))
 }
 
 fn codex() -> ProviderStatus {
@@ -419,6 +436,15 @@ mod tests {
         assert_eq!(g.models, ["grok-4.6", "grok-4.5"]);
         assert_eq!(g.default.as_deref(), Some("grok-4.6"));
         assert!(parse_grok_models("Available models:\n  * grok-4.6 (default)\n").signed_in);
+    }
+
+    #[test]
+    fn grok_failing_without_saying_why_is_not_signed_in() {
+        let (status, why) = grok_status(1, "Error: couldn't reach api.x.ai\n");
+        assert_eq!(status.signed_in, None);
+        assert_eq!(why.as_deref(), Some("Error: couldn't reach api.x.ai"));
+        assert_eq!(grok_status(1, "You are not authenticated.\n").0.signed_in, Some(false));
+        assert_eq!(grok_status(0, "Available models:\n  * grok-4.6 (default)\n").0.signed_in, Some(true));
     }
 
     #[test]
