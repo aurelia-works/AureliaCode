@@ -9,7 +9,7 @@ export const CORE_VIEWS: PreviewView[] = ["threads", "chat", "start", "settings"
 
 /** Every view the harness knows, in the order screenshots are listed. */
 export const ALL_VIEWS: PreviewView[] = [
-  "threads", "threads&single=1", "threads&rail=changes", "threads&nav=right", "chat", "chat&opencode=1", "chat&attach=1", "chat&delegate=1", "chat&goal=1", "chat&goal=dialog", "start", "board", "work", "review",
+  "threads", "threads&toast=1", "threads&single=1", "threads&rail=changes", "threads&nav=right", "chat", "chat&opencode=1", "chat&attach=1", "chat&delegate=1", "chat&goal=1", "chat&goal=dialog", "start", "board", "work", "review",
   "settings", "settings&section=accounts", "settings&section=providers", "palette", "files", "terminals", "permissions", "commit",
   "history", "agentview", "tray", "weekly", "roadmap",
   "remote", "remote&pane=chat", "remote&sheet=new",
@@ -20,10 +20,11 @@ export const isPhoneView = (v: PreviewView) => v === "remote" || v.startsWith("r
 
 // First match wins. Paths are repo-relative with forward slashes.
 const RULES: [RegExp, PreviewView[]][] = [
+  [/^src\/components\/Toast\.tsx$|^src\/store\/prs\.ts$/, ["threads&toast=1"]],
   [/^src\/remote\/|^src\/lib\/(remote|aureliaBot)\.ts$|^remote\.html$|^design\/preview\/remote/, ["remote", "remote&pane=chat", "remote&sheet=new"]],
   [/^src\/styles\/board\.css$/, ["board"]],
   [/^src\/styles\/agentview\.css$/, ["agentview"]],
-  [/^src\/styles\/|^src\/App\.tsx$|^src\/main\.tsx$|^src\/components\/(Icons|TitleBar|StatusBar|Toast|UndoToast|Notices)\.tsx$|^src\/lib\/(theme|uiAppearance|palettes)\.ts$|^index\.html$|^design\/preview\//, CORE_VIEWS],
+  [/^src\/styles\/|^src\/App\.tsx$|^src\/main\.tsx$|^src\/components\/(Icons|TitleBar|StatusBar|UndoToast|Notices)\.tsx$|^src\/lib\/(theme|uiAppearance|palettes)\.ts$|^index\.html$|^design\/preview\//, CORE_VIEWS],
   [/^src-tauri\/src\/opencode_chat\.rs$/, ["chat&opencode=1"]],
   [/^src\/lib\/delegation\.ts$/, ["chat&delegate=1"]],
   [/^src\/components\/AttachChips\.tsx$|^src\/lib\/(attachments|attachRead)\.ts$/, ["chat&attach=1"]],

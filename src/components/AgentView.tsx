@@ -50,7 +50,7 @@ function liveAction(session: AgentSession | undefined): string {
   if (!session) return "At the prompt";
   switch (session.status) {
     case "needs_input":
-      return session.message || "Waiting for you";
+      return session.message || "Needs you";
     case "working":
       return session.tool ? `Running ${session.tool}` : "Thinking…";
     case "starting":

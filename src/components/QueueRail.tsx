@@ -37,7 +37,7 @@ function AgentRow({ s, tabIndex, now }: { s: AgentSession; tabIndex: number; now
               {since(now - s.updatedAt)}
             </span>
           </span>
-          {v === "needs_input" && <span className="q-detail">{s.message || "Waiting for you"}</span>}
+          {v === "needs_input" && <span className="q-detail">{s.message || "Needs you"}</span>}
           {v === "working" && s.tool && <span className="q-detail quiet">{s.tool}</span>}
         </span>
       </button>

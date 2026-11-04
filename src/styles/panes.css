@@ -180,6 +180,8 @@ body.pane-dragging .block-overlay {
 .pane[data-state="needs_input"] {
   --edge: var(--attn);
   border-color: var(--attn);
+  box-shadow: inset 0 0 0 1px var(--attn);
+  background: color-mix(in srgb, var(--attn) 5%, var(--bg));
 }
 .pane.focus-ring {
   border-color: color-mix(in srgb, var(--text) 34%, var(--border));
@@ -1150,8 +1152,27 @@ body.pane-dragging .block-overlay {
   letter-spacing: -0.01em;
   text-align: center;
 }
+/* The mark is decoration here: neutral unless Brand colours is on (colour means state). */
 .chat-empty svg {
+  opacity: 0.4;
+  filter: grayscale(1);
+}
+:root[data-brand-marks="on"] .chat-empty svg {
   opacity: 0.55;
+  filter: none;
+}
+.chat-empty .chat-empty-hint {
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-dim);
+}
+/* In a grid the hint shows once, in the pane you're typing in, not six times. */
+.pane:not(.focused) .chat-empty .chat-empty-hint {
+  display: none;
+}
+/* In a grid, empty panes recede so the one that needs you stands out. */
+.pane:not(.focused):not([data-state="needs_input"]) .chat-empty {
+  opacity: 0.7;
 }
 .chat-empty p {
   margin: 0;
@@ -1943,6 +1964,9 @@ body.pane-dragging .block-overlay {
   font-size: 12.5px;
   color: var(--text-faint);
 }
+.chat-ctx-word {
+  margin-left: -2px;
+}
 .chat-ctx-ring:hover,
 .chat-ctx-ring.on {
   color: var(--text);
@@ -2685,6 +2709,9 @@ body.pane-dragging .block-overlay {
   }
 }
 @container chat (max-width: 470px) {
+  .chat-ctx-word {
+    display: none;
+  }
   .chat-pick-btn > span {
     display: none;
   }
@@ -2693,12 +2720,16 @@ body.pane-dragging .block-overlay {
     padding: 0;
     justify-content: center;
   }
-  /* Narrow: the model keeps its name; the account is in the pane header already. */
-  .chat-pick-model .chat-pick-btn {
+  /* Narrow: the permission mode keeps its name (it decides what the agent may do); the model
+     is its icon, named on hover; the account is in the pane header already. */
+  .chat-card-bar > .chat-pick-mode {
+    flex-shrink: 0;
+  }
+  .chat-pick-mode .chat-pick-btn {
     width: auto;
     padding: 0 7px;
   }
-  .chat-pick-model .chat-pick-btn > span {
+  .chat-pick-mode .chat-pick-btn > span {
     display: inline;
   }
   .chat-pick-account {

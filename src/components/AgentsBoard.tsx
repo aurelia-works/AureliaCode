@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { Fragment, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { useNow } from "../lib/cache";
 import { basename, formatCost, formatTokens, shortenPath } from "../lib/format";
 import { answerPermission, permissionOptions } from "../lib/permissions";
@@ -77,7 +77,7 @@ function Card({ it, selected, onSelect, replyRef }: { it: Item; selected: boolea
   const who = s ? (s.account ?? "claude") : (pane?.agent?.split(":")[0] ?? (rt?.running?.split(/\s+/)[0] || "shell"));
   const detail = s
     ? v === "needs_input"
-      ? s.message || "Waiting for you"
+      ? s.message || "Needs you"
       : v === "working"
         ? s.tool
           ? `Running ${s.tool}`
@@ -109,7 +109,7 @@ function Card({ it, selected, onSelect, replyRef }: { it: Item; selected: boolea
         </span>
         {custom ? <AgentChip agent={custom} title={`${custom.name} · ${who}`} /> : <span className="account-chip">{who}</span>}
         <span className="card-meta num">
-          <span title="Tab">T{it.tab + 1}</span>
+          <span title="Which tab it's in">Tab {it.tab + 1}</span>
           {s && <span title="Since the last status change">{since(now - s.updatedAt)}</span>}
         </span>
         <button className="card-open" onClick={() => showPane(it.paneId)} title="Open pane (↵)" aria-label={`Open ${title}`}>
@@ -243,8 +243,9 @@ export function AgentsBoard() {
           </button>
         </div>
       </header>
-      <SignalsRow />
       {items.length === 0 ? (
+        <>
+        <SignalsRow />
         <div className="board-empty">
           <SparkIcon width={28} height={28} />
           <h2>Nothing running yet</h2>
@@ -253,10 +254,14 @@ export function AgentsBoard() {
             Launch agents <kbd>⇧⌘E</kbd>
           </button>
         </div>
+        </>
       ) : (
         <div className="board-scroll">
+          {/* Who needs you comes first; the signals sit under that lane, above the rest. */}
+          {!lanes.some((l) => l.id === "needs") && <SignalsRow />}
           {lanes.map((l) => (
-            <section key={l.id} className={`lane ${l.id}`} aria-label={l.title}>
+            <Fragment key={l.id}>
+            <section className={`lane ${l.id}`} aria-label={l.title}>
               <h2 className="lane-head">
                 <span>{l.title}</span>
                 <span className="lane-count num">{l.items.length}</span>
@@ -267,6 +272,8 @@ export function AgentsBoard() {
                 ))}
               </div>
             </section>
+            {l.id === "needs" && <SignalsRow />}
+            </Fragment>
           ))}
         </div>
       )}

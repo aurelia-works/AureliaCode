@@ -305,7 +305,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
           {prefs.pin && pane?.pinned !== undefined && <span className="th-pin" title="Pinned" aria-label="Pinned">📌</span>}
           {pane?.goal && !pane.goal.ended && (
             <span className="th-goal num" title={`Goal: ${pane.goal.text} (round ${pane.goal.rounds + 1} of ${pane.goal.maxRounds})`}>
-              ◎ {pane.goal.rounds + 1}/{pane.goal.maxRounds}
+              Goal {pane.goal.rounds + 1}/{pane.goal.maxRounds}
             </span>
           )}
           {pane?.babysit && (

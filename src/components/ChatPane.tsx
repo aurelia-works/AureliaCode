@@ -160,6 +160,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
             <div className="chat-empty">
               <AureliaMark width={34} height={34} />
               <p>{status === "starting" ? "Starting Claude…" : `What should Claude do in ${basename(cwd) || "this folder"}?`}</p>
+              {status !== "starting" && <p className="chat-empty-hint">Type a task below. / for commands, @ for files.</p>}
             </div>
           )}
           {segs.map((seg) =>
@@ -517,7 +518,7 @@ function LiveStatus({ label, since }: { label: string; since?: number }) {
 
 /** What Claude is doing right now, from the newest thing in the turn. */
 function liveLabel(seg: Work, waiting: boolean): string {
-  if (waiting) return "Waiting for you";
+  if (waiting) return "Needs you";
   const latest = seg.answer.at(-1) ?? seg.activity.at(-1);
   if (!latest) return pickBySeed(THINKING, seg.id);
   if (latest.kind === "tool" && latest.result === undefined) {
@@ -1520,6 +1521,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
               icon={<ShieldIcon className={`chat-mode-icon ${m.tone ?? ""}`} />}
               tone={m.tone}
               more={{ label: "Saved rules…", onClick: () => setRulesOpen(true) }}
+              className="chat-pick-mode"
             />
           )}
           {providerOptions.length > 1 && (
@@ -2026,6 +2028,7 @@ function ContextRing({ paneId }: { paneId: string }) {
           <circle cx="9" cy="9" r={r} className="fill" strokeDasharray={`${(pct / 100) * c} ${c}`} />
         </svg>
         {size ? `${pct}%` : null}
+        {size ? <span className="chat-ctx-word">context</span> : null}
       </button>
       {open && (
         <div className="chat-ctx-menu" role="dialog" aria-label="Context window">
