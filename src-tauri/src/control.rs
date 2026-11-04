@@ -20,7 +20,8 @@ use std::sync::{mpsc, LazyLock, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-const REPLY_TIMEOUT: Duration = Duration::from_secs(20);
+// Long enough for aurelia_browser wait (15 s) after a page load.
+const REPLY_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_HTML: usize = 2 * 1024 * 1024;
 
 static PENDING: LazyLock<Mutex<HashMap<u64, mpsc::Sender<Value>>>> = LazyLock::new(Default::default);

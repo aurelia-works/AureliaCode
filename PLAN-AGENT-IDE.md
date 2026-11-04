@@ -42,7 +42,7 @@ Estimates: agent time and rough tokens incl. cache reads, from PLAN-T3 / PLAN-AU
 | # | Phase | Estimate | Actual | Model | Status |
 | --- | --- | --- | --- | --- | --- |
 | 0 | Audit + plan | 30 min | not measured | Opus 5.5 | done, approved 2026-11-04 |
-| 1 | Browser loop for agents | 2-2.5 h, 2-3M | | Opus 5.5 medium | todo |
+| 1 | Browser loop for agents | 2-2.5 h, 2-3M | not measured | Opus 5.5 medium | done 2026-11-04 (preview harness can't render in-pane, see HANDOFF-2026-11-04-PHASE-1.md) |
 | 2 | Timeline, scroll, context/usage freshness | 1-1.5 h, 1-2M | | Sonnet 5.5 medium | todo |
 | 3 | Composer: attachments, plus menu, expand view | 1.5-2 h, 2M | | Sonnet 5.5 medium | todo |
 | 4 | Providers: discovery, capabilities, model selector | 2-2.5 h, 2-3M | | Opus 5.5 medium | todo |

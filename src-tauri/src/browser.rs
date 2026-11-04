@@ -22,14 +22,14 @@ struct PickEvent {
     url: String,
 }
 
-fn label(pane: &str) -> String {
+pub(crate) fn label(pane: &str) -> String {
     format!("browser-{pane}")
 }
 
 const MAX_SNAPS: usize = 50;
 
 /// Pick screenshots are evidence, not history: keep the newest 50 and drop the rest.
-fn prune_snaps(dir: &Path) {
+pub(crate) fn prune_snaps(dir: &Path) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
     let mut files: Vec<(std::time::SystemTime, std::path::PathBuf)> = entries
         .filter_map(|e| e.ok())
@@ -76,6 +76,7 @@ pub fn browser_open(app: AppHandle, pane: String, url: String, x: f64, y: f64, w
     }
     let url = parse(&url)?;
     let window = app.get_window("main").ok_or("main window missing")?;
+    crate::browser_agent::set_loading(&pane, true);
     let (nav_app, nav_pane) = (app.clone(), pane.clone());
     let (load_app, load_pane) = (app.clone(), pane.clone());
     let builder = WebviewBuilder::new(&lbl, WebviewUrl::External(url))
@@ -91,12 +92,14 @@ pub fn browser_open(app: AppHandle, pane: String, url: String, x: f64, y: f64, w
         })
         .on_page_load(move |wv, payload| {
             let loading = payload.event() == PageLoadEvent::Started;
+            crate::browser_agent::set_loading(&load_pane, loading);
             let _ = load_app.emit(
                 "browser-nav",
                 NavEvent { pane: load_pane.clone(), url: payload.url().to_string(), loading },
             );
             let _ = wv;
         });
+    let (x, y, w, h, _) = crate::browser_agent::placed(&pane, x, y, w, h);
     let r = rect(x, y, w, h);
     window.add_child(builder, r.position, r.size).map_err(|e| e.to_string())?;
     Ok(())
@@ -104,9 +107,16 @@ pub fn browser_open(app: AppHandle, pane: String, url: String, x: f64, y: f64, w
 
 #[tauri::command]
 pub fn browser_bounds(app: AppHandle, pane: String, x: f64, y: f64, w: f64, h: f64) {
+    let (x, y, w, h, zoom) = crate::browser_agent::placed(&pane, x, y, w, h);
     if let Some(wv) = app.get_webview(&label(&pane)) {
-        let _ = wv.set_bounds(rect(x, y, w, h));
+        place(&wv, x, y, w, h, zoom);
     }
+}
+
+/// Sets the webview's frame and page zoom (an agent's emulated viewport, browser_agent.rs).
+pub(crate) fn place(wv: &tauri::Webview, x: f64, y: f64, w: f64, h: f64, zoom: f64) {
+    let _ = wv.set_bounds(rect(x, y, w, h));
+    crate::browser_agent::set_zoom(wv, zoom);
 }
 
 #[tauri::command]
@@ -120,7 +130,10 @@ pub fn browser_visible(app: AppHandle, pane: String, visible: bool) {
 pub fn browser_navigate(app: AppHandle, pane: String, url: String) -> Result<(), String> {
     let url = parse(&url)?;
     match app.get_webview(&label(&pane)) {
-        Some(wv) => wv.navigate(url).map_err(|e| e.to_string()),
+        Some(wv) => {
+            crate::browser_agent::set_loading(&pane, true);
+            wv.navigate(url).map_err(|e| e.to_string())
+        }
         None => Ok(()),
     }
 }
@@ -192,6 +205,7 @@ mod tests {
 
 #[tauri::command]
 pub fn browser_close(app: AppHandle, pane: String) {
+    crate::browser_agent::forget(&pane);
     if let Some(wv) = app.get_webview(&label(&pane)) {
         let _ = wv.close();
     }

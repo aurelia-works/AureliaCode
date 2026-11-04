@@ -239,6 +239,39 @@ function openPane(from: string, params: Record<string, unknown>): string {
   return id;
 }
 
+/** The browser pane an agent means: the one it names, else the one in its tab, else the only one. */
+export function browserPaneFor(from: string, named: string): string {
+  const layout = useLayout.getState();
+  const isBrowser = (id: string) => !!layout.panes[id]?.browser;
+  if (named) {
+    if (!isBrowser(named)) throw new Error(`no browser pane ${named}`);
+    return named;
+  }
+  const tab = layout.tabs.find((t) => paneIds(t.root).includes(from));
+  const mine = tab && paneIds(tab.root).find(isBrowser);
+  if (mine) return mine;
+  const all = Object.keys(layout.panes).filter(isBrowser);
+  if (all.length === 1) return all[0];
+  throw new Error(all.length ? `several browser panes (${all.join(", ")}); pass pane` : "no browser pane; call action open with a url first");
+}
+
+/** `aurelia_browser`: the pane is picked here; the page work runs in Rust (browser_agent.rs). */
+async function browser(from: string, p: Record<string, unknown>): Promise<unknown> {
+  const action = str(p.action);
+  const { action: _, pane: __, ...args } = p;
+  let pane: string;
+  if (action === "open") {
+    const url = str(p.url);
+    if (!url) throw new Error("open needs a url");
+    pane = str(p.pane) ? browserPaneFor(from, str(p.pane)) : openInBrowserPane(useLayout.getState().panes[from] ? from : undefined, url);
+    if (str(p.pane)) useLayout.getState().updatePane(pane, { browser: { url } });
+  } else pane = browserPaneFor(from, str(p.pane));
+  // The page this pane was last sent to: a navigation the agent just caused (show_html, a
+  // link) may not have started yet, and Rust waits for it before acting.
+  const expect = useLayout.getState().panes[pane]?.browser?.url;
+  return invoke("browser_agent", { pane, action, args: { ...args, ...(expect && action !== "open" ? { expect } : {}) } });
+}
+
 async function answer(req: Request): Promise<unknown> {
   const p = req.params ?? {};
   switch (req.method) {
@@ -262,6 +295,8 @@ async function answer(req: Request): Promise<unknown> {
       return teamStatus(p);
     case "team_finish":
       return teamFinish(p, req.from);
+    case "browser":
+      return browser(req.from, p);
     default:
       throw new Error(`unknown method ${req.method}`);
   }

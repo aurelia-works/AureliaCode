@@ -11,7 +11,9 @@ message (queued if that agent is busy; refused while it waits on its human); aur
 on a task, e.g. to split work and check on it later with list/read; aurelia_show_html shows the user an HTML page (a \
 diagram, a report, a mockup) in a browser pane next to you. aurelia_task_add, aurelia_task_list and aurelia_task_update \
 keep the shared task list for a team run: one task per slice, status todo, doing or done, attached to the worker's pane. \
-aurelia_team_status shows recent team runs with their lead, workers, models, panes and merged report; aurelia_team_finish closes one with the lead's merged report.";
+aurelia_team_status shows recent team runs with their lead, workers, models, panes and merged report; aurelia_team_finish closes one with the lead's merged report. \
+aurelia_browser drives the browser pane beside you: open a url, snapshot the page (elements with refs), act on a ref, wait, \
+resize the viewport, inspect an element's box and styles, and screenshot the page alone.";
 
 pub fn tools() -> Vec<Value> {
     vec![
@@ -148,6 +150,41 @@ pub fn tools() -> Vec<Value> {
                 "required": ["run", "status", "summary"]
             }
         }),
+        json!({
+            "name": "aurelia_browser",
+            "title": "Drive the browser pane",
+            "description": "Check a page in the browser pane beside you. Use when the task asks for browser work or checking a UI change. Loop: open → snapshot → act/inspect → screenshot. \
+open: `url` (reuses your tab's browser pane, else splits one). snapshot: text tree of the page, each element with a ref like e12; refs stay valid until the page navigates; `ref`/`selector` limits it to one part; caps at 20 KB. \
+act: `kind` click (default), type (`text`, `clear`), press (`key`, `modifiers`), hover, select (`value`), scroll (`dx`/`dy`, or a ref to scroll into view), on a `ref` or `selector`. Events are synthetic. \
+wait: for `selector` or `text` to appear (`gone`: disappear), or with neither for load + quiet DOM; `timeoutMs` up to 15000. \
+resize: emulate a `width`x`height` viewport (wider than the pane zooms out); `reset` returns to the pane size. \
+inspect: a ref's box, visibility, what covers it, ancestors clipping it, text overflow and key computed styles. \
+screenshot: PNG of the page alone (no windows on top), or of one `ref`; returned as an image and saved to a file.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": crate::browser_agent::ACTIONS },
+                    "pane": { "type": "string", "description": "Browser pane id; default the one in your tab" },
+                    "url": { "type": "string" },
+                    "ref": { "type": "string", "description": "Element ref from snapshot, e.g. e12" },
+                    "selector": { "type": "string", "description": "CSS selector, when there is no ref" },
+                    "kind": { "type": "string", "enum": ["click", "type", "press", "hover", "select", "scroll"] },
+                    "text": { "type": "string" },
+                    "clear": { "type": "boolean" },
+                    "key": { "type": "string" },
+                    "modifiers": { "type": "array", "items": { "type": "string", "enum": ["Shift", "Meta", "Control", "Alt"] } },
+                    "value": { "type": "string" },
+                    "dx": { "type": "number" },
+                    "dy": { "type": "number" },
+                    "gone": { "type": "boolean" },
+                    "timeoutMs": { "type": "integer", "minimum": 0, "maximum": 15000 },
+                    "width": { "type": "number" },
+                    "height": { "type": "number" },
+                    "reset": { "type": "boolean" }
+                },
+                "required": ["action"]
+            }
+        }),
     ]
 }
 
@@ -158,13 +195,68 @@ pub fn handles(name: &str) -> bool {
 pub fn call(name: &str, args: &Value) -> Value {
     let method = name.trim_start_matches("aurelia_");
     match control::request(method, args.clone()) {
-        Ok(result) => {
-            let text = match &result {
-                Value::String(s) => s.clone(),
-                other => serde_json::to_string_pretty(other).unwrap_or_default(),
-            };
-            json!({ "content": [{ "type": "text", "text": text }] })
-        }
+        Ok(result) => content(&result),
         Err(e) => json!({ "content": [{ "type": "text", "text": e }], "isError": true }),
+    }
+}
+
+/// The MCP result for a tool's reply. A snapshot's `text` goes as plain text; a screenshot's
+/// `image` file goes as an image block, so the agent sees the pixels, plus the path as text.
+pub fn content(result: &Value) -> Value {
+    if let Some(text) = result.get("text").and_then(|t| t.as_str()).filter(|_| result.as_object().is_some_and(|o| o.len() == 1)) {
+        return json!({ "content": [{ "type": "text", "text": text }] });
+    }
+    let text = match result {
+        Value::String(s) => s.clone(),
+        other => serde_json::to_string_pretty(other).unwrap_or_default(),
+    };
+    let mut blocks = vec![json!({ "type": "text", "text": text })];
+    if let Some(path) = result.get("image").and_then(|p| p.as_str()) {
+        match std::fs::read(path) {
+            Ok(bytes) => {
+                use base64::Engine;
+                let data = base64::engine::general_purpose::STANDARD.encode(bytes);
+                blocks.push(json!({ "type": "image", "data": data, "mimeType": "image/png" }));
+            }
+            Err(e) => blocks.push(json!({ "type": "text", "text": format!("couldn't read the screenshot: {e}") })),
+        }
+    }
+    json!({ "content": blocks })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn browser_tool_schema_lists_every_action() {
+        let tool = tools().into_iter().find(|t| t["name"] == "aurelia_browser").expect("aurelia_browser");
+        let actions: Vec<&str> = tool["inputSchema"]["properties"]["action"]["enum"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+        assert_eq!(actions, ["open", "snapshot", "act", "wait", "resize", "inspect", "screenshot"]);
+        assert_eq!(tool["inputSchema"]["required"], json!(["action"]));
+        // Every action is accepted by the app side.
+        for a in actions {
+            assert!(crate::browser_agent::request(a, &json!({ "ref": "e1" })).is_ok(), "{a}");
+        }
+        assert!(handles("aurelia_browser"));
+    }
+
+    #[test]
+    fn screenshots_reach_the_agent_as_images() {
+        let path = std::env::temp_dir().join(format!("aurelia-shot-{}.png", std::process::id()));
+        std::fs::write(&path, b"\x89PNG fake").unwrap();
+        let out = content(&json!({ "image": path.to_string_lossy(), "width": 10, "height": 5 }));
+        let blocks = out["content"].as_array().unwrap();
+        assert_eq!(blocks[0]["type"], "text");
+        assert!(blocks[0]["text"].as_str().unwrap().contains("\"width\": 10"));
+        assert_eq!(blocks[1]["type"], "image");
+        assert_eq!(blocks[1]["mimeType"], "image/png");
+        assert_eq!(blocks[1]["data"], "iVBORyBmYWtl");
+        let _ = std::fs::remove_file(&path);
+        // A snapshot is its text alone, not JSON.
+        assert_eq!(content(&json!({ "text": "url: x" }))["content"][0]["text"], "url: x");
+        // A missing file is said, not dropped.
+        let gone = content(&json!({ "image": "/nonexistent/x.png" }));
+        assert!(gone["content"][1]["text"].as_str().unwrap().contains("couldn't read"));
     }
 }

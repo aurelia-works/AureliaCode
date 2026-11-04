@@ -1,5 +1,6 @@
 mod agents;
 mod browser;
+mod browser_agent;
 mod chat;
 mod checkpoints;
 mod config;
@@ -226,6 +227,7 @@ pub fn run() {
             store::store_health,
             browser::browser_eval,
             browser::browser_screenshot,
+            browser_agent::browser_agent,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_write_binary,
