@@ -116,7 +116,7 @@ function Card({ it, selected, onSelect, replyRef }: { it: Item; selected: boolea
           <ArrowIcon width={12} height={12} />
         </button>
       </header>
-      {(git || task) && (
+      {(git || task || pane?.goal) && (
         <div className="card-context">
           {git && (
             <span className="git-chip">
@@ -126,6 +126,12 @@ function Card({ it, selected, onSelect, replyRef }: { it: Item; selected: boolea
             </span>
           )}
           {task && <span className="card-task">◆ {task}</span>}
+          {pane?.goal && !pane.goal.ended && (
+            <span className="card-goal num" title={`Goal: ${pane.goal.text}`}>
+              Goal round {pane.goal.rounds + 1} of {pane.goal.maxRounds}
+              {pane.goal.last?.score != null && ` · last ${pane.goal.last.score}/${pane.goal.target}`}
+            </span>
+          )}
         </div>
       )}
       <p className={`card-detail${v ? ` ${v}` : ""}`}>
@@ -223,13 +229,13 @@ export function AgentsBoard() {
           <Spend items={items} />
         </div>
         <div className="board-actions">
-          <button className="btn" onClick={() => openAgentView(false)} title="Every live pane and team run on one screen">
+          <button className="btn quiet" onClick={() => openAgentView(false)} title="Every live pane and team run on one screen">
             Agent view
           </button>
-          <button className="btn" onClick={() => openAgentView(true)} title="Start a lead and its workers on one task">
+          <button className="btn quiet" onClick={() => openAgentView(true)} title="Start a lead and its workers on one task">
             <SparkIcon width={12} height={12} /> Run team
           </button>
-          <button className="btn" onClick={() => useUi.getState().set({ gridOpen: true })} title="New grid tab (⌘G)">
+          <button className="btn quiet" onClick={() => useUi.getState().set({ gridOpen: true })} title="New grid tab (⌘G)">
             <GridIcon width={12} height={12} /> Grid
           </button>
           <button className="btn primary" onClick={() => useUi.getState().set({ accountPicker: { target: "tab" } })} title="Launch agents (⇧⌘E)">

@@ -126,6 +126,8 @@ export interface Config {
   chatWidth: "comfortable" | "wide" | "full";
   /** Turn off panel/message animations regardless of the OS setting. */
   reduceMotion: boolean;
+  /** Agent logos in their brand colour (Claude's orange); off keeps colour for state only. */
+  brandMarks?: boolean;
   /** Enter sends a chat message; off means ⌘Enter sends and Enter inserts a newline. */
   chatSendOnEnter: boolean;
   /** Show the time next to chat messages. */

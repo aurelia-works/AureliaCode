@@ -453,6 +453,8 @@ pub struct Config {
     pub chat_width: String,
     /// Turn off panel/message animations regardless of the OS setting.
     pub reduce_motion: bool,
+    /// Agent logos in their brand colour (Claude's orange); off keeps colour for state only.
+    pub brand_marks: bool,
     /// Enter sends a chat message; off means ⌘Enter sends and Enter inserts a newline.
     pub chat_send_on_enter: bool,
     /// Show the time next to chat messages.
@@ -500,6 +502,7 @@ impl Default for Config {
             contrast: "normal".into(),
             chat_width: "comfortable".into(),
             reduce_motion: false,
+            brand_marks: false,
             chat_send_on_enter: true,
             chat_timestamps: false,
             link_open: "local".into(),

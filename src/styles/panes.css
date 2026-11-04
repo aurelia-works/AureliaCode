@@ -179,7 +179,7 @@ body.pane-dragging .block-overlay {
 }
 .pane[data-state="needs_input"] {
   --edge: var(--attn);
-  border-color: var(--attn-line);
+  border-color: var(--attn);
 }
 .pane.focus-ring {
   border-color: color-mix(in srgb, var(--text) 34%, var(--border));
@@ -213,7 +213,7 @@ body.pane-dragging .block-overlay {
   opacity: 0.72;
 }
 .pane-id {
-  flex: 0 1 auto;
+  flex: 0 100 auto;
   min-width: 64px;
   display: flex;
   align-items: center;
@@ -255,10 +255,9 @@ body.pane-dragging .block-overlay {
 .pane-signals:has(.perm-buttons) .state-text {
   display: none;
 }
+/* The state word is what the header is for: it keeps its width and the branch gives way. */
 .pane-signals .state-text {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 24ch;
+  flex: none;
 }
 .pane-task {
   min-width: 0;
@@ -735,7 +734,7 @@ body.pane-dragging .block-overlay {
   color: var(--text);
 }
 .start-row.claude .start-logo {
-  color: #d97757; /* Claude's own mark colour */
+  color: var(--brand-mark); /* Claude's own mark colour */
 }
 .start-label {
   font-weight: 600;
@@ -1916,7 +1915,7 @@ body.pane-dragging .block-overlay {
 /* Claude's mark in its own orange; follows the theme's accent family otherwise. */
 .chat-pick-btn > svg[viewBox="0 0 24 24"],
 .chat-pick-icon svg[viewBox="0 0 24 24"] {
-  color: #d97757;
+  color: var(--brand-mark);
 }
 .chat-auto-icon {
   color: var(--accent);
@@ -2693,6 +2692,17 @@ body.pane-dragging .block-overlay {
     width: 32px;
     padding: 0;
     justify-content: center;
+  }
+  /* Narrow: the model keeps its name; the account is in the pane header already. */
+  .chat-pick-model .chat-pick-btn {
+    width: auto;
+    padding: 0 7px;
+  }
+  .chat-pick-model .chat-pick-btn > span {
+    display: inline;
+  }
+  .chat-pick-account {
+    display: none;
   }
 }
 .chat-card-bar > .chat-plus,

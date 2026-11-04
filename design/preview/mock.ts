@@ -427,6 +427,8 @@ mockWindows("main");
 mockIPC(
   (cmd, args: any) => {
     switch (cmd) {
+      case "store_health":
+        return { ok: true, threads: 42, events: 1318, path: "/Users/jah/Library/Application Support/space.aurelia.code/aurelia.db" };
       case "proxy_status":
         return { installed: true, running: false, signedIn: false };
       case "tray_accounts":
@@ -689,6 +691,27 @@ useMetrics.setState({
   byPane: { p1: m(38, 412_000, 1.84), p2: m(57, 903_000, 3.12), p3: m(22, 188_000, 0.71), p4: m(88, 2_410_000, 7.9, true), p5: m(31, 260_000, 0.95), p8: m(9, 41_000, 0.12) },
 });
 
+// Threads are named after their first prompt; p2 is working toward a goal.
+for (const [id, title] of Object.entries({
+  p1: "Backfill org_id for existing users",
+  p3: "Rewrite the quickstart for the new CLI flags",
+  p4: "Add idempotency keys to refunds",
+  p5: "Move buckets to eu-west-2",
+  p6: "Fix the flaky focus test",
+  p7: "Bump vite to the next minor",
+  p8: "Retry failed webhooks with backoff",
+})) useLayout.getState().updatePane(id, { title });
+useLayout.getState().updatePane("p2", {
+  goal: {
+    text: "Settings nav passes the keyboard test suite",
+    check: "npm test -- settings-nav",
+    maxRounds: 6,
+    startedAt: Date.now() - 20 * 60_000,
+    deadline: Date.now() + 2 * 3600_000,
+    rounds: 1,
+    last: { met: false, code: 1, at: Date.now() - 4 * 60_000, tail: "3 of 11 failing" },
+  },
+});
 if (view === "board") useUi.setState({ mode: "agents" });
 if (view === "work") useUi.setState({ mode: "work" });
 if (view === "review") useUi.setState({ reviewOpen: true });

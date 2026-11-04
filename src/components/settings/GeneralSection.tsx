@@ -11,7 +11,7 @@ export function GeneralSection({ draft, update }: SectionProps) {
   const terms = useUi((s) => s.prefs.legacyTerminals);
   const [store, setStore] = useState<{ ok: boolean; threads: number; events: number; path: string } | null>(null);
   useEffect(() => {
-    void db.health().then(setStore, () => setStore(null));
+    void db.health().then(setStore, (e) => setStore({ ok: false, threads: 0, events: 0, path: String(e) }));
   }, []);
   return (
     <>

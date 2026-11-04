@@ -73,6 +73,11 @@ export function AppearanceSection({ draft, update }: SectionProps) {
           <span>Reduce motion</span>
         </label>
         <p className="hint">Turns off panel and message animations without changing the macOS setting.</p>
+        <label className="field check">
+          <input type="checkbox" checked={!!draft.brandMarks} onChange={(e) => update((c) => (c.brandMarks = e.target.checked))} />
+          <span>Brand colours</span>
+        </label>
+        <p className="hint">Shows agent logos in their own colour, like Claude's orange. Off, colour only ever means a thread's state.</p>
       </section>
 
       {terms && <section className="set-group">

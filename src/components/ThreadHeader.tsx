@@ -105,7 +105,7 @@ export function ThreadHeader() {
         <div className="crumb">
           <h1>Colony</h1>
           <span className="num">
-            · {ids.length} {ids.length === 1 ? "thread" : "threads"}
+            · {ids.length} {ids.length === 1 ? "thread" : "threads"} in this tab
             {working ? `, ${working} working` : ""}
           </span>
         </div>

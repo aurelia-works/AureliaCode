@@ -24,9 +24,9 @@
   --border-strong: rgba(255, 255, 255, 0.13);
   --text: #f1f3f7;
   --text-dim: #a1a1aa;
-  --text-faint: #71717a;
-  --accent: #7c7cf0;
-  --accent-strong: #9292ff;
+  --text-faint: #8b8b94;
+  --accent: #6060dc;
+  --accent-strong: #6e6ee6;
   --accent-ink: #ffffff;
   --ok: #4ade80;
   --err: #f87171;
@@ -51,13 +51,13 @@
   --border-strong: rgba(0, 0, 0, 0.14);
   --text: #18181b;
   --text-dim: #52525b;
-  --text-faint: #71717a;
+  --text-faint: #686871;
   --accent: #5b5bd6;
   --accent-strong: #4a4ac4;
   --accent-ink: #ffffff;
   --ok: #15803d;
   --err: #b91c1c;
-  --warn: #a16207;
+  --warn: #9a5c06;
   --attn: #94600a;
   --work: #1d4ed8;
   --shadow: 0 24px 60px rgba(0, 0, 0, 0.14), 0 0 0 1px rgba(0, 0, 0, 0.06);
@@ -78,6 +78,9 @@
   --press: color-mix(in srgb, var(--text) 10%, transparent);
   --focus: color-mix(in srgb, var(--text) 70%, transparent);
   --scrim: color-mix(in srgb, var(--bg) 62%, transparent);
+
+  /* Agent logos are ink; colour is for state. Settings → Appearance → Brand colours brings Claude's orange back. */
+  --brand-mark: currentColor;
 
   /* Primary action = inverted ink. */
   --primary: var(--text);
@@ -150,6 +153,10 @@
   --border-strong: rgba(0, 0, 0, 0.26);
   --text-dim: #3f3f46;
   --text-faint: #52525b;
+}
+
+:root[data-brand-marks="on"] {
+  --brand-mark: #d97757;
 }
 
 :root[data-chat-width="wide"] .chat {

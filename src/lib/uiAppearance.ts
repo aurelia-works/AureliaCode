@@ -7,4 +7,5 @@ export function applyUiAppearance() {
   root.dataset.contrast = cfg.contrast === "high" ? "high" : "normal";
   root.dataset.chatWidth = cfg.chatWidth ?? "comfortable";
   root.dataset.motion = cfg.reduceMotion ? "reduced" : "full";
+  root.dataset.brandMarks = cfg.brandMarks ? "on" : "off";
 }

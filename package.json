@@ -12,7 +12,8 @@
     "app:build:dev": "VITE_AURELIA_DEV=1 tauri build --debug --config src-tauri/tauri.dev.conf.json",
     "test": "node --test src/lib/*.test.ts",
     "shots": "node scripts/preview-shots.mjs",
-    "ui-score": "node scripts/ui-score.mjs"
+    "ui-score": "node scripts/ui-score.mjs",
+    "contrast": "node scripts/contrast.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.1",

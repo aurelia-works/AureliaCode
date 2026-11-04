@@ -1536,6 +1536,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
               }}
               icon={agentIcon}
               tone={providerProblem ? "warn" : undefined}
+              className="chat-pick-account"
             />
           )}
           <Picker
@@ -1545,6 +1546,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             options={models}
             onPick={(v) => setChatOptions(paneId, { model: v })}
             icon={model === "auto" ? <SparkIcon className="chat-auto-icon" /> : agentIcon}
+            className="chat-pick-model"
           />
           {!oc && (
             <Picker
@@ -1855,6 +1857,7 @@ function Picker({
   icon,
   tone,
   more,
+  className,
 }: {
   label: string;
   title: string;
@@ -1865,6 +1868,8 @@ function Picker({
   tone?: "warn" | "danger";
   /** A last row that opens something else, e.g. the saved rules. */
   more?: { label: string; onClick: () => void };
+  /** chat-pick-model keeps its label in a narrow pane; chat-pick-account steps aside there. */
+  className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -1881,7 +1886,7 @@ function Picker({
     ref.current?.querySelector<HTMLButtonElement>(".chat-pick-btn")?.focus();
   };
   return (
-    <div className="chat-pick" ref={ref}>
+    <div className={`chat-pick${className ? ` ${className}` : ""}`} ref={ref}>
       <button
         type="button"
         className={`chat-pick-btn${open ? " on" : ""}${tone ? ` ${tone}` : ""}`}
