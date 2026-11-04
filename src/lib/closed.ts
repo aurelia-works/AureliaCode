@@ -22,7 +22,7 @@ export interface ClosedGroup {
 export const CLOSED_CAP = 20;
 
 /** Pane fields that make a reopened thread pick up where it left off. A reopened thread is active, so `settled` is not carried (that would re-run the settle side effects). */
-export const CARRY_KEYS = ["title", "pinned", "env", "secretEnv", "chatFork", "prSeenFeedback", "claudeSession", "chatModel", "chatEffort", "chatStyle", "chatPermission", "chatUsed", "chatTokens", "chatCost", "cardId", "babysit", "babysitWakes"] as const;
+export const CARRY_KEYS = ["title", "pinned", "env", "secretEnv", "chatFork", "prSeenFeedback", "claudeSession", "chatModel", "chatEffort", "chatStyle", "chatPermission", "chatUsed", "chatTokens", "chatCost", "cardId", "babysit", "babysitWakes", "goal"] as const;
 
 export function snapshot(meta: Record<string, any>): ClosedPane | null {
   // Empty start tabs and file editors have nothing worth reopening.

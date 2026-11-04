@@ -2469,6 +2469,111 @@ body.resizing-row .rail-grip {
   color: var(--text-faint);
 }
 
+/* Thread goal (GoalBar.tsx): the banner above the composer, the dialog, the sidebar tag. */
+.chat-goal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+  font-size: 13px;
+}
+.chat-goal-mark {
+  color: var(--accent);
+  font-size: 15px;
+  line-height: 1;
+}
+.chat-goal.met .chat-goal-mark {
+  color: var(--ok, #3fb950);
+}
+.chat-goal.ended:not(.met) .chat-goal-mark {
+  color: var(--text-faint);
+}
+.chat-goal-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chat-goal-top {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+.chat-goal-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.chat-goal-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-goal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+.chat-goal-checking {
+  color: var(--accent);
+}
+.chat-goal-actions {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.chat-goal-actions button {
+  padding: 3px 9px;
+  border-radius: var(--r-md, 6px);
+  font-size: 12px;
+  background: var(--surface-3, var(--surface-2));
+}
+.chat-goal-actions button:disabled {
+  opacity: 0.5;
+}
+.goal-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+.goal-dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 0 16px 12px;
+}
+/* Labels above the inputs here, so the three budget fields share one row. */
+.goal-dialog .field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  margin: 0;
+}
+.goal-dialog .field > span:first-child {
+  width: auto;
+}
+.goal-dialog .field > input,
+.goal-dialog .field > textarea {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.goal-dialog-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 10px;
+}
+.th-goal {
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
 /* Composer attachments (AttachChips.tsx): one chip per file, saying what will happen to it. */
 .chat-attach {
   list-style: none;

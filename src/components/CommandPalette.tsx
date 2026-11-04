@@ -16,7 +16,7 @@ import { copyText } from "../lib/copyText";
 import { copyPromptLink } from "../lib/copyPromptLink";
 import { paneDir } from "../store/git";
 import { usePrs } from "../store/prs";
-import { jumpToWaiting } from "../lib/shortcuts";
+import { GOAL_OPEN, jumpToWaiting } from "../lib/shortcuts";
 import { clearTerminal, showPane } from "../lib/terminals";
 import { toggleVoice, useVoice } from "../lib/voice";
 import { useAgents } from "../store/agents";
@@ -154,6 +154,7 @@ function actionItems(): Item[] {
     !!pane && layout.panes[pane]?.mode !== "chat" && !!useAgents.getState().sessions[pane]?.sessionId && { id: "terminal-chat", group: "Actions", label: "Continue this conversation as a chat", hint: "a chat pane beside it, same history", run: () => void openInChat(pane) },
     !!pane && !!useAgents.getState().sessions[pane]?.sessionId && { id: "fork", group: "Actions", label: "Fork this conversation into a new pane", run: () => void forkConversation(pane) },
     !!pane && !!useAgents.getState().sessions[pane] && { id: "perm-mode", group: "Actions", label: "Cycle permission mode (manual, plan, auto)", keys: "⇧⇥", run: () => void cyclePermissionMode(pane) },
+    !!pane && layout.panes[pane]?.mode === "chat" && { id: "goal", group: "Actions", label: "Set a goal for this chat", hint: "keep going until a check passes", run: () => window.dispatchEvent(new CustomEvent(GOAL_OPEN, { detail: pane })) },
     !!pane && !!useAgents.getState().sessions[pane]?.transcriptPath && { id: "handoff", group: "Actions", label: "Hand off this session to a fresh pane", run: () => void handOff(pane) },
     { id: "nav-ws", group: "Actions", label: "Navigator: workspace", keys: "⌘\\", run: () => ui.set({ nav: ui.nav === "projects" ? null : "projects" }) },
     { id: "nav-files", group: "Actions", label: "Navigator: files", keys: "⇧⌘F", run: () => ui.set({ nav: ui.nav === "files" ? null : "files" }) },

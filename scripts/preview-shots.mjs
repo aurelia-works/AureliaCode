@@ -6,14 +6,18 @@
 //   npm run shots -- --no-before         after only
 //   npm run shots -- --publish           push the PNGs to the `pr-shots` branch and print image links for the PR
 //
+// With a before, each view also gets a "changes" image: the after shot with each changed area
+// boxed and numbered, and a legend under the table saying where each one is.
+//
 // "Before" is the merge base, served from a temporary git worktree; "after" is this working tree.
 // Both run Vite on a free port and are stopped at the end. PNGs go to .shots/pr/ (git-ignored).
 import { spawn, execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { ALL_VIEWS, viewSlug, viewsFor } from "../src/lib/previewViews.ts";
+import { diffBoxes, legendLine } from "../src/lib/shotDiff.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const args = process.argv.slice(2);
@@ -90,8 +94,12 @@ function cleanup() {
 process.on("exit", cleanup);
 process.on("SIGINT", () => process.exit(130));
 
+const SCALE = 2;
+/** Grid cell for the pixel compare, in screenshot pixels (8 CSS px at 2x). */
+const CELL = 16;
+
 async function capture(browser, url, label) {
-  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: 2, reducedMotion: "reduce", colorScheme: "dark" });
+  const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: SCALE, reducedMotion: "reduce", colorScheme: "dark" });
   const files = {};
   for (const view of views) {
     const page = await ctx.newPage();
@@ -109,6 +117,69 @@ async function capture(browser, url, label) {
   }
   await ctx.close();
   return files;
+}
+
+/** The after shot with each changed area boxed and numbered, and a legend line per box; null when nothing changed. */
+async function annotate(browser, view, beforeFile, afterFile) {
+  const page = await browser.newPage();
+  const url = (f) => `data:image/png;base64,${readFileSync(f).toString("base64")}`;
+  try {
+    await page.evaluate(async ([a, b]) => {
+      const load = (src) => new Promise((ok, fail) => Object.assign(new Image(), { onload() { ok(this); }, onerror: fail, src }));
+      [window.__a, window.__b] = await Promise.all([load(a), load(b)]);
+    }, [url(beforeFile), url(afterFile)]);
+    const grid = await page.evaluate((cell) => {
+      const { __a: a, __b: b } = window;
+      const w = Math.min(a.width, b.width), h = Math.min(a.height, b.height);
+      const pixels = (img) => {
+        const g = new OffscreenCanvas(w, h).getContext("2d");
+        g.drawImage(img, 0, 0);
+        return g.getImageData(0, 0, w, h).data;
+      };
+      const pa = pixels(a), pb = pixels(b);
+      const cols = Math.ceil(w / cell), rows = Math.ceil(h / cell);
+      const mask = new Array(cols * rows).fill(0);
+      // A summed RGB difference over 48 is a real change; below it is antialiasing noise.
+      for (let y = 0; y < h; y++)
+        for (let x = 0; x < w; x++) {
+          const i = (y * w + x) * 4;
+          if (Math.abs(pa[i] - pb[i]) + Math.abs(pa[i + 1] - pb[i + 1]) + Math.abs(pa[i + 2] - pb[i + 2]) > 48) mask[((y / cell) | 0) * cols + ((x / cell) | 0)] = 1;
+        }
+      return { mask, cols, rows };
+    }, CELL);
+    const { boxes, more } = diffBoxes(Uint8Array.from(grid.mask), grid.cols, grid.rows);
+    if (!boxes.length) return null;
+    const png = await page.evaluate(([boxes, cell, scale]) => {
+      const b = window.__b;
+      const c = new OffscreenCanvas(b.width, b.height);
+      const g = c.getContext("2d");
+      g.drawImage(b, 0, 0);
+      g.lineWidth = 2 * scale;
+      g.font = `600 ${13 * scale}px -apple-system, system-ui, sans-serif`;
+      g.textAlign = "center";
+      g.textBaseline = "middle";
+      boxes.forEach((box, i) => {
+        const [x, y, w, h] = [box.x, box.y, box.w, box.h].map((v) => v * cell);
+        g.strokeStyle = "#ff3b30";
+        g.strokeRect(x, y, w, h);
+        const r = 11 * scale, cx = Math.max(r, x), cy = Math.max(r, y);
+        g.fillStyle = "#ff3b30";
+        g.beginPath();
+        g.arc(cx, cy, r, 0, Math.PI * 2);
+        g.fill();
+        g.fillStyle = "#fff";
+        g.fillText(String(i + 1), cx, cy + scale);
+      });
+      return c.convertToBlob({ type: "image/png" }).then((blob) => blob.arrayBuffer()).then((buf) => [...new Uint8Array(buf)]);
+    }, [boxes, CELL, SCALE]);
+    const file = join(outDir, `${viewSlug(view)}-changes.png`);
+    writeFileSync(file, Buffer.from(png));
+    const legend = boxes.map((box, i) => legendLine(i + 1, box, CELL / SCALE, width, height));
+    if (more) legend.push(`and ${more} smaller ${more === 1 ? "change" : "changes"}`);
+    return { file, legend };
+  } finally {
+    await page.close();
+  }
 }
 
 function publish(files) {
@@ -162,10 +233,17 @@ try {
     if (!existsSync(join(worktree, "node_modules"))) symlinkSync(join(root, "node_modules"), join(worktree, "node_modules"));
     before = await capture(browser, await serve(worktree), "before");
   }
-  const link = flag("publish") ? publish([...Object.values(before), ...Object.values(after)]) : (f) => f.replace(`${root}/`, "");
+  const changes = {};
+  for (const v of views) if (before[v] && after[v]) changes[v] = await annotate(browser, v, before[v], after[v]);
+  const shots = [...Object.values(before), ...Object.values(after), ...Object.values(changes).flatMap((c) => (c ? [c.file] : []))];
+  const link = flag("publish") ? publish(shots) : (f) => f.replace(`${root}/`, "");
   const cell = (view, f) => (f ? `![${view}](${link(f)})` : "—");
-  const lines = [flag("no-before") ? "| View | After |" : "| View | Before | After |", flag("no-before") ? "| --- | --- |" : "| --- | --- | --- |"];
-  for (const v of views) lines.push(flag("no-before") ? `| \`${v}\` | ${cell(v, after[v])} |` : `| \`${v}\` | ${cell(v, before[v])} | ${cell(v, after[v])} |`);
+  const solo = flag("no-before");
+  const lines = [solo ? "| View | After |" : "| View | Before | After | Changes |", solo ? "| --- | --- |" : "| --- | --- | --- | --- |"];
+  for (const v of views)
+    lines.push(solo ? `| \`${v}\` | ${cell(v, after[v])} |` : `| \`${v}\` | ${cell(v, before[v])} | ${cell(v, after[v])} | ${changes[v] ? cell(v, changes[v].file) : before[v] ? "no visible change" : "—"} |`);
+  const legends = views.filter((v) => changes[v]).map((v) => `**\`${v}\`** ${changes[v].legend.join("; ")}`);
+  if (legends.length) lines.push("", "Changed areas (CSS px, numbered in the Changes shots):", "", ...legends.map((l) => `- ${l}`));
   const md = lines.join("\n");
   writeFileSync(join(outDir, "shots.md"), md + "\n");
   console.log(md);

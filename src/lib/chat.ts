@@ -11,6 +11,7 @@ import { cacheSafe } from "./effort";
 import { ipc, type ChatEvent, type ChatImage, type CliModel, type ChatUsage, type ContextUsage, type SlashCommand } from "./ipc";
 import { startPermissionMode } from "./startMode";
 import { refreshUsageAfterTurn } from "../store/usage";
+import { runGoalCheck } from "../store/goals";
 
 /**
  * Chat panes' live state, kept outside React like terminals.ts keeps xterm: a pane that
@@ -137,6 +138,9 @@ function reduce(paneId: string, s: ChatSession, ev: ChatEvent): ChatSession {
         queueMicrotask(() => useLayout.getState().updatePane(paneId, { claudeSession: forked, chatFork: undefined }));
       }
       workAfterTurn(paneId, ev.outcome);
+      // A goal checks its command once this turn is the last one queued (store/goals.ts).
+      const behind = s.queued.length;
+      queueMicrotask(() => void runGoalCheck(paneId, (t) => void sendChat(paneId, t), { outcome: ev.outcome, queued: behind }));
       const u = ev.usage;
       const tokens = u ? u.inputTokens + u.outputTokens + u.cacheReadTokens + u.cacheWriteTokens : 0;
       // Kept on the pane so a restart (app, account switch, edit) carries on counting.
