@@ -74,7 +74,10 @@ export async function cyclePermissionMode(paneId: string): Promise<string> {
 /** Shift+Tabs until the pane is in `target`; gives up after a full cycle (the mode isn't offered). */
 export async function setPermissionMode(paneId: string, target: string): Promise<boolean> {
   // A chat pane switches through Claude Code's control channel: every mode, no key presses.
-  if (useLayout.getState().panes[paneId]?.mode === "chat") {
+  const pane = useLayout.getState().panes[paneId];
+  if (pane?.mode === "chat") {
+    // OpenCode has no modes to switch to.
+    if (!chatCan(pane).mode) return false;
     await setChatMode(paneId, target);
     return true;
   }
