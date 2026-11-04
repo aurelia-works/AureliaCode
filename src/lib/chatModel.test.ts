@@ -223,3 +223,19 @@ test("a skill's instructions never show as a message", () => {
   assert.equal(run([skill]).items.length, 0);
   assert.equal(run([{ ...skill, isMeta: undefined, isSynthetic: true }]).items.length, 0);
 });
+
+test("files sent in history come back as their names, a file alone still counts as a message", () => {
+  const pdf = { type: "document", title: "spec.pdf", source: { type: "base64", media_type: "application/pdf", data: "JVBER" } };
+  const csv = { type: "document", title: "rows.csv", source: { type: "text", media_type: "text/plain", data: "a,b" } };
+  const t = run([
+    { type: "user", message: { role: "user", content: [pdf, csv, { type: "text", text: "compare these" }] } },
+    { type: "user", message: { role: "user", content: [pdf] } },
+  ]);
+  assert.deepEqual(
+    t.items.map((i) => [(i as any).text, (i as any).files]),
+    [
+      ["compare these", ["spec.pdf", "rows.csv"]],
+      ["", ["spec.pdf"]],
+    ],
+  );
+});

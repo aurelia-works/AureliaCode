@@ -1,7 +1,7 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useLayout } from "../store/layout";
 import { useUi } from "../store/ui";
-import { focusChat, insertIntoChat } from "./chatComposer";
+import { attachToChat, focusChat, insertIntoChat } from "./chatComposer";
 import { insertAtPrompt, showPane } from "./terminals";
 
 /** Backslash-escapes a path for zsh, the way Terminal.app and iTerm do on drop. */
@@ -46,9 +46,9 @@ export async function installFileDrop() {
       // A thread row opens its thread first, so the files land in the composer you can see.
       if (target?.dataset.thread) showPane(paneId);
       else useLayout.getState().focusPane(paneId);
-      // A chat takes them quoted, not escaped: Claude reads them, images included.
+      // A chat takes them as attachments; one not on screen yet gets the quoted paths in its draft.
       if (useLayout.getState().panes[paneId]?.mode === "chat") {
-        insertIntoChat(paneId, p.paths.map((f) => (/\s/.test(f) ? `"${f}"` : f)).join(" ") + " ");
+        if (!attachToChat(paneId, p.paths)) insertIntoChat(paneId, p.paths.map((f) => (/\s/.test(f) ? `"${f}"` : f)).join(" ") + " ");
         focusChat(paneId);
       } else insertAtPrompt(paneId, p.paths.map(shellEscape).join(" ") + " ");
     }

@@ -5,6 +5,7 @@ import { getConfig } from "../store/config";
 import { onPanesClosed, useLayout, type PaneMeta } from "../store/layout";
 import { addNotice, addUser, applyLine, emptyTranscript, endTurn, toolSummary, type SentVia, type Transcript } from "./chatModel";
 import { takeReplay } from "./chatReplay";
+import type { ChatDocument } from "./attachments";
 import { workAfterTurn } from "./workBridge";
 import { cacheSafe } from "./effort";
 import { ipc, type ChatEvent, type ChatImage, type CliModel, type ChatUsage, type ContextUsage, type SlashCommand } from "./ipc";
@@ -31,8 +32,15 @@ export interface Approval {
 export interface Queued {
   text: string;
   images?: string[];
+  files?: string[];
   uuid: string;
   via?: SentVia;
+}
+
+/** What a message carries besides its text: images, and files sent as document blocks. */
+export interface Outgoing {
+  images?: ChatImage[];
+  documents?: ChatDocument[];
 }
 
 export interface ChatSession {
@@ -379,24 +387,31 @@ export async function rewindChat(paneId: string, uuid: string, dryRun: boolean) 
   return r;
 }
 
-export function sendChat(paneId: string, text: string, images: ChatImage[] = [], via?: SentVia) {
-  if (!images.length && localCommand(paneId, text)) return Promise.resolve();
+export function sendChat(paneId: string, text: string, att: Outgoing = {}, via?: SentVia) {
+  const images = att.images ?? [];
+  const documents = att.documents ?? [];
+  if (!images.length && !documents.length && localCommand(paneId, text)) return Promise.resolve();
   if (!useLayout.getState().panes[paneId]?.chatUsed) useLayout.getState().updatePane(paneId, { chatUsed: true });
   const status = useChat.getState().byPane[paneId]?.status;
   const busy = status === "working" || status === "waiting";
-  const msg: Queued = { text, images: images.map((i) => `data:${i.mediaType};base64,${i.data}`), uuid: crypto.randomUUID() };
+  const msg: Queued = {
+    text,
+    images: images.map((i) => `data:${i.mediaType};base64,${i.data}`),
+    ...(documents.length && { files: documents.map((d) => d.name) }),
+    uuid: crypto.randomUUID(),
+  };
   const uuid = msg.uuid;
   patch(paneId, (s) =>
     s.status === "working" || s.status === "waiting"
       ? { ...s, queued: [...s.queued, { ...msg, via: "queued" }] }
       : { ...s, status: "working", transcript: addUser(s.transcript, text, Date.now(), { ...msg, via }) },
   );
-  const run = (sending.get(paneId) ?? Promise.resolve()).then(() => deliver(paneId, text, busy, images, uuid));
+  const run = (sending.get(paneId) ?? Promise.resolve()).then(() => deliver(paneId, text, busy, images, documents, uuid));
   sending.set(paneId, run);
   return run;
 }
 
-async function deliver(paneId: string, text: string, busy: boolean, images: ChatImage[], uuid: string) {
+async function deliver(paneId: string, text: string, busy: boolean, images: ChatImage[], documents: ChatDocument[], uuid: string) {
   try {
     // Switching mid-turn is untested ground: a message queued behind a running turn waits for the next one.
     if (!busy) {
@@ -405,7 +420,7 @@ async function deliver(paneId: string, text: string, busy: boolean, images: Chat
       if (effort) appliedEffort.set(paneId, effort);
       if (model || effort || style) await ipc.chatConfigure(paneId, model, effort, style);
     }
-    await ipc.chatSend(paneId, text, images.length ? images : undefined, uuid);
+    await ipc.chatSend(paneId, text, images.length ? images : undefined, uuid, documents.length ? documents : undefined);
     // Claude Code starts a new conversation (and session id); the view starts over with it.
     if (!busy && text.trim() === "/clear") patch(paneId, (s) => ({ ...s, transcript: addNotice(emptyTranscript(), "New conversation"), last: undefined }));
   } catch (e) {
@@ -478,15 +493,15 @@ const isBusy = (paneId: string) => {
  * flight would race it at the CLI and could mark the new turn as interrupted. After `timeoutMs` it sends anyway (queued).
  */
 const steering = new Set<string>();
-export async function steerChat(paneId: string, text: string, images: ChatImage[] = [], timeoutMs = 5000) {
+export async function steerChat(paneId: string, text: string, att: Outgoing = {}, timeoutMs = 5000) {
   // A second steer while one is stopping the turn joins it: it queues behind instead of interrupting again.
-  if (steering.has(paneId)) return sendChat(paneId, text, images, "steered");
+  if (steering.has(paneId)) return sendChat(paneId, text, att, "steered");
   steering.add(paneId);
   interruptChat(paneId);
   const t0 = Date.now();
   while (isBusy(paneId) && Date.now() - t0 < timeoutMs) await new Promise((r) => setTimeout(r, 60));
   steering.delete(paneId);
-  return sendChat(paneId, text, images, "steered");
+  return sendChat(paneId, text, att, "steered");
 }
 
 export function interruptChat(paneId: string) {

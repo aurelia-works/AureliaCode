@@ -72,10 +72,9 @@ export function GeneralSection({ draft, update }: SectionProps) {
         <h3>Claude panes</h3>
         <label className="field">
           <span>Start in</span>
-          <select value={draft.claudePermissionMode || "acceptEdits"} onChange={(e) => update((c) => (c.claudePermissionMode = e.target.value))}>
+          <select value={!draft.claudePermissionMode || draft.claudePermissionMode === "acceptEdits" ? "auto" : draft.claudePermissionMode} onChange={(e) => update((c) => (c.claudePermissionMode = e.target.value))}>
             <option value="auto">Auto: Claude decides what's safe to run</option>
-            <option value="acceptEdits">Auto-edit: accept file edits, ask for commands</option>
-            <option value="default">Claude's default: ask before edits</option>
+            <option value="default">Manual: ask before edits and commands</option>
             <option value="plan">Plan mode: read and plan, no changes</option>
             <option value="bypassPermissions">Bypass: never ask (risky)</option>
           </select>

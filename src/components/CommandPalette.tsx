@@ -153,7 +153,7 @@ function actionItems(): Item[] {
     ui.prefs.legacyTerminals && !!pane && layout.panes[pane]?.mode === "chat" && { id: "chat-terminal", group: "Actions", label: "Open this chat in a terminal", hint: "same conversation, Claude's own screen", run: () => openChatInTerminal(pane) },
     !!pane && layout.panes[pane]?.mode !== "chat" && !!useAgents.getState().sessions[pane]?.sessionId && { id: "terminal-chat", group: "Actions", label: "Continue this conversation as a chat", hint: "a chat pane beside it, same history", run: () => void openInChat(pane) },
     !!pane && !!useAgents.getState().sessions[pane]?.sessionId && { id: "fork", group: "Actions", label: "Fork this conversation into a new pane", run: () => void forkConversation(pane) },
-    !!pane && !!useAgents.getState().sessions[pane] && { id: "perm-mode", group: "Actions", label: "Cycle permission mode (ask, auto-edit, plan…)", keys: "⇧⇥", run: () => void cyclePermissionMode(pane) },
+    !!pane && !!useAgents.getState().sessions[pane] && { id: "perm-mode", group: "Actions", label: "Cycle permission mode (manual, plan, auto)", keys: "⇧⇥", run: () => void cyclePermissionMode(pane) },
     !!pane && layout.panes[pane]?.mode === "chat" && { id: "goal", group: "Actions", label: "Set a goal for this chat", hint: "keep going until a check passes", run: () => window.dispatchEvent(new CustomEvent(GOAL_OPEN, { detail: pane })) },
     !!pane && !!useAgents.getState().sessions[pane]?.transcriptPath && { id: "handoff", group: "Actions", label: "Hand off this session to a fresh pane", run: () => void handOff(pane) },
     { id: "nav-ws", group: "Actions", label: "Navigator: workspace", keys: "⌘\\", run: () => ui.set({ nav: ui.nav === "projects" ? null : "projects" }) },

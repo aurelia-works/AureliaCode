@@ -9,7 +9,7 @@ export const CORE_VIEWS: PreviewView[] = ["threads", "chat", "start", "settings"
 
 /** Every view the harness knows, in the order screenshots are listed. */
 export const ALL_VIEWS: PreviewView[] = [
-  "threads", "threads&single=1", "threads&rail=changes", "threads&nav=right", "chat", "chat&goal=1", "chat&goal=dialog", "start", "board", "work", "review",
+  "threads", "threads&single=1", "threads&rail=changes", "threads&nav=right", "chat", "chat&attach=1", "chat&goal=1", "chat&goal=dialog", "start", "board", "work", "review",
   "settings", "settings&section=accounts", "palette", "files", "terminals", "permissions", "commit",
   "history", "agentview", "tray", "weekly", "roadmap",
 ];
@@ -19,9 +19,10 @@ const RULES: [RegExp, PreviewView[]][] = [
   [/^src\/styles\/board\.css$/, ["board"]],
   [/^src\/styles\/agentview\.css$/, ["agentview"]],
   [/^src\/styles\/|^src\/App\.tsx$|^src\/main\.tsx$|^src\/components\/(Icons|TitleBar|StatusBar|Toast|UndoToast|Notices)\.tsx$|^src\/lib\/(theme|uiAppearance|palettes)\.ts$|^index\.html$|^design\/preview\//, CORE_VIEWS],
+  [/^src\/components\/AttachChips\.tsx$|^src\/lib\/(attachments|attachRead)\.ts$/, ["chat&attach=1"]],
   [/^src\/components\/GoalBar\.tsx$|^src\/store\/goals\.ts$|^src\/lib\/goalLoop\.ts$/, ["chat&goal=1", "chat&goal=dialog"]],
   [/^src\/components\/AgentLogos\.tsx$/, ["threads", "chat", "start"]],
-  [/^src\/components\/(ChatPane|Composer|SuggestBar|PromptFill|Checkpoints|SessionExtras|CacheBadge|UsageChip|UsageMeter)\.tsx$|^src\/lib\/(chat|chatModel|chatComposer|chatReplay|contextFill|toolPhrase|markdown|attachments)\.ts$/, ["chat"]],
+  [/^src\/components\/(ChatPane|Composer|SuggestBar|PromptFill|Checkpoints|SessionExtras|CacheBadge|UsageChip|UsageMeter)\.tsx$|^src\/lib\/(chat|chatModel|chatComposer|chatReplay|contextFill|toolPhrase|markdown)\.ts$/, ["chat"]],
   [/^src\/components\/ChangesPanel\.tsx$/, ["threads&rail=changes"]],
   [/^src\/components\/(ThreadPanel|ThreadHeader|QueueRail|DetailsPanel|RightPanel|Navigator|ProjectsSidebar|StatusGlyph|AgentChip|UsageStrip)\.tsx$|^src\/lib\/(threads|threadOrder|threadActions)\.ts$/, ["threads", "threads&single=1"]],
   [/^src\/components\/(StartScreen|SkillsPanel)\.tsx$|^src\/lib\/startMode\.ts$/, ["start"]],

@@ -12,7 +12,7 @@
 export type SentVia = "queued" | "steered";
 
 export type ChatItem = (
-  | { kind: "user"; id: string; text: string; images?: string[]; uuid?: string; via?: SentVia }
+  | { kind: "user"; id: string; text: string; images?: string[]; files?: string[]; uuid?: string; via?: SentVia }
   | { kind: "text"; id: string; msg?: string; text: string; done: boolean; final?: boolean }
   | { kind: "thinking"; id: string; msg?: string; text: string; done: boolean; final?: boolean }
   | {
@@ -115,11 +115,11 @@ export function userLine(text: string): { kind: "user" | "notice"; text: string 
   return { kind: "user", text: t };
 }
 
-function pushUser(t: Transcript, text: string, images: string[] = [], uuid?: string): Transcript {
-  const line = userLine(text) ?? (images.length ? { kind: "user" as const, text: "" } : null);
+function pushUser(t: Transcript, text: string, images: string[] = [], uuid?: string, files: string[] = []): Transcript {
+  const line = userLine(text) ?? (images.length || files.length ? { kind: "user" as const, text: "" } : null);
   if (!line) return t;
   if (line.kind === "notice") return push(t, { kind: "notice", text: line.text });
-  return push(t, { kind: "user", text: line.text, ...(images.length && { images }), ...(uuid && { uuid }) });
+  return push(t, { kind: "user", text: line.text, ...(images.length && { images }), ...(files.length && { files }), ...(uuid && { uuid }) });
 }
 
 /** Pasted images in a user message, as data URLs for the bubble. */
@@ -127,6 +127,11 @@ function imagesOf(content: Json[]): string[] {
   return content
     .filter((c) => c?.type === "image" && c.source?.type === "base64" && typeof c.source.data === "string")
     .map((c) => `data:${c.source.media_type ?? "image/png"};base64,${c.source.data}`);
+}
+
+/** Files sent as document blocks, by the name they were sent under. */
+function filesOf(content: Json[]): string[] {
+  return content.filter((c) => c?.type === "document").map((c) => (typeof c.title === "string" && c.title ? c.title : "File"));
 }
 
 function findTool(t: Transcript, toolId: string) {
@@ -138,8 +143,8 @@ function findTool(t: Transcript, toolId: string) {
 }
 
 /** Shows a message the user sent (the CLI doesn't echo them back). */
-export function addUser(t: Transcript, text: string, at = Date.now(), extra: { images?: string[]; uuid?: string; via?: SentVia } = {}): Transcript {
-  return push({ ...t }, { kind: "user", text, at, ...(extra.images?.length && { images: extra.images }), ...(extra.uuid && { uuid: extra.uuid }), ...(extra.via && { via: extra.via }) });
+export function addUser(t: Transcript, text: string, at = Date.now(), extra: { images?: string[]; files?: string[]; uuid?: string; via?: SentVia } = {}): Transcript {
+  return push({ ...t }, { kind: "user", text, at, ...(extra.images?.length && { images: extra.images }), ...(extra.files?.length && { files: extra.files }), ...(extra.uuid && { uuid: extra.uuid }), ...(extra.via && { via: extra.via }) });
 }
 
 export function addNotice(t: Transcript, text: string, error = false): Transcript {
@@ -262,7 +267,7 @@ export function applyLine(t0: Transcript, m: Json): Transcript {
       const tool = findTool(t, c.tool_use_id);
       if (tool) t = update(t, tool.id, (i) => ({ ...i, result: textOf(c.content), isError: !!c.is_error }));
     }
-    return pushUser(t, textOf(content.filter((c) => c?.type === "text")), imagesOf(content), uuid);
+    return pushUser(t, textOf(content.filter((c) => c?.type === "text")), imagesOf(content), uuid, filesOf(content));
   }
 
   return t;

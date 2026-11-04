@@ -39,6 +39,10 @@ test("slugs are file-name safe", () => {
   assert.equal(viewSlug("chat"), "chat");
 });
 
+test("attachment files map to the attach view", () => {
+  assert.deepEqual(viewsFor(["src/components/AttachChips.tsx", "src/lib/attachRead.ts"]), ["chat&attach=1"]);
+});
+
 test("the goal banner and dialog have their own chat views", () => {
   assert.deepEqual(viewsFor(["src/components/GoalBar.tsx"]), ["chat&goal=1", "chat&goal=dialog"]);
   assert.deepEqual(viewsFor(["src/store/goals.ts", "src/lib/goalLoop.ts"]), ["chat&goal=1", "chat&goal=dialog"]);
