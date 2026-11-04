@@ -124,7 +124,7 @@ const PANES: Record<string, { cwd: string; account?: string; agent?: string; lau
   p7: { cwd: dev("web") },
   p8: { cwd: dev("web"), account: "work" },
   p9: { cwd: dev("api-server"), launcher: true },
-  p10: { cwd: dev("web"), account: "claude", mode: "chat" },
+  p10: params.get("opencode") === "1" ? { cwd: dev("web"), mode: "chat", provider: "opencode", chatModel: "opencode-go/deepseek-v4.1-flash" } : { cwd: dev("web"), account: "claude", mode: "chat" },
 };
 
 const pr = (number: number, title: string, over: Record<string, unknown>) => ({
@@ -595,7 +595,7 @@ mockIPC(
           claude("claude", true, "Claude.ai account, Max plan"),
           claude("claude-b", true, "Claude.ai account, Pro plan"),
           claude("work", false, null),
-          { id: "opencode", provider: "opencode", label: "OpenCode", installed: true, path: "/opt/homebrew/bin/opencode", version: "2.0.15", signedIn: true, auth: "OpenCode Go, OpenAI", models: ["opencode-go/deepseek-v4-pro", "opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3", "openai/gpt-5.5"], caps: ["resume", "effort", "files", "mcp"] },
+          { id: "opencode", provider: "opencode", label: "OpenCode", installed: true, path: "/opt/homebrew/bin/opencode", version: "2.0.15", signedIn: true, auth: "OpenCode Go, OpenAI", models: ["opencode-go/deepseek-v4-pro", "opencode-go/deepseek-v4.1-flash", "opencode-go/glm-5.3", "openai/gpt-5.5"], caps: ["chat", "resume", "interrupt", "effort", "files", "mcp"] },
           { id: "gemini", provider: "gemini", label: "Gemini CLI", installed: true, path: "/opt/homebrew/bin/gemini", version: "0.46.0", signedIn: true, auth: "Google sign-in", models: [], caps: ["resume", "files", "mcp"] },
           { id: "grok", provider: "grok", label: "Grok", installed: true, path: "~/.grok/bin/grok", version: "1.0.70", signedIn: false, models: ["grok-4.6", "grok-4.5"], defaultModel: "grok-4.6", caps: ["resume", "effort", "mcp"] },
           { id: "codex", provider: "codex", label: "OpenAI Codex", installed: true, path: "/opt/homebrew/bin/codex", version: "0.166.0", signedIn: true, auth: "ChatGPT", models: [], caps: ["resume", "effort", "images", "mcp"] },
@@ -777,6 +777,30 @@ if (view === "agentview") {
   host.style.cssText = "position:fixed;inset:0;z-index:70;background:var(--bg);";
   document.body.append(host);
   createRoot(host).render(createElement(AgentView));
+}
+if (view === "chat" && params.get("opencode") === "1") {
+  // An OpenCode chat, drawn from the messages src-tauri/src/opencode_chat.rs makes of its events.
+  const { useChat } = await import("../../src/lib/chat.ts");
+  const { addUser, applyLine, emptyTranscript, endTurn } = await import("../../src/lib/chatModel.ts");
+  const said = (id: string, block: Record<string, unknown>) => ({ type: "assistant", message: { id, role: "assistant", content: [block] } });
+  const result = (id: string, content: string, is_error = false) => ({ type: "user", message: { role: "user", content: [{ type: "tool_result", tool_use_id: id, content, is_error }] } });
+  const file = dev("web") + "/src/lib/calc.ts";
+  let t = addUser(emptyTranscript(), "add(2, 3) returns -1. Fix it and run the tests.", Date.now() - 60_000);
+  for (const m of [
+    said("m1", { type: "thinking", thinking: "Read calc.ts first, then fix add and run the tests." }),
+    said("m1", { type: "tool_use", id: "c1", name: "Read", input: { file_path: file } }),
+    result("c1", "export const add = (a: number, b: number) => a - b;"),
+    said("m1", { type: "tool_use", id: "c2", name: "Edit", input: { file_path: file, old_string: "a - b", new_string: "a + b" } }),
+    result("c2", "Edited calc.ts (1 replacement)"),
+    said("m1", { type: "tool_use", id: "c3", name: "Bash", input: { command: "npm test" } }),
+    result("c3", "ℹ tests 12\nℹ pass 12\nℹ fail 0"),
+    said("m2", { type: "text", text: "`add` subtracted (`a - b`); it now adds. The tests pass: 12 of 12." }),
+  ])
+    t = applyLine(t, m);
+  t = endTurn(t, "completed", null, { inputTokens: 25_613, outputTokens: 133, cacheReadTokens: 768, cacheWriteTokens: 0, costUsd: 0.0039 }, 9_400);
+  useLayout.getState().activateTab("t4");
+  await sleep(900);
+  useChat.setState({ byPane: { p10: { status: "idle", tokens: 26_514, costUsd: 0.0039, model: "opencode-go/deepseek-v4.1-flash", queued: [], approvals: [], transcript: t } } });
 }
 if (view === "chat" && params.get("attach") === "1") {
   // One chip of each kind, dropped from Finder: image, PDF, text, a path-only file, and one over the cap.

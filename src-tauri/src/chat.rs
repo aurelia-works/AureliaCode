@@ -9,6 +9,7 @@
 
 use crate::config;
 use crate::integration;
+use crate::opencode_chat::{Attachment, OcChat};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -44,14 +45,14 @@ pub enum Outcome {
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Usage {
-    input_tokens: u64,
-    output_tokens: u64,
-    cache_read_tokens: u64,
-    cache_write_tokens: u64,
-    cost_usd: f64,
+    pub(crate) input_tokens: u64,
+    pub(crate) output_tokens: u64,
+    pub(crate) cache_read_tokens: u64,
+    pub(crate) cache_write_tokens: u64,
+    pub(crate) cost_usd: f64,
     /// Tokens in the context after this turn, and the model's window.
-    context_tokens: Option<u64>,
-    context_window: Option<u64>,
+    pub(crate) context_tokens: Option<u64>,
+    pub(crate) context_window: Option<u64>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -356,6 +357,8 @@ impl Chat {
 #[derive(Default)]
 pub struct ChatState {
     chats: Mutex<HashMap<String, Arc<Chat>>>,
+    /// OpenCode chats (opencode_chat.rs): a run per message, no process in between.
+    oc: Mutex<HashMap<String, Arc<OcChat>>>,
     generation: Mutex<u64>,
 }
 
@@ -432,18 +435,34 @@ pub fn chat_spawn(
     model: Option<String>,
     effort: Option<String>,
     permission_mode: Option<String>,
+    provider: Option<String>,
     on_event: Channel<ChatEvent>,
 ) -> Result<ChatSpawned, String> {
     // A webview reload opens existing panes again: stop the old process.
     if let Some(old) = state.chats.lock().unwrap().remove(&pane_id) {
         old.kill();
     }
+    if let Some(old) = state.oc.lock().unwrap().remove(&pane_id) {
+        old.kill();
+    }
 
     let cfg = config::load();
     let missing_cwd = cwd.clone().filter(|c| !c.is_empty() && !Path::new(&config::expand_path(c)).is_dir());
     let dir = crate::pty::pane_dir(&cfg, cwd);
-    let vars = crate::pty::pane_env(&cfg, &pane_id, account, env, secret_env)?;
     let resume = resume.filter(|r| !r.is_empty());
+    if provider.as_deref() == Some("opencode") {
+        // OpenCode signs in with its own store; no Claude account or proxy.
+        let vars = crate::pty::pane_env(&cfg, &pane_id, None, env, secret_env)?;
+        let bin = crate::which::locate("opencode").map_or("opencode".into(), |p| p.to_string_lossy().into_owned());
+        let prefix = vec![crate::pty::default_shell(&cfg), "-l".into(), "-c".into(), "exec \"$0\" \"$@\"".into(), bin];
+        let model = model.filter(|m| !m.is_empty() && m != "default");
+        let chat = OcChat::new(prefix, dir, vars.into_iter().collect(), model, resume, Box::new(move |e| {
+            let _ = on_event.send(e);
+        }));
+        state.oc.lock().unwrap().insert(pane_id, chat);
+        return Ok(ChatSpawned { missing_cwd });
+    }
+    let vars = crate::pty::pane_env(&cfg, &pane_id, account, env, secret_env)?;
     let argv = command(&cfg, resume.as_deref(), resume_at.as_deref().filter(|a| !a.is_empty()), fork.unwrap_or(false), model.as_deref(), effort.as_deref(), permission_mode.as_deref());
     let mut child: Child = Command::new(&argv[0])
         .args(&argv[1..])
@@ -571,6 +590,10 @@ pub fn chat_send(
     documents: Option<Vec<Document>>,
     uuid: Option<String>,
 ) -> Result<(), String> {
+    let oc = state.oc.lock().unwrap().get(&pane_id).cloned();
+    if let Some(oc) = oc {
+        return oc.send(text, oc_files(images.unwrap_or_default(), documents.unwrap_or_default())?);
+    }
     let chat = chat(&state, &pane_id)?;
     let steps = chat.proto.lock().unwrap().send_message_with(&text, images.as_deref().unwrap_or_default(), documents.as_deref().unwrap_or_default(), uuid.as_deref());
     chat.run(steps)
@@ -578,6 +601,13 @@ pub fn chat_send(
 
 #[tauri::command]
 pub fn chat_configure(state: State<'_, ChatState>, pane_id: String, model: Option<String>, effort: Option<String>, style: Option<String>) -> Result<(), String> {
+    if let Some(oc) = state.oc.lock().unwrap().get(&pane_id) {
+        // Takes effect with the next run; OpenCode has no effort or output style to switch.
+        if model.is_some() {
+            oc.set_model(model);
+        }
+        return Ok(());
+    }
     let chat = chat(&state, &pane_id)?;
     let lines = chat.proto.lock().unwrap().configure(model.as_deref(), effort.as_deref(), style.as_deref());
     lines.iter().try_for_each(|l| chat.write(l))
@@ -643,6 +673,10 @@ pub async fn chat_commands(state: State<'_, ChatState>, pane_id: String) -> Resu
 
 #[tauri::command]
 pub fn chat_interrupt(state: State<'_, ChatState>, pane_id: String) -> Result<(), String> {
+    if let Some(oc) = state.oc.lock().unwrap().get(&pane_id) {
+        oc.interrupt();
+        return Ok(());
+    }
     let chat = chat(&state, &pane_id)?;
     let line = chat.proto.lock().unwrap().interrupt();
     line.map_or(Ok(()), |l| chat.write(&l))
@@ -740,12 +774,34 @@ pub fn chat_kill(state: State<'_, ChatState>, pane_id: String) {
     if let Some(chat) = state.chats.lock().unwrap().remove(&pane_id) {
         chat.kill();
     }
+    if let Some(chat) = state.oc.lock().unwrap().remove(&pane_id) {
+        chat.kill();
+    }
 }
 
 pub fn kill_all(state: &ChatState) {
     for (_, chat) in state.chats.lock().unwrap().drain() {
         chat.kill();
     }
+    for (_, chat) in state.oc.lock().unwrap().drain() {
+        chat.kill();
+    }
+}
+
+/// A message's images and files as the files `opencode run --file` attaches.
+fn oc_files(images: Vec<Image>, documents: Vec<Document>) -> Result<Vec<Attachment>, String> {
+    use base64::Engine as _;
+    let b64 = |d: &str| base64::engine::general_purpose::STANDARD.decode(d).map_err(|e| e.to_string());
+    let mut out = vec![];
+    for (i, im) in images.iter().enumerate() {
+        let ext = im.media_type.rsplit('/').next().unwrap_or("png");
+        out.push(Attachment { name: format!("image-{}.{ext}", i + 1), bytes: b64(&im.data)? });
+    }
+    for d in documents {
+        let bytes = if d.kind == "pdf" { b64(&d.data)? } else { d.data.into_bytes() };
+        out.push(Attachment { name: d.name, bytes });
+    }
+    Ok(out)
 }
 
 #[cfg(test)]

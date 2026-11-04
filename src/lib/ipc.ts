@@ -422,6 +422,8 @@ export const ipc = {
     effort?: string;
     /** Claude Code's `--permission-mode`; unset = its own default (ask). */
     permissionMode?: string;
+    /** "opencode" runs an OpenCode chat; unset runs Claude Code. */
+    provider?: string;
     onEvent: Channel<ChatEvent>;
   }) {
     return invoke<{ missingCwd?: string | null }>("chat_spawn", args);

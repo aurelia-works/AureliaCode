@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { queueFirstMessage, restartChat, sendChat, useChat, type Outgoing } from "../lib/chat";
+import { agentName, queueFirstMessage, restartChat, sendChat, useChat, type Outgoing } from "../lib/chat";
 import { freshChat } from "../lib/chatStart";
 import { basename, expandPath, shortenPath } from "../lib/format";
 import { ipc } from "../lib/ipc";
@@ -19,6 +19,7 @@ import { FirstRunSetup } from "./StartScreen";
  */
 export function ChatStart({ paneId, starting }: { paneId: string; starting: boolean }) {
   const cwd = useLayout((s) => s.panes[paneId]?.cwd);
+  const agent = agentName(useLayout((s) => s.panes[paneId]));
   const recents = useRecents((s) => s.folders);
   const workspace = useConfig((s) => s.config?.defaultWorkspace);
   const setupDone = useConfig((s) => s.config?.setupDone);
@@ -42,7 +43,7 @@ export function ChatStart({ paneId, starting }: { paneId: string; starting: bool
     <div className="chat-empty chat-start">
       <AureliaMark width={34} height={34} />
       <p className="chat-start-ask">
-        {starting ? "Starting Claude in " : "What should Claude do in "}
+        {starting ? `Starting ${agent} in ` : `What should ${agent} do in `}
         {editing ? (
           <input
             className="start-input chat-start-input"

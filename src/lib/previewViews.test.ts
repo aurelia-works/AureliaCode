@@ -55,3 +55,7 @@ test("the goal banner and dialog have their own chat views", () => {
 test("a new chat's opening shows in the start view", () => {
   assert.deepEqual(viewsFor(["src/components/ChatStart.tsx", "src/lib/chatStart.ts"]), ["start"]);
 });
+
+test("the OpenCode chat adapter has its own chat view", () => {
+  assert.deepEqual(viewsFor(["src-tauri/src/opencode_chat.rs"]), ["chat&opencode=1"]);
+});

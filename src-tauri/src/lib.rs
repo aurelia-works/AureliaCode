@@ -16,6 +16,7 @@ mod spend;
 mod ide;
 mod goal;
 mod integration;
+mod opencode_chat;
 mod orchestrator;
 mod links;
 mod media;
