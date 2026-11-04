@@ -1,5 +1,8 @@
 import { useLayoutEffect, useRef } from "react";
 import { attachTerminal, ensureTerminal, fitTerminal } from "../lib/terminals";
+import { launcherToChat } from "../lib/chatStart";
+import { accountForFolder } from "../lib/handoff";
+import { useConfig } from "../store/config";
 import { useLayout } from "../store/layout";
 import { useUi } from "../store/ui";
 import { useAgents } from "../store/agents";
@@ -23,6 +26,9 @@ export function PaneView({ paneId }: { paneId: string }) {
   const isEditor = useLayout((s) => !!s.panes[paneId]?.editor);
   const isChat = useLayout((s) => s.panes[paneId]?.mode === "chat");
   const single = useUi((s) => s.single);
+  // With the Start screen off (the default), an empty new pane is a chat from the start.
+  const startScreen = useUi((s) => s.prefs.startScreen);
+  const toChat = launcher && !startScreen;
   const suggestOpen = useUi((s) => s.suggestPaneId === paneId);
   const composerOpen = useUi((s) => s.composerPaneId === paneId);
   const dragging = usePaneDrag((s) => s.paneId === paneId);
@@ -31,6 +37,14 @@ export function PaneView({ paneId }: { paneId: string }) {
     const a = s.sessions[paneId];
     return a ? (a.status === "idle" && a.attention ? "done" : a.status) : undefined;
   });
+
+  useLayoutEffect(() => {
+    const pane = useLayout.getState().panes[paneId];
+    if (!toChat || !pane) return;
+    const config = useConfig.getState().config;
+    const workspace = config?.defaultWorkspace;
+    useLayout.getState().updatePane(paneId, launcherToChat(pane, { workspace, preferred: accountForFolder(pane.cwd || workspace), firstAccount: config?.accounts[0]?.name }));
+  }, [paneId, toChat]);
 
   useLayoutEffect(() => {
     const el = bodyRef.current;
@@ -66,7 +80,7 @@ export function PaneView({ paneId }: { paneId: string }) {
           <BrowserPane paneId={paneId} />
         ) : isEditor ? (
           <EditorPane paneId={paneId} />
-        ) : launcher ? (
+        ) : toChat ? null : launcher ? (
           <StartScreen paneId={paneId} />
         ) : isChat ? (
           <ChatPane paneId={paneId} />

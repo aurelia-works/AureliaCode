@@ -206,10 +206,10 @@ function onEvent(paneId: string, token: number, ev: ChatEvent) {
 }
 
 /** A first message for a chat that is still starting (e.g. opened by another agent). */
-const firstMessage = new Map<string, string>();
+const firstMessage = new Map<string, { text: string; att?: Outgoing }>();
 
-export function queueFirstMessage(paneId: string, text: string) {
-  firstMessage.set(paneId, text);
+export function queueFirstMessage(paneId: string, text: string, att?: Outgoing) {
+  firstMessage.set(paneId, { text, att });
 }
 
 /** Each pane's current spawn; events from older ones are dropped. */
@@ -257,7 +257,7 @@ export async function ensureChat(pane: PaneMeta) {
     if (spawns.get(pane.id) !== token) return;
     const first = firstMessage.get(pane.id);
     firstMessage.delete(pane.id);
-    if (first) sendChat(pane.id, first);
+    if (first) sendChat(pane.id, first.text, first.att);
     void refreshContext(pane.id);
     ipc
       .chatCommands(pane.id)
@@ -306,7 +306,7 @@ export async function branchChat(paneId: string, uuid: string, text: string, und
     if (undoFiles) await rewindChat(paneId, uuid, false);
     const parent = pane.claudeSession ? await ipc.chatParent(pane.account, pane.cwd ?? "", pane.claudeSession, uuid) : null;
     if (parent) branches.set(paneId, { at: parent, before: uuid });
-    firstMessage.set(paneId, text);
+    firstMessage.set(paneId, { text });
     // No parent: it was the first message, so the branch is a new chat.
     restartChat(paneId, !parent, true);
   } catch (e) {

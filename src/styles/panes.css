@@ -1157,6 +1157,25 @@ body.pane-dragging .block-overlay {
 .chat-empty p {
   margin: 0;
 }
+/* An unused chat: project picker and worktree switch (ChatStart.tsx). */
+.chat-start .where {
+  margin: 0;
+}
+.chat-start-input {
+  width: min(280px, 60vw);
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid var(--line-2);
+  background: var(--surface);
+  color: var(--text);
+  font: 400 13px var(--font-mono);
+  vertical-align: middle;
+}
+.chat-start .setup {
+  margin-top: 8px;
+  text-align: left;
+}
 .chat-user {
   align-self: flex-end;
   max-width: min(80%, 620px);
