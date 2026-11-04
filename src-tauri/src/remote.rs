@@ -358,7 +358,7 @@ async fn ws(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr
     upgrade.on_upgrade(move |socket| session(ctx, socket, token))
 }
 
-const MANIFEST: &str = r##"{"name":"AureliaCode","short_name":"Aurelia","start_url":"/","display":"standalone","background_color":"#08090c","theme_color":"#08090c","icons":[{"src":"/icon.png","sizes":"256x256","type":"image/png"}]}"##;
+const MANIFEST: &str = r##"{"name":"AureliaBot","short_name":"Aurelia","start_url":"/","display":"standalone","background_color":"#08090c","theme_color":"#08090c","icons":[{"src":"/icon.png","sizes":"256x256","type":"image/png"}]}"##;
 
 async fn files(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr>, headers: HeaderMap, uri: Uri) -> Response {
     if !allowed(addr.ip(), ctx.allow_lan) {

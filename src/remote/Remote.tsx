@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { Terminal } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
+import type { BotChat, BotProvider, ConvItem } from "../lib/aureliaBot";
 
 /** One pane as the desktop describes it (lib/remote.ts builds the snapshot). */
 export interface RemotePane {
@@ -24,6 +25,10 @@ export interface RemotePane {
     /** Sent back with the answer; the desktop ignores answers to a request that has changed. */
     key: string;
   };
+  /** A chat agent (AureliaBot): its status, last reply, approvals and goal. */
+  chat?: BotChat;
+  /** Its conversation, while this phone watches it. */
+  conv?: ConvItem[];
 }
 
 export interface Snapshot {
@@ -32,6 +37,10 @@ export interface Snapshot {
   projects?: { name: string; path: string }[];
   /** The pane the desktop opened for the phone's last "new" action. */
   created?: { nonce: string; pane: string };
+  /** Providers a new agent can run on, with their models. */
+  providers?: BotProvider[];
+  /** Why the Mac turned down the last AureliaBot action. */
+  refused?: { why: string; at: number };
 }
 
 type Conn = "connecting" | "open" | "closed" | "unpaired";
@@ -82,8 +91,11 @@ class Link {
     };
   }
 
-  send(m: Msg) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(m));
+  /** False when the link is down and nothing was sent. */
+  send(m: Msg): boolean {
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify(m));
+    return true;
   }
 
   type(d: string) {
@@ -195,7 +207,15 @@ export function Remote() {
 
   return (
     <div className="rm-app">
-      {paneId && pane ? <PaneView pane={pane} conn={conn} onBack={() => open(null)} /> : <PaneList snap={snap} conn={conn} onOpen={open} />}
+      {paneId && pane ? (
+        pane.chat ? (
+          <ChatView pane={pane} snap={snap} conn={conn} onBack={() => open(null)} />
+        ) : (
+          <PaneView pane={pane} conn={conn} onBack={() => open(null)} />
+        )
+      ) : (
+        <PaneList snap={snap} conn={conn} onOpen={open} />
+      )}
     </div>
   );
 }
@@ -232,7 +252,7 @@ function PaneList({ snap, conn, onOpen }: { snap: Snapshot; conn: Conn; onOpen(i
     () => [...snap.panes].sort((a, b) => (URGENCY[a.status] ?? 9) - (URGENCY[b.status] ?? 9) || a.tab - b.tab),
     [snap.panes],
   );
-  const needs = panes.filter((p) => p.status === "needs_input" || p.status === "done");
+  const needs = panes.filter((p) => p.status === "needs_input" || p.status === "done" || !!p.chat?.approvals.length);
   const rest = panes.filter((p) => !needs.includes(p));
 
   // Open the pane the desktop made for this phone's "new" request.
@@ -253,11 +273,13 @@ function PaneList({ snap, conn, onOpen }: { snap: Snapshot; conn: Conn; onOpen(i
             {p.title}
             {p.where && <span className="rm-row-where"> · {p.where}</span>}
           </span>
-          <span className="rm-row-sub">{p.message || [LABEL[p.status], p.account].filter(Boolean).join(" · ")}</span>
+          <span className="rm-row-sub">{rowSub(p)}</span>
+          {p.chat?.goal && <GoalLine goal={p.chat.goal} />}
         </span>
         <span className="rm-tab num">{p.tab}</span>
       </button>
       {p.permission && <Approve pane={p} />}
+      {p.chat?.approvals[0] && <ChatApprove pane={p} approval={p.chat.approvals[0]} />}
     </li>
   );
 
@@ -266,13 +288,13 @@ function PaneList({ snap, conn, onOpen }: { snap: Snapshot; conn: Conn; onOpen(i
       <header className="rm-bar">
         <span className="rm-brand">
           <Mark />
-          AureliaCode
+          AureliaBot
         </span>
         <ConnDot conn={conn} />
       </header>
       <main className="rm-list">
         {conn !== "open" && !snap.panes.length && <p className="rm-empty">Reaching your Mac…</p>}
-        {conn === "open" && !snap.panes.length && <p className="rm-empty">No terminals open on your Mac.</p>}
+        {conn === "open" && !snap.panes.length && <p className="rm-empty">No agents running on your Mac. Tap + to start one.</p>}
         {needs.length > 0 && (
           <section>
             <h2>Needs you</h2>
@@ -281,12 +303,12 @@ function PaneList({ snap, conn, onOpen }: { snap: Snapshot; conn: Conn; onOpen(i
         )}
         {rest.length > 0 && (
           <section>
-            <h2>{needs.length ? "Everything else" : "Panes"}</h2>
+            <h2>{needs.length ? "Everything else" : "Agents"}</h2>
             <ul>{rest.map(row)}</ul>
           </section>
         )}
       </main>
-      <button className="rm-fab" onClick={() => setCreating(true)} aria-label="New pane" disabled={conn !== "open"}>
+      <button className="rm-fab" onClick={() => setCreating(true)} aria-label="New agent" disabled={conn !== "open"}>
         <svg width={22} height={22} viewBox="0 0 24 24" aria-hidden>
           <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
         </svg>
@@ -299,6 +321,12 @@ function PaneList({ snap, conn, onOpen }: { snap: Snapshot; conn: Conn; onOpen(i
             const nonce = Math.random().toString(36).slice(2);
             pending.current = nonce;
             link.send({ t: "action", action: { kind: "new", account, cwd, nonce } });
+            setCreating(false);
+          }}
+          onSpawn={(provider, model, cwd, prompt) => {
+            const nonce = Math.random().toString(36).slice(2);
+            pending.current = nonce;
+            link.send({ t: "action", action: { kind: "spawn", provider, model, cwd, prompt, nonce } });
             setCreating(false);
           }}
         />
@@ -343,17 +371,75 @@ function Approve({ pane }: { pane: RemotePane }) {
   );
 }
 
-function NewSheet({ snap, onClose, onCreate }: { snap: Snapshot; onClose(): void; onCreate(account: string | null, cwd: string | null): void }) {
+function NewSheet({
+  snap,
+  onClose,
+  onCreate,
+  onSpawn,
+}: {
+  snap: Snapshot;
+  onClose(): void;
+  onCreate(account: string | null, cwd: string | null): void;
+  onSpawn(provider: string, model: string, cwd: string, prompt: string): void;
+}) {
   const projects = snap.projects ?? [];
-  const [cwd, setCwd] = useState<string | null>(() => store.get("rm.project") ?? projects[0]?.path ?? null);
+  const provs = snap.providers ?? [];
+  const [cwd, setCwd] = useState<string | null>(() => {
+    const saved = store.get("rm.project");
+    return saved && projects.some((p) => p.path === saved) ? saved : (projects[0]?.path ?? null);
+  });
   const pick = (p: string | null) => {
     setCwd(p);
     if (p) store.set("rm.project", p);
   };
+  const [provider, setProvider] = useState<string | null>(() => {
+    const saved = store.get("rm.provider");
+    const usable = provs.filter((p) => !p.disabled);
+    return usable.find((p) => p.id === saved)?.id ?? usable[0]?.id ?? null;
+  });
+  const prov = provs.find((p) => p.id === provider);
+  const [model, setModel] = useState("default");
+  useEffect(() => setModel("default"), [provider]);
+  const [task, setTask] = useState("");
+  const ready = !!(prov && !prov.disabled && cwd && task.trim());
   return (
     <div className="rm-sheet-bg" onClick={onClose}>
-      <div className="rm-sheet" role="dialog" aria-label="New pane" onClick={(e) => e.stopPropagation()}>
-        <h2>New pane</h2>
+      <div className="rm-sheet" role="dialog" aria-label="New agent" onClick={(e) => e.stopPropagation()}>
+        <h2>New agent</h2>
+        {provs.length > 0 && (
+          <>
+            <h3>Agent</h3>
+            <div className="rm-chips">
+              {provs.map((p) => (
+                <button
+                  key={p.id}
+                  className={`rm-chip${provider === p.id ? " on" : ""}`}
+                  disabled={!!p.disabled}
+                  title={p.disabled}
+                  onClick={() => {
+                    setProvider(p.id);
+                    store.set("rm.provider", p.id);
+                  }}
+                >
+                  {p.label}
+                  {p.disabled && <span className="rm-chip-why"> · {p.disabled}</span>}
+                </button>
+              ))}
+            </div>
+            {prov && prov.models.length > 1 && (
+              <>
+                <h3>Model</h3>
+                <div className="rm-chips">
+                  {prov.models.map((m) => (
+                    <button key={m.value} className={`rm-chip${model === m.value ? " on" : ""}`} onClick={() => setModel(m.value)}>
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+          </>
+        )}
         {projects.length > 0 && (
           <>
             <h3>In</h3>
@@ -366,10 +452,19 @@ function NewSheet({ snap, onClose, onCreate }: { snap: Snapshot; onClose(): void
             </div>
           </>
         )}
-        <h3>Run</h3>
+        {provs.length > 0 && (
+          <>
+            <h3>Task</h3>
+            <textarea className="rm-task" rows={3} value={task} placeholder="What should it do? It runs on your Mac." onChange={(e) => setTask(e.target.value)} />
+            <button className="rm-btn primary rm-start" disabled={!ready} onClick={() => prov && cwd && onSpawn(prov.id, model, cwd, task)}>
+              Start agent
+            </button>
+          </>
+        )}
+        <h3>Or open a terminal pane</h3>
         <div className="rm-sheet-actions">
           {(snap.accounts ?? []).map((a) => (
-            <button key={a} className="rm-btn primary" onClick={() => onCreate(a, cwd)}>
+            <button key={a} className="rm-btn" onClick={() => onCreate(a, cwd)}>
               Claude · {a}
             </button>
           ))}
@@ -381,6 +476,215 @@ function NewSheet({ snap, onClose, onCreate }: { snap: Snapshot; onClose(): void
           Cancel
         </button>
       </div>
+    </div>
+  );
+}
+
+/** A row's second line: what the agent waits on, its last reply, or its state. */
+function rowSub(p: RemotePane) {
+  const c = p.chat;
+  if (c?.approvals.length) return `wants to run ${c.approvals[0].tool}`;
+  if (c?.last && c.status !== "starting") return c.last;
+  return p.message || [LABEL[p.status], c?.provider ?? p.account].filter(Boolean).join(" · ");
+}
+
+function GoalLine({ goal }: { goal: NonNullable<BotChat["goal"]> }) {
+  return (
+    <span className="rm-goal">
+      <span className="rm-goal-bar" aria-hidden>
+        <span style={{ width: `${Math.min(100, (goal.round / Math.max(1, goal.max)) * 100)}%` }} />
+      </span>
+      <span className="num">
+        Goal round {goal.round} of {goal.max}
+      </span>
+      {goal.last && <span className="rm-goal-last"> · last check: {goal.last}</span>}
+    </span>
+  );
+}
+
+/** Allow / Always / Deny for a tool call a chat agent waits on. */
+function ChatApprove({ pane, approval }: { pane: RemotePane; approval: NonNullable<BotChat["approvals"]>[number] }) {
+  const [sent, setSent] = useState(false);
+  useEffect(() => setSent(false), [approval.id]);
+  // Greyed out only once the answer is on its way: a tap while reconnecting can be tried again.
+  const answer = (allow: boolean, always = false) => setSent(link.send({ t: "action", action: { kind: "approve", pane: pane.id, id: approval.id, allow, always } }));
+  return (
+    <div className="rm-approve" role="group" aria-label={`Answer ${approval.tool}`}>
+      <div className="rm-approve-what">
+        <strong>{approval.tool}</strong>
+        {approval.what && <code>{approval.what}</code>}
+      </div>
+      <button className="rm-btn primary" disabled={sent} onClick={() => answer(true)}>
+        Allow
+      </button>
+      <button className="rm-btn" disabled={sent} onClick={() => answer(true, true)}>
+        Always
+      </button>
+      <button className="rm-btn danger" disabled={sent} onClick={() => answer(false)}>
+        Deny
+      </button>
+    </div>
+  );
+}
+
+const REFUSED_MS = 8000;
+const CHAT_STATE: Record<string, string> = { working: "working", waiting: "waiting for you", idle: "your turn", starting: "starting", exited: "ended" };
+
+/** An agent's conversation: read it, answer its requests, send it the next message, stop it. */
+function ChatView({ pane, snap, conn, onBack }: { pane: RemotePane; snap: Snapshot; conn: Conn; onBack(): void }) {
+  const c = pane.chat!;
+  const list = useRef<HTMLDivElement>(null);
+  const [text, setText] = useState("");
+  const [menu, setMenu] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
+
+  // Ask the Mac for this conversation, and keep asking while it's open.
+  useEffect(() => {
+    if (conn !== "open") return;
+    const ask = () => link.send({ t: "action", action: { kind: "watch", pane: pane.id } });
+    ask();
+    const t = window.setInterval(ask, 20_000);
+    return () => clearInterval(t);
+  }, [pane.id, conn]);
+
+  // Follow new lines unless the reader scrolled up.
+  const stick = useRef(true);
+  const lastId = pane.conv?.at(-1)?.id;
+  useEffect(() => {
+    const el = list.current;
+    if (el && stick.current) el.scrollTop = el.scrollHeight;
+  }, [lastId, pane.conv?.length]);
+
+  const busy = c.status === "working" || c.status === "waiting";
+  const send = () => {
+    const t = text.trim();
+    // Kept in the box when the link is down, so nothing typed is lost.
+    if (t && link.send({ t: "action", action: { kind: "say", pane: pane.id, text: t } })) setText("");
+  };
+  // Why the Mac turned the last action down, shown for a few seconds.
+  const [refused, setRefused] = useState<string | null>(null);
+  const refusedAt = snap.refused?.at;
+  useEffect(() => {
+    if (!refusedAt || Date.now() - refusedAt > REFUSED_MS) return;
+    setRefused(snap.refused!.why);
+    const t = window.setTimeout(() => setRefused(null), REFUSED_MS - (Date.now() - refusedAt));
+    return () => clearTimeout(t);
+  }, [refusedAt]);
+
+  return (
+    <div className="rm-pane rm-chat">
+      <header className="rm-bar">
+        <button className="rm-icon" onClick={onBack} aria-label="Back to agents">
+          <svg width={22} height={22} viewBox="0 0 24 24" aria-hidden>
+            <path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        <span className="rm-pane-title">
+          <span className={`glyph ${pane.status}`} role="img" aria-label={LABEL[pane.status] ?? pane.status} />
+          <span className="rm-ellipsis">
+            {pane.title}
+            {pane.where && <span className="rm-row-where"> · {pane.where}</span>}
+          </span>
+        </span>
+        <ConnDot conn={conn} />
+        <button className="rm-icon" onClick={() => setMenu((m) => !m)} aria-label="Agent options" aria-expanded={menu}>
+          <svg width={22} height={22} viewBox="0 0 24 24" aria-hidden>
+            <circle cx="5" cy="12" r="1.8" fill="currentColor" />
+            <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+            <circle cx="19" cy="12" r="1.8" fill="currentColor" />
+          </svg>
+        </button>
+      </header>
+      <div className="rm-chat-meta">
+        <span>{CHAT_STATE[c.status] ?? c.status}</span>
+        {(c.provider || c.model) && <span>{[c.provider, c.model?.replace(/^claude-/, "")].filter(Boolean).join(" · ")}</span>}
+        <span className="num">${c.costUsd.toFixed(2)}</span>
+        {c.queued > 0 && <span className="num">{c.queued} queued</span>}
+      </div>
+      {c.goal && (
+        <div className="rm-chat-goal">
+          <strong>Goal</strong> {c.goal.text}
+          <GoalLine goal={c.goal} />
+        </div>
+      )}
+      {menu && (
+        <div className="rm-menu">
+          <button
+            className={`rm-btn danger${confirmClose ? " armed" : ""}`}
+            onClick={() => {
+              if (!confirmClose) return setConfirmClose(true);
+              link.send({ t: "action", action: { kind: "close", pane: pane.id } });
+              onBack();
+            }}
+          >
+            {confirmClose ? "Tap again to close it on your Mac" : "Close agent"}
+          </button>
+        </div>
+      )}
+      <div
+        className="rm-conv"
+        ref={list}
+        onScroll={(e) => {
+          const el = e.currentTarget;
+          stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+        }}
+      >
+        {!pane.conv && <p className="rm-empty">Loading the conversation…</p>}
+        {pane.conv?.length === 0 && <p className="rm-empty">Nothing yet. Send the first message below.</p>}
+        {pane.conv?.map((i) =>
+          i.kind === "user" ? (
+            <p key={i.id} className="rm-msg me">
+              {i.text}
+            </p>
+          ) : i.kind === "text" ? (
+            <p key={i.id} className="rm-msg">
+              {i.text}
+            </p>
+          ) : i.kind === "tool" ? (
+            <p key={i.id} className={`rm-tool${i.failed ? " failed" : ""}`}>
+              <strong>{i.name}</strong> {i.text && <code>{i.text}</code>}
+              {i.failed && <span> · failed</span>}
+            </p>
+          ) : (
+            <p key={i.id} className={`rm-note${i.failed ? " failed" : ""}`}>
+              {i.text}
+            </p>
+          ),
+        )}
+      </div>
+      {c.approvals.map((a) => (
+        <ChatApprove key={a.id} pane={pane} approval={a} />
+      ))}
+      {refused && <div className="rm-ask">Not done on your Mac: {refused}</div>}
+      <form
+        className="rm-compose"
+        onSubmit={(e) => {
+          e.preventDefault();
+          send();
+        }}
+      >
+        <textarea
+          value={text}
+          rows={1}
+          placeholder={busy ? "Queue a message for after this turn" : "Message this agent"}
+          enterKeyHint="send"
+          autoCapitalize="sentences"
+          onChange={(e) => setText(e.target.value)}
+        />
+        {busy && !text.trim() ? (
+          <button type="button" className="rm-send stop" aria-label="Stop this turn" onClick={() => link.send({ t: "action", action: { kind: "stop", pane: pane.id } })}>
+            <svg width={16} height={16} viewBox="0 0 24 24" aria-hidden>
+              <rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" />
+            </svg>
+          </button>
+        ) : (
+          <button type="submit" className="rm-send" aria-label="Send" disabled={!text.trim()}>
+            <svg width={20} height={20} viewBox="0 0 24 24" aria-hidden>
+              <path d="M12 19V5M5 12l7-7 7 7" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+        )}
+      </form>
     </div>
   );
 }

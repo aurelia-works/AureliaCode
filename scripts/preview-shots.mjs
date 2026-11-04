@@ -16,7 +16,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symli
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { ALL_VIEWS, viewSlug, viewsFor } from "../src/lib/previewViews.ts";
+import { ALL_VIEWS, isPhoneView, viewSlug, viewsFor } from "../src/lib/previewViews.ts";
 import { diffBoxes, legendLine } from "../src/lib/shotDiff.ts";
 
 const root = resolve(import.meta.dirname, "..");
@@ -98,14 +98,20 @@ const SCALE = 2;
 /** Grid cell for the pixel compare, in screenshot pixels (8 CSS px at 2x). */
 const CELL = 16;
 
-async function capture(browser, url, label) {
+/** Phone views (the AureliaBot remote) are shot at an iPhone's size. */
+const PHONE = { width: 390, height: 844 };
+
+async function capture(browser, url, label, dir) {
   const ctx = await browser.newContext({ viewport: { width, height }, deviceScaleFactor: SCALE, reducedMotion: "reduce", colorScheme: "dark" });
+  const phone = await browser.newContext({ viewport: PHONE, deviceScaleFactor: SCALE, reducedMotion: "reduce", colorScheme: "dark", hasTouch: true, isMobile: true });
   const files = {};
   for (const view of views) {
-    const page = await ctx.newPage();
+    // A base without the phone harness has no before shot for it (rather than a blank one).
+    if (isPhoneView(view) && !existsSync(join(dir, "design/preview/remote.html"))) continue;
+    const page = await (isPhoneView(view) ? phone : ctx).newPage();
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
-    await page.goto(`${url}/design/preview/?theme=dark&view=${view}`, { waitUntil: "load" });
+    await page.goto(isPhoneView(view) ? `${url}/design/preview/remote.html?view=${view}` : `${url}/design/preview/?theme=dark&view=${view}`, { waitUntil: "load" });
     // mock.ts sets __ready once the view's state is in place; a view the base doesn't know still renders the default.
     await page.waitForFunction(() => window.__ready === true, null, { timeout: 20_000 }).catch(() => errors.push("__ready never set"));
     await page.evaluate(() => document.fonts.ready.then(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))));
@@ -116,6 +122,7 @@ async function capture(browser, url, label) {
     await page.close();
   }
   await ctx.close();
+  await phone.close();
   return files;
 }
 
@@ -224,14 +231,14 @@ mkdirSync(outDir, { recursive: true });
 const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 try {
-  const after = await capture(browser, await serve(root), "after");
+  const after = await capture(browser, await serve(root), "after", root);
   let before = {};
   if (!flag("no-before")) {
     worktree = mkdtempSync(join(tmpdir(), "shots-base-"));
     rmSync(worktree, { recursive: true });
     git("worktree", "add", "-q", "--detach", worktree, base);
     if (!existsSync(join(worktree, "node_modules"))) symlinkSync(join(root, "node_modules"), join(worktree, "node_modules"));
-    before = await capture(browser, await serve(worktree), "before");
+    before = await capture(browser, await serve(worktree), "before", worktree);
   }
   const changes = {};
   for (const v of views) if (before[v] && after[v]) changes[v] = await annotate(browser, v, before[v], after[v]);
