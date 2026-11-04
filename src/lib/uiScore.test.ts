@@ -1,5 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { join } from "node:path";
 import { CATEGORIES, parseMin, parseScorecard, scorePrompt } from "./uiScore.ts";
 
 const card = (scores: number[]) => CATEGORIES.map((c, i) => `${c}: ${scores[i]}/10 - because`).join("\n");
@@ -77,4 +79,11 @@ test("--min takes a score from 0 to 10 and nothing else", () => {
   assert.equal(parseMin("7.5"), 7.5);
   assert.equal(parseMin("0"), 0);
   for (const bad of ["abc", "", " ", "8x", "-1", "11", "NaN", "Infinity"]) assert.equal(parseMin(bad), null, JSON.stringify(bad));
+});
+
+test("npm run ui-score with a bad --min exits 2 before taking a screenshot", () => {
+  const r = spawnSync(process.execPath, [join(import.meta.dirname, "../../scripts/ui-score.mjs"), "chat", "--min", "abc"], { encoding: "utf8", timeout: 20_000 });
+  assert.equal(r.status, 2, r.stderr);
+  assert.match(r.stderr, /--min takes a score from 0 to 10/);
+  assert.equal(r.stdout, "");
 });
