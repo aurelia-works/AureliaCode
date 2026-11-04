@@ -8,7 +8,7 @@ import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
 import { cleanTextarea } from "../lib/controlChars";
 import { liveToolLabel, pickBySeed, THINKING, toolPhrase } from "../lib/toolPhrase";
-import { ACCEPT, capError, forSend, sentBytes, settleRead, type Attachment } from "../lib/attachments";
+import { ACCEPT, capError, forSend, sendProblem, sentBytes, settleRead, type Attachment } from "../lib/attachments";
 import { draftAttachment, readFile, readPath } from "../lib/attachRead";
 import { AttachChips, SentFiles } from "./AttachChips";
 import { ipc, type ChatImage, type CliModel, type RuleFile, type RuleKind, type SlashCommand } from "../lib/ipc";
@@ -1114,8 +1114,12 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
   const prefs = useUi((s) => s.prefs);
   const [text, setText] = useState(() => drafts.get(paneId)?.text ?? "");
   const [atts, setAtts] = useState<Attachment[]>(() => drafts.get(paneId)?.atts ?? []);
+  // Every change goes through the ref first, so a read that lands between renders isn't lost.
   const attsRef = useRef(atts);
-  attsRef.current = atts;
+  const writeAtts = (f: (cur: Attachment[]) => Attachment[]) => {
+    attsRef.current = f(attsRef.current);
+    setAtts(attsRef.current);
+  };
   useEffect(() => {
     if (text || atts.length) drafts.set(paneId, { text, atts });
     else drafts.delete(paneId);
@@ -1139,7 +1143,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
   };
   const [rulesOpen, setRulesOpen] = useState(false);
   const fileInput = useRef<HTMLInputElement>(null);
-  const patchAtt = (id: string, p: Partial<Attachment>) => setAtts((cur) => settleRead(cur, id, p));
+  const patchAtt = (id: string, p: Partial<Attachment>) => writeAtts((cur) => settleRead(cur, id, p));
   /** New chips, each refused with its reason when the message would go over the cap; then read in the background. */
   const addAtts = (list: { a: Attachment; read: () => Promise<Partial<Attachment>> }[]) => {
     const next = [...attsRef.current];
@@ -1152,8 +1156,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
         reads.push(item);
       }
     }
-    attsRef.current = next;
-    setAtts(next);
+    writeAtts(() => next);
     for (const { a, read } of reads) void read().then((p) => patchAtt(a.id, p), (e) => patchAtt(a.id, { status: "error", error: String(e) }));
   };
   const addFiles = (files: File[]) => addAtts(files.map((f) => {
@@ -1259,14 +1262,15 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
   /** Enter sends; ⌘Enter does the opposite of the Queue/Steer mode for this one message. */
   const send = (opposite = false) => {
     const t = text.trim();
-    if (atts.some((a) => a.status === "reading")) return toast("Still reading the attached files", true);
+    const problem = sendProblem(atts);
+    if (problem) return toast(problem, true);
     const { images, documents, refs } = forSend(atts);
     const body = [t, refs].filter(Boolean).join(t && refs ? "\n\n" : "");
     if (!body && !images.length && !documents.length) return;
     // Steer: stop the running turn and send once it has ended, so the new message is a normal turn.
     const steer = prefs.steerKey && followUpAction(busy, prefs.followUp, opposite) === "steer";
     setText("");
-    setAtts([]);
+    writeAtts(() => []);
     setHist(null);
     setExpanded(false);
     void (steer ? steerChat(paneId, body, { images, documents }) : sendChat(paneId, body, { images, documents }));
@@ -1360,7 +1364,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
         <button type="button" className="chat-expand" aria-pressed={expanded} aria-label={expanded ? "Shrink the composer" : "Expand the composer"} title={expanded ? "Shrink (Esc)" : "Expand to write a long message"} onClick={() => { setExpanded(!expanded); ref.current?.focus(); }}>
           {expanded ? <CollapseIcon /> : <ExpandIcon />}
         </button>
-        {atts.length > 0 && <AttachChips atts={atts} onRemove={(id) => setAtts((cur) => cur.filter((a) => a.id !== id))} />}
+        {atts.length > 0 && <AttachChips atts={atts} onRemove={(id) => writeAtts((cur) => cur.filter((a) => a.id !== id))} />}
         <textarea
           ref={ref}
           rows={2}

@@ -56,7 +56,7 @@ const ext = (name: string) => (/\.([^./]+)$/.exec(name)?.[1] ?? "").toLowerCase(
 export function kindOf(name: string, mime = ""): AttachKind {
   const e = ext(name);
   if (IMAGE_TYPES.includes(mime) || ["png", "jpg", "jpeg", "gif", "webp"].includes(e)) return "image";
-  // Other image formats (HEIC, TIFF) are re-encoded by the composer, which it says in the chip.
+  // Other image formats (HEIC, TIFF) are converted to JPEG when read (lib/attachRead.ts).
   if (mime.startsWith("image/")) return "image";
   if (mime === "application/pdf" || e === "pdf") return "pdf";
   if (mime.startsWith("text/") || TEXT_EXTENSIONS.includes(e) || ["application/json", "application/xml", "application/x-yaml", "application/toml"].includes(mime))
@@ -78,13 +78,15 @@ export function mediaTypeFor(kind: AttachKind, name: string, mime = ""): string 
   return mime || "application/octet-stream";
 }
 
-/** Claude's limit is 5 MB per image (base64); bigger ones are scaled down to fit (lib/attachRead.ts). */
+/** Images bigger than this (or over 2000 px) are scaled down and re-encoded (lib/attachRead.ts). */
 export const IMAGE_MAX_BYTES = 3_500_000;
 
 /** Bytes this attachment adds to the request (base64 is already its sent size). */
 export function sentBytes(a: Pick<Attachment, "kind" | "data" | "size">): number {
   if (a.kind === "path") return 0;
-  if (!a.data) return a.kind === "text" ? a.size : Math.ceil((a.kind === "image" ? Math.min(a.size, IMAGE_MAX_BYTES) : a.size) / 3) * 4;
+  // An image's sent size is only known once it's scaled (often far below IMAGE_MAX_BYTES), so an
+  // unread one counts as nothing and settleRead checks the cap when it's read.
+  if (!a.data) return a.kind === "text" ? a.size : a.kind === "image" ? 0 : Math.ceil(a.size / 3) * 4;
   return a.kind === "text" ? new TextEncoder().encode(a.data).length : a.data.length;
 }
 
@@ -117,6 +119,13 @@ export function settleRead<T extends Attachment>(list: T[], id: string, patch: P
     }
   }
   return list.map((a, j) => (j === i ? done : a));
+}
+
+/** Why the message can't be sent with these attachments yet, or null when it can. */
+export function sendProblem(atts: Pick<Attachment, "status">[]): string | null {
+  if (atts.some((a) => a.status === "reading")) return "Still reading the attached files";
+  if (atts.some((a) => a.status === "error")) return "Remove the files marked in red first: they can't be sent";
+  return null;
 }
 
 /** "812 B", "14 KB", "3.2 MB". */

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { capError, chipNote, forSend, formatSize, kindOf, looksLikeText, MAX_ATTACHMENTS, MAX_MESSAGE_BYTES, mediaTypeFor, sentBytes, settleRead, type Attachment } from "./attachments.ts";
+import { capError, chipNote, forSend, formatSize, kindOf, looksLikeText, MAX_ATTACHMENTS, MAX_MESSAGE_BYTES, mediaTypeFor, sendProblem, sentBytes, settleRead, type Attachment } from "./attachments.ts";
 
 test("files route to the block Claude Code takes for them", () => {
   assert.equal(kindOf("shot.png", "image/png"), "image");
@@ -108,4 +108,20 @@ test("an empty file is an error chip, not a silent drop at send", () => {
   const [done] = settleRead([draft], "z", { size: 0, data: "", status: "ready" });
   assert.equal(done.status, "error");
   assert.match(done.error ?? "", /empty/i);
+});
+
+test("picked photos aren't refused before they're read: their scaled size is checked once read", () => {
+  const photo = (i: number): Attachment => ({ id: `p${i}`, name: `IMG_${i}.jpg`, size: 5_000_000, kind: "image", mediaType: "image/jpeg", status: "reading" });
+  const list: Attachment[] = [];
+  for (let i = 0; i < 8; i++) {
+    assert.equal(capError(list, sentBytes(photo(i))), null, `photo ${i + 1}`);
+    list.push(photo(i));
+  }
+});
+
+test("a message with a file that can't be sent doesn't go without it", () => {
+  const ok: Attachment = { id: "a", name: "a.txt", size: 2, kind: "text", mediaType: "text/plain", data: "hi", status: "ready" };
+  assert.equal(sendProblem([ok]), null);
+  assert.match(sendProblem([ok, { ...ok, id: "r", status: "reading", data: undefined }]) ?? "", /reading/i);
+  assert.match(sendProblem([ok, { ...ok, id: "e", status: "error", error: "Empty file, nothing to send" }]) ?? "", /remove/i);
 });
