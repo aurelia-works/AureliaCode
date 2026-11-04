@@ -108,6 +108,25 @@ pub struct Image {
     data: String,
 }
 
+/// A file attached to a message: a PDF (base64) or text, sent as a `document` block.
+#[derive(Deserialize)]
+pub struct Document {
+    kind: String,
+    name: String,
+    data: String,
+}
+
+impl Document {
+    fn block(&self) -> Value {
+        let source = if self.kind == "pdf" {
+            json!({ "type": "base64", "media_type": "application/pdf", "data": self.data })
+        } else {
+            json!({ "type": "text", "media_type": "text/plain", "data": self.data })
+        };
+        json!({ "type": "document", "title": self.name, "source": source })
+    }
+}
+
 impl Protocol {
     fn new(resume: Option<String>) -> Self {
         Protocol { session: resume, ..Protocol::default() }
@@ -116,13 +135,19 @@ impl Protocol {
     /// A message, with pasted images first as base64 blocks (Claude Code takes them as-is).
     /// `uuid` becomes the message's id in the session, which `rewind_files` names it by.
     fn send_message(&mut self, text: &str, images: &[Image], uuid: Option<&str>) -> Vec<Step> {
+        self.send_message_with(text, images, &[], uuid)
+    }
+
+    /// The same, with files after the images as `document` blocks (Claude Code passes them to the API as-is).
+    fn send_message_with(&mut self, text: &str, images: &[Image], documents: &[Document], uuid: Option<&str>) -> Vec<Step> {
         self.turns += 1;
-        let content = if images.is_empty() {
+        let content = if images.is_empty() && documents.is_empty() {
             json!(text)
         } else {
             let mut blocks: Vec<Value> = images
                 .iter()
                 .map(|i| json!({ "type": "image", "source": { "type": "base64", "media_type": i.media_type, "data": i.data } }))
+                .chain(documents.iter().map(Document::block))
                 .collect();
             if !text.is_empty() {
                 blocks.push(json!({ "type": "text", "text": text }));
@@ -504,9 +529,16 @@ pub fn chat_spawn(
 }
 
 #[tauri::command]
-pub fn chat_send(state: State<'_, ChatState>, pane_id: String, text: String, images: Option<Vec<Image>>, uuid: Option<String>) -> Result<(), String> {
+pub fn chat_send(
+    state: State<'_, ChatState>,
+    pane_id: String,
+    text: String,
+    images: Option<Vec<Image>>,
+    documents: Option<Vec<Document>>,
+    uuid: Option<String>,
+) -> Result<(), String> {
     let chat = chat(&state, &pane_id)?;
-    let steps = chat.proto.lock().unwrap().send_message(&text, images.as_deref().unwrap_or_default(), uuid.as_deref());
+    let steps = chat.proto.lock().unwrap().send_message_with(&text, images.as_deref().unwrap_or_default(), documents.as_deref().unwrap_or_default(), uuid.as_deref());
     chat.run(steps)
 }
 
@@ -814,6 +846,25 @@ mod tests {
         assert_eq!(content[0]["source"], json!({ "type": "base64", "media_type": "image/png", "data": "AAAA" }));
         assert_eq!(content[1], json!({ "type": "text", "text": "what is this?" }));
         assert_eq!(sent(&p.send_message("plain", &[], None))[0]["message"]["content"], json!("plain"));
+    }
+
+    #[test]
+    fn files_go_as_document_blocks_after_images_and_before_the_text() {
+        let mut p = Protocol::new(None);
+        let img = Image { media_type: "image/png".into(), data: "AAAA".into() };
+        let pdf = Document { kind: "pdf".into(), name: "spec.pdf".into(), data: "JVBER".into() };
+        let csv = Document { kind: "text".into(), name: "rows.csv".into(), data: "a,b\n".into() };
+        let steps = p.send_message_with("read these", &[img], &[pdf, csv], None);
+        let content = &sent(&steps)[0]["message"]["content"];
+        assert_eq!(content[0]["type"], "image");
+        assert_eq!(
+            content[1],
+            json!({ "type": "document", "title": "spec.pdf", "source": { "type": "base64", "media_type": "application/pdf", "data": "JVBER" } })
+        );
+        assert_eq!(content[2], json!({ "type": "document", "title": "rows.csv", "source": { "type": "text", "media_type": "text/plain", "data": "a,b\n" } }));
+        assert_eq!(content[3], json!({ "type": "text", "text": "read these" }));
+        let only = Document { kind: "text".into(), name: "n.md".into(), data: "# hi".into() };
+        assert_eq!(sent(&p.send_message_with("", &[], &[only], None))[0]["message"]["content"].as_array().unwrap().len(), 1);
     }
 
     #[test]
