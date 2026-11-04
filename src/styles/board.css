@@ -386,9 +386,8 @@
   margin: 0 2px var(--sp-2);
   padding: 2px 0 6px;
   font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   color: var(--text-faint);
 }
 .wk-col.working .wk-col-head {
@@ -512,8 +511,7 @@
   text-overflow: ellipsis;
 }
 .wk-badge.harness {
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.01em;
   font-family: var(--font-ui);
   font-weight: 600;
 }

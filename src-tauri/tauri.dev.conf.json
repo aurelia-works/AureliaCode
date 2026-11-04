@@ -1,11 +1,11 @@
 {
-  "productName": "AureliaSpace Dev",
-  "identifier": "space.aurelia.terminal.dev",
+  "productName": "AureliaCode Dev",
+  "identifier": "space.aurelia.code.dev",
   "app": {
     "windows": [
       {
         "label": "main",
-        "title": "AureliaSpace Dev",
+        "title": "AureliaCode Dev",
         "width": 1320,
         "height": 840,
         "minWidth": 640,

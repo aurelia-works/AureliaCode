@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ipc, type Account } from "../../lib/ipc";
 import { shortenPath } from "../../lib/format";
 import { useConfig } from "../../store/config";
@@ -32,6 +32,15 @@ async function validate(e: Edit, accounts: Account[]): Promise<string | null> {
 }
 
 export function AccountsSection(props: SectionProps) {
+  return (
+    <>
+      <AccountsList {...props} />
+      <ProxyGroup />
+    </>
+  );
+}
+
+function AccountsList(props: SectionProps) {
   const accounts = useConfig((s) => s.config?.accounts ?? []);
   const [edit, setEdit] = useState<Edit | null>(null);
   const [error, setError] = useState("");
@@ -232,6 +241,41 @@ function AccountDefaults({ draft, update }: SectionProps) {
       <button className="acct-add" onClick={addOverride}>
         + Workspace override
       </button>
+    </section>
+  );
+}
+
+/** Commits straight to config.json like the accounts above: the hub starts or stops at once. */
+function ProxyGroup() {
+  const proxy = useConfig((s) => s.config?.proxy);
+  const [st, setSt] = useState<{ installed: boolean; running: boolean; signedIn: boolean } | null>(null);
+  const [error, setError] = useState("");
+  const check = () => ipc.proxyStatus().then(setSt).catch(() => {});
+  useEffect(() => void check(), []);
+  if (!proxy) return null;
+  const toggle = async (enabled: boolean) => {
+    const { config, save } = useConfig.getState();
+    await save({ ...config!, proxy: { ...proxy, enabled } });
+    await ipc.proxyApply().then(() => setError(""), (e) => setError(String(e)));
+    void check();
+  };
+  return (
+    <section className="set-group">
+      <h3>CLIProxyAPI</h3>
+      <p className="hint">Routes chats through a local hub on 127.0.0.1:{proxy.port}. Reported to break Anthropic's consumer terms, so an account can be banned. New chats follow the switch; open ones keep their route until they restart.</p>
+      <label className="field check">
+        <input type="checkbox" checked={proxy.enabled} disabled={st?.installed === false} onChange={(e) => void toggle(e.target.checked)} />
+        <span>Route Claude through CLIProxyAPI</span>
+      </label>
+      <p className="hint">
+        {st?.installed === false ? "Not installed: brew install cliproxyapi." : `${st?.running ? "Hub running" : "Hub stopped"} · ${st?.signedIn ? "signed in" : "not signed in"}`}
+        {error && ` · ${error}`}
+      </p>
+      {st?.installed && (
+        <button type="button" onClick={() => ipc.proxyLogin().then(check, (e) => setError(String(e)))}>
+          Sign in to the hub…
+        </button>
+      )}
     </section>
   );
 }

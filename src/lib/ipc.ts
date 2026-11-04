@@ -87,6 +87,10 @@ export interface Config {
   /** Phone alerts through an ntfy topic (src/lib/push.ts). */
   push: { enabled: boolean; server: string; topic: string; detail: boolean };
   hud: { enabled: boolean };
+  /** Menu bar squid and streamer mode. `color` empty: follow the menu bar. */
+  tray: { enabled: boolean; animate: boolean; size: number; color: string; streamer: boolean };
+  /** Route chats through a local CLIProxyAPI hub. */
+  proxy: { enabled: boolean; port: number };
   discord: { enabled: boolean; clientId: string; hideProject: boolean };
   /** Account new Claude panes use when none is chosen; empty = ask. */
   defaultAccount: string;
@@ -114,6 +118,22 @@ export interface Config {
   effort: { auto: boolean; judge: boolean; floor: EffortLevel; ceiling: EffortLevel; autoModel: boolean };
   /** Phone remote (src-tauri/src/remote.rs): off by default; LAN off = this Mac and Tailscale only. */
   remote: { enabled: boolean; port: number; allowLan: boolean; tailscaleHttps: boolean; httpsPort: number; keepRunning: boolean };
+  /** Interface contrast: "normal" | "high". */
+  contrast: "normal" | "high";
+  /** Chat column width: "comfortable" | "wide" | "full". */
+  chatWidth: "comfortable" | "wide" | "full";
+  /** Turn off panel/message animations regardless of the OS setting. */
+  reduceMotion: boolean;
+  /** Enter sends a chat message; off means ⌘Enter sends and Enter inserts a newline. */
+  chatSendOnEnter: boolean;
+  /** Show the time next to chat messages. */
+  chatTimestamps: boolean;
+  /** Links clicked in chat: "system" | "local" (local dev servers in-app) | "app" (all in-app). */
+  linkOpen: "system" | "local" | "app";
+  /** Address-bar search engine. */
+  browserSearch: "duckduckgo" | "google" | "bing";
+  /** New threads start on their own git worktree by default. */
+  worktreeByDefault: boolean;
   terminal: {
     fontFamily: string;
     fontSize: number;
@@ -338,6 +358,33 @@ export interface ChatUsage {
   contextWindow?: number | null;
 }
 
+export interface Identity {
+  name: string;
+  email?: string | null;
+  plan?: string | null;
+}
+
+export interface LedgerWindow {
+  id: "24h" | "7d" | "30d";
+  usd: number;
+  tokens: number;
+  models: { model: string; usd: number; tokens: number }[];
+  unpriced: string[];
+}
+
+export interface LedgerSummary {
+  windows: LedgerWindow[];
+  /** Epoch seconds of the price list; 0 when there is none. */
+  pricesAt: number;
+}
+
+export interface RealSpend {
+  provider: string;
+  /** USD over 1, 7 and 30 days. */
+  days: [number, number, number] | null;
+  note: string | null;
+}
+
 export const ipc = {
   ptySpawn(args: {
     paneId: string;
@@ -464,6 +511,9 @@ export const ipc = {
   checkProject: (root: string) => invoke<{ problems: Problem[]; ran: string[] }>("check_project", { root }),
   transcriptThread: (path: string, maxItems: number) => invoke<ThreadItem[]>("transcript_thread", { path, maxItems }),
   hasFullDiskAccess: () => invoke<boolean>("has_full_disk_access"),
+  appBundlePath: () => invoke<string | null>("app_bundle_path"),
+  captureScreenshot: () => invoke<ChatImage | null>("capture_screenshot"),
+  clipboardImage: () => invoke<ChatImage | null>("clipboard_image"),
   openFullDiskAccessSettings: () => invoke<void>("open_full_disk_access_settings"),
 
   gitLastCommit: (cwd: string) => invoke<number | null>("git_last_commit", { cwd }),
@@ -488,6 +538,14 @@ export const ipc = {
   /** Merges a clean worktree's branch into the main checkout; aborts on conflict. */
   gitMergeWorktree: (path: string) => invoke<string>("git_merge_worktree", { path }),
 
+  proxyStatus: () => invoke<{ installed: boolean; running: boolean; signedIn: boolean }>("proxy_status"),
+  proxyApply: () => invoke<void>("proxy_apply"),
+  proxyLogin: () => invoke<void>("proxy_login"),
+  trayAccounts: () => invoke<Identity[]>("tray_accounts"),
+  ledgerSummary: () => invoke<LedgerSummary>("ledger_summary"),
+  realSpend: () => invoke<RealSpend[]>("real_spend"),
+  spendKeySet: (provider: string, key: string) => invoke<void>("spend_key_set", { provider, key }),
+  spendKeyHas: (provider: string) => invoke<boolean>("spend_key_has", { provider }),
   fetchUsage: (account: string, force = false) => invoke<Usage | null>("fetch_usage", { account, force }),
 
   handoffPrepare: (transcriptPath: string, toAccount: string) =>

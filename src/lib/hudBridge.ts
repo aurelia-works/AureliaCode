@@ -5,7 +5,7 @@ import { alertUser } from "../store/notifications";
 import { label, useAgents, type AgentSession } from "../store/agents";
 import { useConfig } from "../store/config";
 import { useLayout } from "../store/layout";
-import { useMetrics } from "../store/metrics";
+import { paneContext, useMetrics } from "../store/metrics";
 import { useUi } from "../store/ui";
 import { forecastText } from "../components/UsageMeter";
 import { useUsage } from "../store/usage";
@@ -39,7 +39,7 @@ function snapshot(): HudSnapshot {
       account: s.account ?? "claude",
       folder: s.cwd ? basename(s.cwd) : label(s),
       text: statusText(s),
-      contextPct: m?.contextPct,
+      contextPct: paneContext(s.paneId)?.pct,
       costUsd: m?.costUsd,
       hot: m?.hot,
       perm: s.status === "needs_input" ? permissionOptions(s.paneId) : null,

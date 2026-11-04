@@ -14,6 +14,6 @@ export default defineConfig({
     target: "safari16",
     chunkSizeWarningLimit: 2000,
     // The HUD window and the phone remote are lightweight extra entries (no bootstrap).
-    rollupOptions: { input: { main: "index.html", hud: "hud.html", remote: "remote.html" } },
+    rollupOptions: { input: { main: "index.html", hud: "hud.html", tray: "tray.html", remote: "remote.html" } },
   },
 });

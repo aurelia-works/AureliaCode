@@ -1,4 +1,4 @@
-# AureliaSpace
+# AureliaCode
 
 Tauri 2 app: React + TypeScript front end in `src/`, Rust back end in `src-tauri/`.
 
@@ -30,6 +30,10 @@ Any change to `src/components/`, `src/styles/` or anything else on screen needs 
 
 The harness (`design/preview/mock.ts`) mocks the Tauri IPC. Add a view there when a screen has none.
 
+For a PR, `npm run shots` captures before (merge base) and after shots of the views the diff touches
+(`src/lib/previewViews.ts` maps files to views; `--views a,b` overrides). `--publish` pushes them to the
+`pr-shots` branch and prints the table for the PR's Screenshots section.
+
 ## Review
 
 - Reviews follow [REVIEW.md](REVIEW.md).
@@ -37,3 +41,6 @@ The harness (`design/preview/mock.ts`) mocks the Tauri IPC. Add a view there whe
 - At most 3 review rounds. After the third, stop reviewing the whole diff: re-scope to what
   changed since the last round (`git diff <last reviewed commit>..HEAD`) and review only that.
 - PRs use [.github/pull_request_template.md](.github/pull_request_template.md): Testing, Risk, How to revert.
+
+## Current project
+Agent IDE: see PLAN-AGENT-IDE.md and HANDOFF-2026-11-04-PHASE-0.md. Earlier rebrand plan: PLAN-AURELIACODE.md (Phase 3 still todo).

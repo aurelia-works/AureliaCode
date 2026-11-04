@@ -19,6 +19,7 @@ const SWITCHES: { key: Exclude<keyof ThreadPrefs, "undoSeconds" | "followUp">; l
   { key: "promptLinks", label: "Prompt links (aurelia://new)" },
   { key: "dropFiles", label: "Drop files onto a thread" },
   { key: "backForward", label: "Back and forward between threads (⌘[ ⌘])" },
+  { key: "bloom", label: "Jellyfish on the start screen", hint: "One per live thread" },
 ];
 
 /** Switches for the thread-handling features borrowed from T3 Code. Each applies at once; no Save needed. */
@@ -34,20 +35,13 @@ export function ThreadsSection() {
       <p className="hint">Each switch hides a feature without removing it. Changes apply straight away.</p>
       {SWITCHES.map((s) => (
         <label key={s.key} className="field check">
-          <input type="checkbox" checked={prefs[s.key]} onChange={(e) => set({ [s.key]: e.target.checked })} />
+          <input type="checkbox" checked={prefs[s.key] as boolean} onChange={(e) => set({ [s.key]: e.target.checked })} />
           <span>
             {s.label}
             {s.hint && <span className="hint inline"> · {s.hint}</span>}
           </span>
         </label>
       ))}
-      <label className="field">
-        <span>While Claude works, Enter</span>
-        <select value={prefs.followUp} onChange={(e) => set({ followUp: e.target.value as ThreadPrefs["followUp"] })}>
-          <option value="queue">queues the message for after the turn</option>
-          <option value="steer">stops the turn and sends now</option>
-        </select>
-      </label>
       <label className="field">
         <span>Undo window (seconds)</span>
         <input

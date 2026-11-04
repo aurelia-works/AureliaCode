@@ -1,7 +1,7 @@
 [package]
 name = "aurelia-space"
 version = "0.1.0"
-description = "AureliaSpace — a personal terminal for running Claude Code accounts side by side"
+description = "AureliaCode — a chat-first app for running Claude Code accounts side by side"
 edition = "2021"
 
 [lib]
@@ -12,7 +12,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["unstable"] }
+tauri = { version = "2", features = ["unstable", "tray-icon", "image-png"] }
 tauri-plugin-notification = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -29,6 +29,18 @@ if-addrs = "0.13"
 futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 # Durable threads, work items and events. Bundled SQLite keeps the app self-contained.
 rusqlite = { version = "0.32", features = ["bundled"] }
+tauri-plugin-drag = "2"
+base64 = "0.22"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# Catches Objective-C exceptions during AppKit event dispatch (see appkit_guard.rs).
+objc2 = { version = "0.6", features = ["exception"] }
+# The agent browser drives the pane's WKWebView (browser_agent.rs). Same versions wry uses.
+block2 = "0.6"
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "block2", "NSString", "NSDictionary", "NSData", "NSError", "NSValue"] }
+objc2-core-foundation = { version = "0.3.2", default-features = false, features = ["std", "CFCGTypes"] }
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSImage", "NSImageRep", "NSBitmapImageRep"] }
+objc2-web-kit = { version = "0.3.2", default-features = false, features = ["std", "block2", "objc2-app-kit", "objc2-core-foundation", "WKWebView", "WKContentWorld", "WKFrameInfo", "WKSnapshotConfiguration"] }
 
 [profile.release]
 codegen-units = 1

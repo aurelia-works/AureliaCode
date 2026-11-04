@@ -1,5 +1,17 @@
 /** Switches and sizes for the thread-handling features (Settings → Threads & keys), kept in ui.json. */
 
+/** Which notices may reach you; permission prompts and errors always do. */
+export interface AlertPrefs {
+  finished: boolean;
+  needs_input: boolean;
+  context: boolean;
+  cache: boolean;
+  burn: boolean;
+  limit: boolean;
+}
+
+export const DEFAULT_ALERTS: AlertPrefs = { finished: true, needs_input: true, context: true, cache: true, burn: true, limit: true };
+
 export interface ThreadPrefs {
   /** Undo toast and ⌘Z after close, settle and snooze. */
   undo: boolean;
@@ -36,6 +48,13 @@ export interface ThreadPrefs {
   dropFiles: boolean;
   /** ⌘[ and ⌘] between threads. */
   backForward: boolean;
+  /** One faint jellyfish per live thread on the start screen. */
+  bloom: boolean;
+  /** Old AureliaSpace terminal panes (plain zsh, Codex, Gemini, custom agents, teams). Off: chat only. */
+  legacyTerminals: boolean;
+  /** Full Disk Access toast opens the drag-into-Settings sheet; off: it only opens System Settings. */
+  permissionDrag: boolean;
+  alerts: AlertPrefs;
 }
 
 export const DEFAULT_PREFS: ThreadPrefs = {
@@ -57,6 +76,10 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   promptLinks: true,
   dropFiles: true,
   backForward: true,
+  bloom: false,
+  legacyTerminals: false,
+  permissionDrag: true,
+  alerts: DEFAULT_ALERTS,
 };
 
 export const UNDO_SECONDS = { min: 2, max: 30 } as const;
@@ -75,6 +98,9 @@ export function normalizePrefs(raw: unknown): ThreadPrefs {
   for (const k of Object.keys(DEFAULT_PREFS) as (keyof ThreadPrefs)[]) {
     if (k === "undoSeconds") {
       if (typeof r[k] === "number" && Number.isFinite(r[k])) out.undoSeconds = clampUndoSeconds(r[k] as number, DEFAULT_PREFS.undoSeconds);
+    } else if (k === "alerts") {
+      const a = (r.alerts && typeof r.alerts === "object" ? r.alerts : {}) as Record<string, unknown>;
+      out.alerts = Object.fromEntries((Object.keys(DEFAULT_ALERTS) as (keyof AlertPrefs)[]).map((n) => [n, typeof a[n] === "boolean" ? a[n] : true])) as unknown as AlertPrefs;
     } else if (k === "followUp") {
       if (r[k] === "steer" || r[k] === "queue") out.followUp = r[k] as "steer" | "queue";
     } else if (typeof r[k] === "boolean") (out as unknown as Record<string, boolean>)[k] = r[k] as boolean;

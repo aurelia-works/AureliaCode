@@ -20,8 +20,8 @@ pub struct Presence {
     pub started_at: Option<i64>,
 }
 
-const LOGO_URL: &str = "https://raw.githubusercontent.com/aurelia-works/AureliaSpace/main/src-tauri/icons/128x128@2x.png";
-const REPO_URL: &str = "https://github.com/aurelia-works/AureliaSpace";
+const LOGO_URL: &str = "https://raw.githubusercontent.com/aurelia-works/AureliaCode/main/src-tauri/icons/128x128@2x.png";
+const REPO_URL: &str = "https://github.com/aurelia-works/AureliaCode";
 
 enum Msg {
     Set(Option<Presence>),
@@ -34,8 +34,8 @@ fn apply(client: &mut DiscordIpcClient, p: &Presence) -> Result<(), discord_rich
     let mut a = activity::Activity::new()
         .details(&p.details)
         // Discord accepts an image URL here, so no assets need uploading to the dev portal.
-        .assets(activity::Assets::new().large_image(LOGO_URL).large_text("AureliaSpace"))
-        .buttons(vec![activity::Button::new("Get AureliaSpace", REPO_URL)]);
+        .assets(activity::Assets::new().large_image(LOGO_URL).large_text("AureliaCode"))
+        .buttons(vec![activity::Button::new("Get AureliaCode", REPO_URL)]);
     if let Some(s) = p.state.as_deref().filter(|s| !s.is_empty()) {
         a = a.state(s);
     }

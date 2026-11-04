@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { cleanTextarea } from "../lib/controlChars";
 import { sendPrompt } from "../lib/effort";
 import { ipc } from "../lib/ipc";
 import { enqueue, unqueue, useOutbox } from "../lib/outbox";
@@ -100,7 +101,7 @@ export function Composer({ paneId }: { paneId: string }) {
           value={text}
           placeholder={account ? "Message Claude…" : "Type a command or message…"}
           onChange={(e) => {
-            setText(e.target.value);
+            setText(cleanTextarea(e.target));
             if (note) setNote(null);
           }}
           disabled={busy}

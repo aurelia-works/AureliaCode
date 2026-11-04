@@ -29,8 +29,8 @@ export function GitDialog({
   const [changes, setChanges] = useState<GitChange[] | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [message, setMessage] = useState("");
-  const [title, setTitle] = useState(defaultTitle ?? "AureliaSpace changes");
-  const [body, setBody] = useState("Created from AureliaSpace.");
+  const [title, setTitle] = useState(defaultTitle ?? "AureliaCode changes");
+  const [body, setBody] = useState("Created from AureliaCode.");
   const [draft, setDraft] = useState(true);
   const [push, setPush] = useState(true);
   const [busy, setBusy] = useState(false);

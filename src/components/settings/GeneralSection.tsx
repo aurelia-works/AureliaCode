@@ -7,6 +7,8 @@ import type { SectionProps } from "./registry";
 
 export function GeneralSection({ draft, update }: SectionProps) {
   const asChat = useUi((s) => s.claudeAsChat);
+  // Terminal-only settings show only with Diagnostics → Legacy terminal panes on.
+  const terms = useUi((s) => s.prefs.legacyTerminals);
   const [store, setStore] = useState<{ ok: boolean; threads: number; events: number; path: string } | null>(null);
   useEffect(() => {
     void db.health().then(setStore, () => setStore(null));
@@ -45,10 +47,10 @@ export function GeneralSection({ draft, update }: SectionProps) {
         <h3>Editor</h3>
         <label className="field check">
           <input type="checkbox" checked={draft.openFilesInApp !== false} onChange={(e) => update((c) => (c.openFilesInApp = e.target.checked))} />
-          <span>Open files in AureliaSpace</span>
+          <span>Open files in AureliaCode</span>
         </label>
         <p className="hint">
-          ⌘-clicked paths, search hits and problems open in an editor pane beside the terminal (⌘S saves; a file an agent
+          ⌘-clicked paths, search hits and problems open in an editor pane beside the chat (⌘S saves; a file an agent
           changed reloads when you come back to it). ⌥⌘-click, folders and binary files use the command below.
         </p>
         <label className="field">
@@ -79,13 +81,13 @@ export function GeneralSection({ draft, update }: SectionProps) {
           </select>
         </label>
         <p className="hint">
-          Applies to Claude panes AureliaSpace starts, as <code>claude --permission-mode</code>. Each pane's mode chip switches it
+          Applies to Claude panes AureliaCode starts, as <code>claude --permission-mode</code>. Each pane's mode chip switches it
           later (Shift+Tab in Claude). First picked in the one-time setup; model and effort are under Auto effort, the account
           under Accounts.
         </p>
       </section>
 
-      <section className="set-group">
+      {terms && <section className="set-group">
         <h3>New Claude panes</h3>
         <label className="field check">
           <input type="checkbox" checked={asChat} onChange={(e) => useUi.getState().set({ claudeAsChat: e.target.checked })} />
@@ -96,28 +98,28 @@ export function GeneralSection({ draft, update }: SectionProps) {
           click. Any chat can switch to the terminal from the command palette (<code>⌘P</code>), and a plain Terminal is always on
           the start screen.
         </p>
-      </section>
+      </section>}
 
       <section className="set-group">
         <h3>Restore</h3>
         <label className="field check">
           <input type="checkbox" checked={draft.resumeOnLaunch !== false} onChange={(e) => update((c) => (c.resumeOnLaunch = e.target.checked))} />
-          <span>Reopen each Claude pane's conversation when AureliaSpace starts</span>
+          <span>Reopen each Claude pane's conversation when AureliaCode starts</span>
         </label>
         <p className="hint">Restored panes run <code>claude --resume</code> on the conversation they last had, instead of starting blank.</p>
-        <label className="field check">
+        {terms && <><label className="field check">
           <input
             type="checkbox"
             checked={draft.terminal.keepAlive !== false}
             onChange={(e) => update((c) => (c.terminal.keepAlive = e.target.checked))}
           />
-          <span>Keep terminals running while AureliaSpace quits, restarts or updates</span>
+          <span>Keep terminals running while AureliaCode quits, restarts or updates</span>
         </label>
         <p className="hint">
           Shells and agents live in a small background process and pick up where they were when the app comes back, with
           their recent output. Closing a pane ends its shell; one left without the app for 3 days is ended too. Applies to
           panes opened after the change.
-        </p>
+        </p></>}
       </section>
 
       <section className="set-group">
@@ -135,7 +137,7 @@ export function GeneralSection({ draft, update }: SectionProps) {
             <button type="button" onClick={() => void ipc.openPath(store.path).catch(() => {})}>
               Reveal database
             </button>
-            <button type="button" onClick={() => void ipc.openUrl("https://github.com/aurelia-works/AureliaSpace/releases").catch(() => {})}>
+            <button type="button" onClick={() => void ipc.openUrl("https://github.com/aurelia-works/AureliaCode/releases").catch(() => {})}>
               Check for updates
             </button>
           </div>

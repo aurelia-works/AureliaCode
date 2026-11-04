@@ -6,6 +6,7 @@ import { isLocalUrl, openInBrowserPane } from "../lib/browser";
 import { basename, formatCost, formatDuration, formatTokens } from "../lib/format";
 import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
+import { cleanTextarea } from "../lib/controlChars";
 import { toolPhrase } from "../lib/toolPhrase";
 import { ipc, type ChatImage, type CliModel, type RuleFile, type RuleKind, type SlashCommand } from "../lib/ipc";
 import { renderMarkdown } from "../lib/markdown";
@@ -14,12 +15,13 @@ import { cyclePermissionMode, MODES, modeKey } from "../lib/permissionMode";
 import { riskOf } from "../lib/risk";
 import { CHAT_FIND } from "../lib/shortcuts";
 import { focusedPaneId, useLayout } from "../store/layout";
+import { usePaneContext } from "../store/metrics";
 import { toggleStash } from "../lib/stash";
-import { followUpAction } from "../lib/threadTools";
+import { composerEnter, followUpAction } from "../lib/threadTools";
 import { toast, useUi } from "../store/ui";
 import { useConfig } from "../store/config";
 import { AgentLogo } from "./AgentLogos";
-import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, FileIcon, GaugeIcon, PenIcon, PlusIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
+import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, FileIcon, GaugeIcon, GlobeIcon, PenIcon, PlusIcon, SearchIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
 
 const MAX_ROWS = 12;
 /** Tool output shown when a call is opened; the rest stays in the transcript. */
@@ -319,6 +321,7 @@ function changedFrom(segs: Segment[], from: Segment): boolean {
  * conversation cut just before it (lib/chat.ts branchChat), optionally undoing file changes.
  */
 function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatItem, { kind: "user" }>; paneId: string; idle: boolean; changedLater: boolean }) {
+  const showTime = useConfig((s) => s.config?.chatTimestamps ?? false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(item.text);
   const [undoFiles, setUndoFiles] = useState(true);
@@ -336,7 +339,7 @@ function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatI
           value={draft}
           rows={Math.min(10, draft.split("\n").length + 1)}
           aria-label="Edit message"
-          onChange={(e) => setDraft(e.target.value)}
+          onChange={(e) => setDraft(cleanTextarea(e.target))}
           onKeyDown={(e) => {
             if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault();
@@ -394,6 +397,11 @@ function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatI
           </button>
         </div>
       )}
+      {showTime && item.at && (
+        <time className="chat-time" dateTime={new Date(item.at).toISOString()}>
+          {clockTime(item.at)}
+        </time>
+      )}
     </div>
   );
 }
@@ -424,12 +432,17 @@ function openLink(e: React.MouseEvent, paneId: string) {
   e.preventDefault();
   const href = a.getAttribute("href") ?? "";
   if (/^https?:\/\//.test(href)) {
-    if (isLocalUrl(href) && !e.altKey) openInBrowserPane(paneId, href);
+    const mode = useConfig.getState().config?.linkOpen ?? "local";
+    const inApp = !e.altKey && (mode === "app" || (mode === "local" && isLocalUrl(href)));
+    if (inApp) openInBrowserPane(paneId, href);
     else ipc.openUrl(href).catch(() => {});
   } else if (href && !/^[a-z]+:/i.test(href)) {
     openFile(href, undefined, undefined, { fromPane: paneId });
   }
 }
+
+/** "3:42 PM": the time a message landed, in the locale's clock. */
+const clockTime = (at: number) => new Date(at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
 /** "8s", "2m 10s": whole seconds, as a person would say it. */
 function took(ms: number) {
@@ -493,6 +506,8 @@ const TOOL_VERB: Record<string, string> = {
  * and folded, and the answer as it streams. Once done the work folds under one line.
  */
 const WorkBlock = memo(function WorkBlock({ seg, live, waiting, cwd, paneId }: { seg: Work; live: boolean; waiting: boolean; cwd?: string; paneId: string }) {
+  const showTime = useConfig((s) => s.config?.chatTimestamps ?? false);
+  const answeredAt = seg.answer.at(-1)?.at;
   const [open, setOpen] = useState(false);
   const ms = seg.end?.ms ?? (seg.startAt && seg.lastAt && seg.lastAt > seg.startAt ? seg.lastAt - seg.startAt : undefined);
   const steps = seg.activity.filter((i) => i.kind === "tool").length;
@@ -515,10 +530,15 @@ const WorkBlock = memo(function WorkBlock({ seg, live, waiting, cwd, paneId }: {
         <Markdown key={a.id} text={a.text} streaming={!a.done} />
       ))}
       {!live && seg.answer.length > 0 && (
-        <div className="chat-answer-tools">
+        <div className={`chat-answer-tools${showTime ? " with-time" : ""}`}>
           <button type="button" className="chat-answer-copy" title="Copy this answer as Markdown" onClick={(e) => copyText(e.currentTarget, seg.answer.map((a) => a.text).join("\n\n"))}>
             Copy
           </button>
+          {showTime && answeredAt && (
+            <time className="chat-time" dateTime={new Date(answeredAt).toISOString()}>
+              {clockTime(answeredAt)}
+            </time>
+          )}
         </div>
       )}
       {seg.end?.outcome === "interrupted" && <div className="chat-outcome">Stopped</div>}
@@ -556,6 +576,16 @@ function Activity({ items, cwd }: { items: ChatItem[]; cwd?: string }) {
   );
 }
 
+/** The icon T3-style work rows use for a tool: file, search, web, agent, else terminal. */
+function toolGlyph(name: string | undefined) {
+  if (!name) return <TerminalIcon className="chat-tools-glyph" />;
+  if (/^(Read|Write|Edit|MultiEdit|NotebookEdit)$/.test(name)) return <FileIcon className="chat-tools-glyph" />;
+  if (/^(Grep|Glob)$/.test(name)) return <SearchIcon className="chat-tools-glyph" />;
+  if (/^(WebFetch|WebSearch)$/.test(name)) return <GlobeIcon className="chat-tools-glyph" />;
+  if (/^(Task|Agent)$/.test(name)) return <SparkIcon className="chat-tools-glyph" />;
+  return <TerminalIcon className="chat-tools-glyph" />;
+}
+
 function ToolGroup({ tools, cwd }: { tools: Tool[]; cwd?: string }) {
   const [open, setOpen] = useState(false);
   const running = tools.find((t) => t.result === undefined);
@@ -564,7 +594,7 @@ function ToolGroup({ tools, cwd }: { tools: Tool[]; cwd?: string }) {
   return (
     <div className={`chat-tools${running ? " running" : ""}`}>
       <button type="button" className={`chat-tools-line${open ? " open" : ""}`} onClick={() => setOpen((o) => !o)} aria-expanded={open}>
-        <TerminalIcon className="chat-tools-glyph" />
+        {toolGlyph(one?.name ?? tools[0]?.name)}
         {one ? (
           <>
             <span className="chat-tools-name">{one.name}</span>
@@ -1089,6 +1119,8 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const pane = useLayout((s) => s.panes[paneId]);
   useConfig((s) => s.config?.effort); // re-render when the auto defaults change
+  const sendOnEnter = useConfig((s) => s.config?.chatSendOnEnter ?? true);
+  const sendKey = sendOnEnter ? "Enter" : "⌘Enter";
   const { model, effort } = chatPicks(pane);
   const running = useChat((s) => s.byPane[paneId]?.model);
   const mode = modeKey(useChat((s) => s.byPane[paneId]?.mode));
@@ -1240,9 +1272,9 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           } else if (e.key === "." && e.metaKey && busy) {
             e.preventDefault();
             interruptChat(paneId);
-          } else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.target === ref.current) {
+          } else if (e.key === "Enter" && !e.nativeEvent.isComposing && e.target === ref.current && composerEnter({ meta: e.metaKey, shift: e.shiftKey }, sendOnEnter) !== "newline") {
             e.preventDefault();
-            send(e.metaKey);
+            send(composerEnter({ meta: e.metaKey, shift: e.shiftKey }, sendOnEnter) === "opposite");
           } else if (e.key === "Tab" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.target === ref.current) {
             // Claude Code's own mode cycle.
             e.preventDefault();
@@ -1276,9 +1308,9 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           rows={2}
           value={text}
           data-chat-input={paneId}
-          placeholder={busy ? "Claude is working. A message now goes after this turn" : "Describe a task, or / for commands"}
+          placeholder={busy ? "Claude is working. A message now goes after this turn" : "Ask anything. @ files, / commands"}
           onChange={(e) => {
-            setText(e.target.value);
+            setText(cleanTextarea(e.target));
             setCaret(e.target.selectionStart);
             setHist(null);
           }}
@@ -1292,9 +1324,20 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
           spellCheck={false}
         />
         <div className="chat-card-bar">
-          <button type="button" className="chat-pick chat-plus" title="Add images (or paste them, or drop files here)" aria-label="Add images" onClick={() => fileInput.current?.click()}>
-            <PlusIcon />
-          </button>
+          <PlusMenu
+            onImages={() => fileInput.current?.click()}
+            onPicked={(img) => void pngFile(img.data).then((f) => addImages([f]))}
+            onFiles={() => {
+              const at = ref.current?.selectionStart ?? text.length;
+              const lead = at > 0 && !/\s/.test(text[at - 1]) ? " @" : "@";
+              setText(text.slice(0, at) + lead + text.slice(at));
+              setCaret(at + lead.length);
+              requestAnimationFrame(() => {
+                ref.current?.focus();
+                ref.current?.setSelectionRange(at + lead.length, at + lead.length);
+              });
+            }}
+          />
           <input
             ref={fileInput}
             type="file"
@@ -1360,7 +1403,7 @@ function ChatComposer({ paneId, busy }: { paneId: string; busy: boolean }) {
               <StopIcon />
             </button>
           ) : (
-            <button type="button" className="chat-send" onClick={() => send()} disabled={empty} title={busy ? (prefs.steerKey && prefs.followUp === "steer" ? "Stop this turn and send now (Enter)" : "Queue for after this turn (Enter)") : "Send (Enter)"} aria-label="Send">
+            <button type="button" className="chat-send" onClick={() => send()} disabled={empty} title={busy ? (prefs.steerKey && prefs.followUp === "steer" ? `Stop this turn and send now (${sendKey})` : `Queue for after this turn (${sendKey})`) : `Send (${sendKey})`} aria-label="Send">
               <ArrowUpIcon />
             </button>
           )}
@@ -1476,7 +1519,7 @@ function useProjectFiles(cwd: string | undefined): string[] {
     if (!cwd) return;
     let hit = fileCache.get(cwd);
     if (!hit || Date.now() - hit.at > 60_000) {
-      hit = { at: Date.now(), files: ipc.projectFiles(cwd).catch(() => []) };
+      hit = { at: Date.now(), files: ipc.projectFiles(cwd).then((f) => (Array.isArray(f) ? f : []), () => []) };
       fileCache.set(cwd, hit);
     }
     let live = true;
@@ -1586,6 +1629,61 @@ interface Option {
   desc: string;
   icon?: React.ReactNode;
   tone?: "warn" | "danger";
+}
+
+/** The composer's +: images from the Mac's picker, a screenshot, the clipboard, or an @ file mention. */
+function PlusMenu({ onImages, onPicked, onFiles }: { onImages: () => void; onPicked: (img: ChatImage) => void; onFiles: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const off = (e: MouseEvent) => !ref.current?.contains(e.target as Node) && setOpen(false);
+    addEventListener("mousedown", off);
+    return () => removeEventListener("mousedown", off);
+  }, [open]);
+  const pick = (run: () => void) => () => {
+    setOpen(false);
+    run();
+  };
+  const items = [
+    { key: "images", label: "Add images", desc: "PNG, JPEG, GIF or WebP from your Mac", run: onImages },
+    {
+      key: "shot",
+      label: "Take screenshot",
+      desc: "drag an area, Space for a window, Esc cancels",
+      run: () => void ipc.captureScreenshot().then((img) => img && onPicked(img), (e) => toast(`Screenshot failed: ${e}`, true)),
+    },
+    {
+      key: "clip",
+      label: "Paste image",
+      desc: "the image on the clipboard",
+      run: () => void ipc.clipboardImage().then((img) => (img ? onPicked(img) : toast("There's no image on the clipboard")), (e) => toast(`Couldn't read the clipboard: ${e}`, true)),
+    },
+    { key: "files", label: "Add files", desc: "mention a file with @", run: onFiles },
+  ];
+  return (
+    <div className="chat-pick chat-plus-menu" ref={ref}>
+      <button type="button" className={`chat-pick-btn chat-plus${open ? " on" : ""}`} aria-haspopup="menu" aria-expanded={open} aria-label="Add" title="Add images, a screenshot or files" onClick={() => setOpen((o) => !o)}>
+        <PlusIcon />
+      </button>
+      {open && (
+        <div className="chat-pick-menu" role="menu" aria-label="Add" onKeyDown={(e) => e.key === "Escape" && (e.stopPropagation(), setOpen(false))}>
+          {items.map((i, n) => (
+            <button key={i.key} type="button" role="menuitem" autoFocus={n === 0} onClick={pick(i.run)}>
+              <span className="chat-pick-name">{i.label}</span>
+              <span className="chat-pick-desc">{i.desc}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** A base64 PNG from the + menu as a File, so it goes through readImage's size limits like any other image. */
+async function pngFile(data: string): Promise<File> {
+  const blob = await (await fetch(`data:image/png;base64,${data}`)).blob();
+  return new File([blob], "image.png", { type: "image/png" });
 }
 
 /** A small menu above its button: one pick from a list, arrow keys to move, Esc to close. */
@@ -1728,9 +1826,10 @@ function ContextRing({ paneId }: { paneId: string }) {
   }, [open, paneId]);
 
   const ctx = s?.context;
-  const used = ctx?.totalTokens ?? s?.last?.contextTokens ?? 0;
-  const size = ctx?.maxTokens ?? s?.last?.contextWindow ?? 0;
-  const pct = used && size ? Math.min(100, Math.round((used / size) * 100)) : 0;
+  const fill = usePaneContext(paneId);
+  const used = fill?.tokens ?? 0;
+  const size = fill?.window ?? 0;
+  const pct = Math.round(fill?.pct ?? 0);
   const r = 7;
   const c = 2 * Math.PI * r;
   const label = size ? `Context: ${formatTokens(used)} of ${formatTokens(size)} (${pct}%)` : "Context";

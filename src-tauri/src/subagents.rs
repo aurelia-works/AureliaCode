@@ -161,8 +161,8 @@ fn agent_config() -> String {
     }
     json!({
         "agents": {
-            "aurelia-read": { "description": "Read-only subagent for Claude Code in AureliaSpace", "mode": "primary", "steps": 40, "permissions": read_rules },
-            "aurelia-work": { "description": "Editing subagent for Claude Code in AureliaSpace", "mode": "primary", "steps": 60, "permissions": work_rules }
+            "aurelia-read": { "description": "Read-only subagent for Claude Code in AureliaCode", "mode": "primary", "steps": 40, "permissions": read_rules },
+            "aurelia-work": { "description": "Editing subagent for Claude Code in AureliaCode", "mode": "primary", "steps": 60, "permissions": work_rules }
         }
     })
     .to_string()
@@ -425,7 +425,7 @@ fn initialize(params: &Value) -> Value {
     json!({
         "protocolVersion": params["protocolVersion"].as_str().unwrap_or("2025-06-18"),
         "capabilities": { "tools": {} },
-        "serverInfo": { "name": "aurelia", "title": "AureliaSpace", "version": env!("CARGO_PKG_VERSION") },
+        "serverInfo": { "name": "aurelia", "title": "AureliaCode", "version": env!("CARGO_PKG_VERSION") },
         "instructions": instructions()
     })
 }

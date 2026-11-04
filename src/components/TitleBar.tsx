@@ -17,13 +17,6 @@ export function TitleBar() {
 
   return (
     <header className="titlebar" data-tauri-drag-region>
-      <div className="brand" data-tauri-drag-region>
-        <AureliaMark className="brand-mark" width={22} height={22} />
-        <span className="brand-name" data-tauri-drag-region>
-          Aurelia<span>Space</span>
-        </span>
-        <DevMark />
-      </div>
       <button
         className={`icon-btn quiet${nav ? " on" : ""}`}
         title="Sidebar (⌘\\)"
@@ -33,8 +26,15 @@ export function TitleBar() {
       >
         <SidebarIcon />
       </button>
-      <ModeSwitch />
+      <div className="brand" data-tauri-drag-region>
+        <AureliaMark className="brand-mark" width={20} height={20} />
+        <span className="brand-name" data-tauri-drag-region>
+          Aurelia<span>Code</span>
+        </span>
+        <DevMark />
+      </div>
       <span className="tb-sp" data-tauri-drag-region />
+      <ModeSwitch />
       <FocusChip />
       <NoticeBell />
       <FontReset />
@@ -43,7 +43,7 @@ export function TitleBar() {
   );
 }
 
-/** Agents / Terminals / Review / Work: the same four views the ⇧⌘1–4 shortcuts pick. */
+/** Agents / Threads / Review / Work: the same four views the ⇧⌘1–4 shortcuts pick. */
 function ModeSwitch() {
   const mode = useUi((s) => s.mode);
   const reviewOpen = useUi((s) => s.reviewOpen);
@@ -54,8 +54,8 @@ function ModeSwitch() {
       <button className={mode === "agents" ? "on" : ""} aria-pressed={mode === "agents"} title="Agents board (⇧⌘1)" onClick={() => pick("agents")}>
         Agents
       </button>
-      <button className={mode === "terminals" ? "on" : ""} aria-pressed={mode === "terminals"} title="Terminals (⇧⌘2)" onClick={() => pick("terminals")}>
-        Terminals
+      <button className={mode === "terminals" ? "on" : ""} aria-pressed={mode === "terminals"} title="Threads (⇧⌘2)" onClick={() => pick("terminals")}>
+        Threads
       </button>
       <button className={reviewOpen ? "on" : ""} aria-pressed={reviewOpen} title="Review changes (⇧⌘3)" onClick={() => set({ reviewOpen: true })}>
         Review

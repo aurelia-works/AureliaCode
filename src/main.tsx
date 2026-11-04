@@ -12,6 +12,7 @@ import { applyPaletteVars } from "./lib/palettes";
 import { primeNotifications } from "./lib/notify";
 import { primeSounds } from "./lib/sounds";
 import { startHudBridge } from "./lib/hudBridge";
+import { startTrayIcon } from "./lib/trayIcon";
 import { startControl } from "./lib/control";
 import { startDispatchWatch } from "./lib/dispatch";
 import { startOutbox } from "./lib/outbox";
@@ -20,8 +21,9 @@ import { startPulse } from "./lib/pulse";
 import { startRoutines } from "./lib/routines";
 import { startRemote } from "./lib/remote";
 import { planResume } from "./lib/resume";
-import { installShortcuts } from "./lib/shortcuts";
+import { installShortcuts, selectAll } from "./lib/shortcuts";
 import { applyAppearance } from "./lib/terminals";
+import { applyUiAppearance } from "./lib/uiAppearance";
 import { onSystemThemeChange, resolveDark } from "./lib/theme";
 import { startVoice } from "./lib/voice";
 import { trackAttention, useAgents, type AgentEvent } from "./store/agents";
@@ -61,6 +63,7 @@ function applyTheme() {
   document.documentElement.dataset.theme = dark ? "dark" : "light";
   applyPaletteVars(cfg?.palette, dark);
   applyAppearance();
+  if (cfg) applyUiAppearance();
 }
 
 function persistLayout() {
@@ -107,6 +110,7 @@ async function boot() {
   // Shells the terminal host kept for panes that are no longer in the layout.
   if (saved && useConfig.getState().config?.terminal.keepAlive !== false) ipc.ptyPrune(Object.keys(useLayout.getState().panes)).catch(() => {});
   await listen("menu-settings", () => useUi.getState().set({ settingsOpen: true }));
+  await listen("menu-select-all", selectAll);
 
   window.addEventListener("focus", () => useUi.getState().set({ windowFocused: true }));
   window.addEventListener("blur", () => useUi.getState().set({ windowFocused: false }));
@@ -124,6 +128,7 @@ async function boot() {
   primeNotifications();
   primeSounds();
   startHudBridge().catch(() => {});
+  startTrayIcon();
   startRemote().catch(() => {});
   startOutbox();
   startChains();
@@ -147,10 +152,17 @@ async function checkFullDiskAccess() {
     kind: "info",
     key: "full-disk-access",
     sticky: true,
-    title: "Give AureliaSpace Full Disk Access",
-    body: "Stops the repeated macOS permission popups. Turn on AureliaSpace in the list, then reopen the app.",
+    title: "Give AureliaCode Full Disk Access",
+    body: "Stops the repeated macOS permission popups. Turn on AureliaCode in the list, then reopen the app.",
     actions: [
-      { label: "Open Settings", tone: "primary", run: () => void ipc.openFullDiskAccessSettings() },
+      {
+        label: "Open Settings",
+        tone: "primary",
+        run: () => {
+          void ipc.openFullDiskAccessSettings();
+          if (useUi.getState().prefs.permissionDrag) useUi.getState().set({ permissionsOpen: true });
+        },
+      },
       { label: "Not now", run: () => {} },
     ],
   });
@@ -170,5 +182,5 @@ function hideSplash() {
 
 boot().catch((e) => {
   document.getElementById("splash")?.remove();
-  document.body.textContent = `AureliaSpace failed to start: ${e}`;
+  document.body.textContent = `AureliaCode failed to start: ${e}`;
 });

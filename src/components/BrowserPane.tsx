@@ -4,6 +4,7 @@ import { ipc } from "../lib/ipc";
 import { normalizeUrl } from "../lib/browser";
 import { BROWSER_PICK, parsePickUrl, pickPrompt, pickerScript } from "../lib/browserPick";
 import { onPanesClosed, useLayout } from "../store/layout";
+import { useConfig } from "../store/config";
 import { useUi } from "../store/ui";
 
 // The native webview outlives React remounts (splitting re-parents panes); it's destroyed only when the pane closes.
@@ -113,7 +114,7 @@ export function BrowserPane({ paneId }: { paneId: string }) {
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const url = normalizeUrl(draft);
+    const url = normalizeUrl(draft, useConfig.getState().config?.browserSearch ?? "duckduckgo");
     if (!url) return;
     setDraft(url);
     useLayout.getState().updatePane(paneId, { browser: { url } });
@@ -121,7 +122,7 @@ export function BrowserPane({ paneId }: { paneId: string }) {
   };
   const act = (a: "back" | "forward" | "reload") => created.current && ipc.browserAction(paneId, a).catch(() => {});
   const open = (url: string) => {
-    const normalized = normalizeUrl(url);
+    const normalized = normalizeUrl(url, useConfig.getState().config?.browserSearch ?? "duckduckgo");
     setDraft(normalized);
     useLayout.getState().updatePane(paneId, { browser: { url: normalized } });
     go(normalized);

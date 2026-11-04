@@ -3,8 +3,39 @@ import { shortenPath } from "../../lib/format";
 import { ipc } from "../../lib/ipc";
 import { notify as banner } from "../../lib/notify";
 import { newTopic, pushTest } from "../../lib/push";
+import type { AlertPrefs } from "../../lib/prefs";
 import { playSound, SOUND_DEFAULTS, SOUND_EVENTS, SOUNDS, type SoundEvent } from "../../lib/sounds";
+import { useUi } from "../../store/ui";
 import type { SectionProps } from "./registry";
+
+const ALERTS: { id: keyof AlertPrefs; label: string }[] = [
+  { id: "finished", label: "A thread finished" },
+  { id: "needs_input", label: "A thread needs input" },
+  { id: "context", label: "Context nearly full" },
+  { id: "cache", label: "Prompt cache cooling or cold" },
+  { id: "burn", label: "Burning tokens fast" },
+  { id: "limit", label: "Usage limit close or reached" },
+];
+
+function AlertSwitches() {
+  const prefs = useUi((s) => s.prefs);
+  return (
+    <section className="set-group">
+      <h3>What alerts you</h3>
+      <p className="hint">Permission prompts and errors always come through.</p>
+      {ALERTS.map((a) => (
+        <label className="field check" key={a.id}>
+          <input
+            type="checkbox"
+            checked={prefs.alerts[a.id]}
+            onChange={(e) => useUi.getState().set({ prefs: { ...prefs, alerts: { ...prefs.alerts, [a.id]: e.target.checked } } })}
+          />
+          <span>{a.label}</span>
+        </label>
+      ))}
+    </section>
+  );
+}
 
 function SoundPick({ value, volume, onChange }: { value: string; volume: number; onChange(id: string): void }) {
   return (
@@ -36,6 +67,7 @@ export function SoundsSection({ draft, update, notify }: SectionProps) {
 
   return (
     <>
+      <AlertSwitches />
       <section className="set-group">
         <h3>Alert sounds</h3>
         <label className="field check">
@@ -59,7 +91,7 @@ export function SoundsSection({ draft, update, notify }: SectionProps) {
           </label>
         ))}
         <p className="hint">
-          Sounds play from inside AureliaSpace, so macOS Focus can't mute them. No sound plays for the pane you're looking at.
+          Sounds play from inside AureliaCode, so macOS Focus can't mute them. No sound plays for the pane you're looking at.
         </p>
       </section>
 
@@ -111,10 +143,10 @@ export function SoundsSection({ draft, update, notify }: SectionProps) {
       <section className="set-group">
         <h3>Desktop banner</h3>
         <p className="hint">
-          macOS banners follow your Focus settings. If one doesn't show, allow AureliaSpace under System Settings → Focus → your Focus →
+          macOS banners follow your Focus settings. If one doesn't show, allow AureliaCode under System Settings → Focus → your Focus →
           Allowed Notifications → Apps.
         </p>
-        <button type="button" onClick={() => banner("AureliaSpace", "If you can read this, banners get through.").then(() => notify("Test banner sent."))}>
+        <button type="button" onClick={() => banner("AureliaCode", "If you can read this, banners get through.").then(() => notify("Test banner sent."))}>
           Send a test banner
         </button>
       </section>
@@ -123,7 +155,7 @@ export function SoundsSection({ draft, update, notify }: SectionProps) {
         <h3>Phone alerts</h3>
         <label className="field check">
           <input type="checkbox" checked={push.enabled} onChange={(e) => update((c) => (c.push.enabled = e.target.checked))} />
-          <span>Send alerts to my phone while AureliaSpace isn't the focused app</span>
+          <span>Send alerts to my phone while AureliaCode isn't the focused app</span>
         </label>
         <label className="field">
           <span>Topic</span>

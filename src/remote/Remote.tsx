@@ -188,7 +188,7 @@ export function Remote() {
     return (
       <div className="rm-app rm-center">
         <h1>Pair this phone</h1>
-        <p>On your Mac, open AureliaSpace → Settings → Remote and scan the QR code with this phone's camera.</p>
+        <p>On your Mac, open AureliaCode → Settings → Remote and scan the QR code with this phone's camera.</p>
       </div>
     );
   }
@@ -266,7 +266,7 @@ function PaneList({ snap, conn, onOpen }: { snap: Snapshot; conn: Conn; onOpen(i
       <header className="rm-bar">
         <span className="rm-brand">
           <Mark />
-          AureliaSpace
+          AureliaCode
         </span>
         <ConnDot conn={conn} />
       </header>

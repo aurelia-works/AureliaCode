@@ -4,7 +4,7 @@ import { ipc, type Usage } from "../lib/ipc";
 import { useConfig } from "./config";
 import { useLayout } from "./layout";
 import { offerForAccount } from "../lib/limits";
-import { alertUser } from "./notifications";
+import { alertUser, useNotices } from "./notifications";
 
 export type WindowId = "5h" | "7d";
 export type Forecasts = Record<WindowId, Forecast>;
@@ -51,6 +51,7 @@ function track(account: string, u: Usage): Forecasts {
   const h = history.get(account) ?? { "5h": { samples: [], resetAt: null }, "7d": { samples: [], resetAt: null } };
   history.set(account, h);
   const out = {} as Forecasts;
+  let capped = false;
   for (const w of WINDOWS) {
     const pct = w.pct(u);
     const resetAt = parseT(w.reset(u));
@@ -64,19 +65,29 @@ function track(account: string, u: Usage): Forecasts {
     const hot = (pct ?? 0) >= 90;
     const soon = f.state === "out" && f.outAt! - now <= w.soonMs;
     const period = `${account}:${w.id}:${resetAt === null ? "" : Math.round(resetAt / 3600_000)}`;
-    if (pct !== null && (hot || soon) && !alerted.has(period)) {
-      alerted.add(period);
-      // At the cap, panes still working on this account get a "continue elsewhere" card instead.
-      if (pct >= 100 && offerForAccount(account) > 0) continue;
-      const left = resetAt === null ? "" : ` Resets in ${formatReset(w.reset(u))}.`;
-      alertUser({
-        kind: "limit",
-        key: `limit:${account}:${w.id}`,
-        title: `${account}: ${w.name} limit ${hot ? `at ${Math.round(pct)}%` : "running out"}`,
-        body: soon ? `At this pace it runs out in ~${formatDuration(f.outAt! - now)}.${left}` : `${Math.round(pct)}% used.${left}`,
-      });
+    if (pct === null) continue;
+    if (pct >= 100) capped = true;
+    const key = `limit:${account}:${w.id}`;
+    // A window that reset or eased takes its card with it; one still open shows today's number.
+    if (!hot && !soon) {
+      useNotices.getState().retire(key);
+      continue;
     }
+    const left = resetAt === null ? "" : ` Resets in ${formatReset(w.reset(u))}.`;
+    const card = {
+      title: `${account}: ${w.name} limit ${hot ? `at ${Math.round(pct)}%` : "running out"}`,
+      body: soon ? `At this pace it runs out in ~${formatDuration(f.outAt! - now)}.${left}` : `${Math.round(pct)}% used.${left}`,
+    };
+    if (alerted.has(period)) {
+      useNotices.getState().update(key, card);
+      continue;
+    }
+    alerted.add(period);
+    // At the cap, panes still working on this account get a "continue elsewhere" card instead.
+    if (pct >= 100 && offerForAccount(account) > 0) continue;
+    alertUser({ kind: "limit", key, ...card });
   }
+  if (!capped) for (const n of useNotices.getState().notices) if (n.key?.startsWith(`offer:${account}:`)) useNotices.getState().retire(n.key);
   return out;
 }
 

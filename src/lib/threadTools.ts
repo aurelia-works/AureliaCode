@@ -11,6 +11,16 @@ export function followUpAction(busy: boolean, mode: FollowUp, opposite: boolean)
   return (mode === "steer") !== opposite ? "steer" : "queue";
 }
 
+/** What Enter does in the chat composer, for either "Send with" setting. */
+export function composerEnter(keys: { meta: boolean; shift: boolean }, sendOnEnter: boolean): "send" | "opposite" | "newline" {
+  if (sendOnEnter) return keys.shift ? "newline" : keys.meta ? "opposite" : "send";
+  if (!keys.meta) return "newline";
+  return keys.shift ? "opposite" : "send";
+}
+
+/** The worktree switch at launch: "worktree by default" wins; otherwise the switch stays as it was left. */
+export const startWorktree = (saved: boolean | undefined, byDefault: boolean | undefined) => !!byDefault || !!saved;
+
 /** A leading ">" in the palette means "actions only"; the rest is the search text. */
 export function paletteQuery(q: string): { actionsOnly: boolean; text: string } {
   const t = q.trimStart();

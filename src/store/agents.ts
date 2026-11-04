@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { useConfig } from "./config";
 import { activeTab, useLayout } from "./layout";
 import { takeCheckpoint } from "../lib/checkpoints";
+import { useChat } from "../lib/chat";
 import { onStopFailure } from "../lib/limits";
 import { answerPermission, permissionOptions } from "../lib/permissions";
 import { alertUser, useNotices, type NoticeAction } from "./notifications";
@@ -167,8 +168,9 @@ export const useAgents = create<AgentsState>((set, get) => ({
     if (ev.event === "UserPromptSubmit" && next.cwd) takeCheckpoint(ev.pane, next.cwd, ev.payload.prompt);
 
     // Back at work means whatever it was waiting on got answered.
-    if (status === "working") useNotices.getState().resolvePane(ev.pane, ["finished", "needs_input", "permission"]);
-    if (finished) {
+    if (status === "working") useNotices.getState().resolvePane(ev.pane, ["finished", "needs_input", "permission", "cache"]);
+    // A queued message starts the next turn at once: nothing is waiting for you yet.
+    if (finished && !useChat.getState().byPane[ev.pane]?.queued.length) {
       alertUser({ kind: "finished", key: `finished:${ev.pane}`, paneId: ev.pane, title: `${label(next)} finished`, body: "Claude is done and waiting for you.", reply: true });
     } else if (asking) {
       const permission = ev.payload.notification_type === "permission_prompt";

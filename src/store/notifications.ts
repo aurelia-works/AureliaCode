@@ -6,7 +6,7 @@ import { useConfig } from "./config";
 import { activeTab, useLayout } from "./layout";
 import { useUi } from "./ui";
 
-export type NoticeKind = "finished" | "needs_input" | "permission" | "cache" | "limit" | "burn" | "error" | "info";
+export type NoticeKind = "finished" | "needs_input" | "permission" | "context" | "cache" | "limit" | "burn" | "error" | "info";
 
 export interface NoticeAction {
   label: string;
@@ -59,6 +59,10 @@ interface NoticesState {
   dismiss(id: string): void;
   /** Takes every live card for a pane off screen, optionally only some kinds. */
   resolvePane(paneId: string, kinds?: NoticeKind[]): void;
+  /** Rewrites a card and its history row to the current facts, without alerting again. */
+  update(key: string, patch: Pick<Partial<Notice>, "title" | "body">): void;
+  /** The fact behind this card stopped being true: it leaves the screen and the history. */
+  retire(key: string): void;
   markAllRead(): void;
   clear(): void;
 }
@@ -70,6 +74,7 @@ export const useNotices = create<NoticesState>((set, get) => ({
   notices: [],
 
   push(input) {
+    if (muted(input.kind)) return "";
     const id = `n${++seq}`;
     const sticky = input.sticky ?? STICKY.includes(input.kind);
     const notice: Notice = { ...input, id, at: Date.now(), live: true, read: false, sticky };
@@ -93,6 +98,21 @@ export const useNotices = create<NoticesState>((set, get) => ({
     set((s) => ({ notices: s.notices.map((n) => (hit(n) ? { ...n, live: false, read: true } : n)) }));
   },
 
+  update(key, patch) {
+    if (!get().notices.some((n) => n.key === key)) return;
+    set((s) => ({ notices: s.notices.map((n) => (n.key === key ? { ...n, ...patch } : n)) }));
+  },
+
+  retire(key) {
+    const gone = get().notices.filter((n) => n.key === key);
+    if (!gone.length) return;
+    for (const n of gone) {
+      clearTimeout(timers.get(n.id));
+      timers.delete(n.id);
+    }
+    set((s) => ({ notices: s.notices.filter((n) => n.key !== key) }));
+  },
+
   markAllRead() {
     if (get().notices.every((n) => n.read)) return;
     set((s) => ({ notices: s.notices.map((n) => (n.read ? n : { ...n, read: true })) }));
@@ -105,6 +125,12 @@ export const useNotices = create<NoticesState>((set, get) => ({
   },
 }));
 
+/** Settings → Sounds → What alerts you. */
+function muted(kind: NoticeKind): boolean {
+  const alerts = useUi.getState().prefs.alerts;
+  return kind in alerts && !alerts[kind as keyof typeof alerts];
+}
+
 /** You're looking at this pane right now, so a card about it would be noise. */
 export function isWatching(paneId?: string): boolean {
   return !!paneId && useUi.getState().windowFocused && useUi.getState().mode === "terminals" && activeTab()?.focusedPaneId === paneId;
@@ -116,7 +142,7 @@ export function isWatching(paneId?: string): boolean {
  */
 export function alertUser(input: NoticeInput & { desktop?: boolean }) {
   const { desktop = true, sound, ...notice } = input;
-  if (isWatching(notice.paneId)) return;
+  if (isWatching(notice.paneId) || muted(notice.kind)) return;
   useNotices.getState().push(notice);
   const away = desktop && !useUi.getState().windowFocused;
   // Sounds and phone alerts don't depend on macOS banners, so Focus can't swallow them.

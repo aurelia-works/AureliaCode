@@ -51,6 +51,7 @@
   border-color: var(--attn-line);
 }
 .notice.limit,
+.notice.context,
 .notice.burn,
 .notice.cache {
   --kind: var(--warn);
@@ -82,6 +83,7 @@
   background: var(--attn);
 }
 .notice-dot.limit,
+.notice-dot.context,
 .notice-dot.burn,
 .notice-dot.cache {
   background: var(--warn);

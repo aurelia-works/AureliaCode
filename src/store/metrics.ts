@@ -1,18 +1,21 @@
 import { create } from "zustand";
+import { burning } from "../lib/advice";
+import { useChat } from "../lib/chat";
+import { contextFill, type ContextFill } from "../lib/contextFill";
 import { handOff } from "../lib/handoff";
 import { ipc } from "../lib/ipc";
 import { formatTokens } from "../lib/format";
 import { useAgents, label } from "./agents";
-import { useLive } from "./live";
-import { alertUser } from "./notifications";
+import { useLive, type LiveStatus } from "./live";
+import { alertUser, useNotices } from "./notifications";
 
 /** Per-session token / cost / context numbers, read from the Claude transcript. */
 export interface SessionMetrics {
   model?: string;
   /** Tokens in the most recent request's context (input + cache read + cache write). */
   contextTokens: number;
-  /** contextTokens as a share of the model's context window, 0–100. */
-  contextPct: number;
+  /** When that request was made. Show paneContext(), not this: it knows the window. */
+  contextAt: number;
   /** All input + output tokens this session (cache included). */
   totalTokens: number;
   /** Estimated API-price cost in USD. */
@@ -34,9 +37,6 @@ export const useMetrics = create<MetricsState>(() => ({ byPane: {} }));
 
 const POLL_MS = 3000;
 const RATE_WINDOW_MS = 5 * 60_000;
-const HOT_RATE = 150_000;
-const HOT_CTX = 85;
-const COOL_CTX = 75;
 
 /** $ per MTok (input, output) by model family, from the Claude API pricing table (cached 2026-09-25). */
 export function price(model = ""): [number, number] {
@@ -51,12 +51,36 @@ export function price(model = ""): [number, number] {
   return [3, 15];
 }
 
+/** The thread's context fill, the one number everything shows (lib/contextFill.ts). */
+export function paneContext(paneId: string): ContextFill | null {
+  return fillOf(useLive.getState().byPane[paneId], useChat.getState().byPane[paneId], useMetrics.getState().byPane[paneId]);
+}
+
+export function usePaneContext(paneId: string): ContextFill | null {
+  const live = useLive((s) => s.byPane[paneId]);
+  const chat = useChat((s) => s.byPane[paneId]);
+  const m = useMetrics((s) => s.byPane[paneId]);
+  return fillOf(live, chat, m);
+}
+
+type ChatState = ReturnType<typeof useChat.getState>["byPane"][string];
+
+function fillOf(live: LiveStatus | undefined, chat: ChatState | undefined, m: SessionMetrics | undefined): ContextFill | null {
+  return contextFill({
+    live,
+    chat: chat?.context && { totalTokens: chat.context.totalTokens, maxTokens: chat.context.maxTokens, at: chat.contextAt ?? 0 },
+    last: chat?.last,
+    transcript: m?.contextTokens ? { tokens: m.contextTokens, at: m.contextAt } : undefined,
+  });
+}
+
 interface Track {
   path: string;
   offset: number;
   seen: Set<string>;
   model?: string;
   context: number;
+  contextAt: number;
   total: number;
   cost: number;
   /** Fresh (non-cache-read) tokens per request, for the burn rate. */
@@ -75,21 +99,18 @@ function snapshot(t: Track, now: number, paneId: string): SessionMetrics {
   // Over the span actually observed (at least a minute) so one burst doesn't read as sustained.
   const span = t.recent.length ? Math.min(RATE_WINDOW_MS, Math.max(60_000, now - t.recent[0].t)) : 60_000;
   const tokensPerMin = sum / (span / 60_000);
-  // The CLI reports the real window (Opus 5.5 runs 1M on some plans); the guess is only a fallback.
   const live = useLive.getState().byPane[paneId];
-  const window = live?.contextWindow || (/\[1m\]/i.test(t.model ?? "") || t.context > 200_000 ? 1_000_000 : 200_000);
-  const contextPct = Math.min(100, (t.context / window) * 100);
   const cost = live?.costUsd && live.costUsd > 0 ? live.costUsd : t.cost;
-  t.hot = t.hot ? tokensPerMin > HOT_RATE * 0.7 || contextPct > COOL_CTX : tokensPerMin > HOT_RATE || contextPct > HOT_CTX;
+  t.hot = burning(t.hot, tokensPerMin, t.recent.length);
   const cacheTtlMs = t.ttl1h === undefined ? undefined : (t.ttl1h ? 60 : 5) * 60_000;
-  return { model: t.model, contextTokens: t.context, contextPct, totalTokens: t.total, costUsd: cost, tokensPerMin, hot: t.hot, cacheTtlMs, updatedAt: now };
+  return { model: t.model, contextTokens: t.context, contextAt: t.contextAt, totalTokens: t.total, costUsd: cost, tokensPerMin, hot: t.hot, cacheTtlMs, updatedAt: now };
 }
 
 async function pollOne(paneId: string, path: string) {
   let t = tracks.get(paneId);
   // /clear or --resume starts a new transcript file.
   if (!t || t.path !== path) {
-    t = { path, offset: 0, seen: new Set(), context: 0, total: 0, cost: 0, recent: [], hot: false };
+    t = { path, offset: 0, seen: new Set(), context: 0, contextAt: 0, total: 0, cost: 0, recent: [], hot: false };
     tracks.set(paneId, t);
   }
   let batch;
@@ -110,24 +131,27 @@ async function pollOne(paneId: string, path: string) {
     if (e.cache_creation_input_tokens > 0) t.ttl1h = e.cache_creation_1h_tokens > 0;
     t.cost += (e.input_tokens * pin + e.output_tokens * pout + e.cache_read_input_tokens * pin * 0.1 + (e.cache_creation_input_tokens - e.cache_creation_1h_tokens) * pin * 1.25 + e.cache_creation_1h_tokens * pin * 2) / 1e6;
     const at = Date.parse(e.timestamp);
-    t.recent.push({ t: Number.isFinite(at) ? at : Date.now(), tok: fresh + e.output_tokens });
+    t.contextAt = Number.isFinite(at) ? at : Date.now();
+    t.recent.push({ t: t.contextAt, tok: fresh + e.output_tokens });
   }
   const was = t.hot;
   const m = snapshot(t, Date.now(), paneId);
   useMetrics.setState((s) => ({ byPane: { ...s.byPane, [paneId]: m } }));
+  const key = `burn:${paneId}`;
+  const body = `${formatTokens(m.tokensPerMin)} tokens/min. A fresh session seeded from this transcript starts cheaper.`;
   if (m.hot && !was) {
     const s = useAgents.getState().sessions[paneId];
-    const why = m.contextPct > HOT_CTX ? `context ${Math.round(m.contextPct)}% full` : `${formatTokens(m.tokensPerMin)} tokens/min`;
     alertUser({
       kind: "burn",
-      key: `burn:${paneId}`,
+      key,
       paneId,
       title: `${s ? label(s) : "Claude"} is burning fast`,
-      body: `${why}. A fresh session seeded from this transcript starts cheaper.`,
+      body,
       sticky: true,
       actions: [{ label: "Hand off", tone: "primary", run: () => handOff(paneId) }],
     });
-  }
+  } else if (m.hot) useNotices.getState().update(key, { body });
+  else if (was) useNotices.getState().retire(key);
 }
 
 async function poll() {
@@ -135,7 +159,11 @@ async function poll() {
   busy = true;
   try {
     const sessions = useAgents.getState().sessions;
-    for (const id of [...tracks.keys()]) if (!sessions[id]) tracks.delete(id);
+    for (const id of [...tracks.keys()]) {
+      if (sessions[id]) continue;
+      tracks.delete(id);
+      useNotices.getState().retire(`burn:${id}`);
+    }
     const { byPane } = useMetrics.getState();
     if (Object.keys(byPane).some((id) => !sessions[id])) {
       useMetrics.setState((s) => ({ byPane: Object.fromEntries(Object.entries(s.byPane).filter(([id]) => sessions[id])) }));

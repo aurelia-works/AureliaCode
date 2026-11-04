@@ -98,6 +98,7 @@ test("tool summaries pick the useful field, relative to the folder", () => {
 
 test("Claude Code's own user lines become notices or nothing", () => {
   assert.equal(userLine("[Request interrupted by user]"), null);
+  assert.equal(userLine("Base directory for this skill: /Users/me/.claude/skills/x\n\n# X"), null);
   assert.equal(userLine("[Image: original 2880x1800, displayed at 2000x1250.]"), null);
   assert.deepEqual(userLine("<command-name>/clear</command-name>\n<command-message>clear</command-message>\n<command-args></command-args>"), { kind: "notice", text: "/clear" });
   assert.deepEqual(userLine("<task-notification>\n<task-id>b1</task-id>\n<summary>Build finished</summary>\n</task-notification>"), {
@@ -215,4 +216,10 @@ test("a subagent's calls are kept on its Task, and the latest TodoWrite is the t
   assert.deepEqual(task.sub.map((s: any) => s.name), ["Grep", "Read"]);
   assert.deepEqual(latestTodos(t.items)?.map((x) => x.status), ["completed", "in_progress"]);
   assert.equal(latestTodos([]), null);
+});
+
+test("a skill's instructions never show as a message", () => {
+  const skill = { type: "user", isMeta: true, message: { content: [{ type: "text", text: "# Computer use" }] } };
+  assert.equal(run([skill]).items.length, 0);
+  assert.equal(run([{ ...skill, isMeta: undefined, isSynthetic: true }]).items.length, 0);
 });

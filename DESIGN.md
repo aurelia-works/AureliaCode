@@ -1,5 +1,11 @@
 # AureliaSpace: redesign
 
+> **2026-11-01: T3-quiet shell.** The frame now follows [`design/T3-DIRECTION.md`](design/T3-DIRECTION.md):
+> zinc-black surfaces, hairline borders, Geist UI, indigo actions, and amber only for "needs you".
+> The serif hero is gone, the jellyfish field is off by default (Settings → Threads & keys), and the
+> stacked planner cards on the start screen are folded behind `Today & tools`. Where this document describes the older warm
+> "Deep" palette or the serif headline, `src/styles/tokens.css` and the T3 direction win.
+
 A redesign of the AureliaSpace frontend for one job: **watching and steering many coding
 agents at once without losing the terminal.** No dependencies were added. The only backend
 change is one line that lets the app save `agents.json` (custom agents, section 11); every

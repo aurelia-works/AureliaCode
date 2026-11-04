@@ -15,14 +15,95 @@ pub fn home_dir() -> PathBuf {
 /// folder, so they run next to the installed app without taking its voice socket or
 /// overwriting its saved layout. Only config.json (accounts, settings) is shared.
 fn installed_dir() -> PathBuf {
-    home_dir().join("Library/Application Support/AureliaSpace")
+    home_dir().join("Library/Application Support/AureliaCode")
 }
 
 pub fn app_dir() -> PathBuf {
     if cfg!(debug_assertions) {
-        home_dir().join("Library/Application Support/AureliaSpace Dev")
+        home_dir().join("Library/Application Support/AureliaCode Dev")
     } else {
         installed_dir()
+    }
+}
+
+/// First launch after the AureliaSpace → AureliaCode rename: copies the old app's folders
+/// (config, layout, store, hooks) so nothing is lost. The old folder stays, so the old app
+/// can still run next to the new one. Call before anything writes into `app_dir()`.
+pub fn migrate_from_aureliaspace() {
+    let support = home_dir().join("Library/Application Support");
+    let mut pairs = vec![(support.join("AureliaSpace"), installed_dir())];
+    if cfg!(debug_assertions) {
+        pairs.push((support.join("AureliaSpace Dev"), app_dir()));
+    }
+    for (old, new) in pairs {
+        match migrate_dir(&old, &new) {
+            Ok(true) => eprintln!("[aurelia] copied {} → {}", old.display(), new.display()),
+            Ok(false) => {}
+            Err(e) => eprintln!("[aurelia] migrating {}: {e}", old.display()),
+        }
+    }
+}
+
+/// Written into `new` once the copy is done, so it happens once per folder.
+const MIGRATED_MARKER: &str = ".migrated-from-aureliaspace";
+
+/// Copies `old` into `new` once, overwriting what's there: before the first copy `new` only
+/// holds defaults that something (cargo test, an early `load()`) wrote. Sockets (and the `run/`
+/// folder that holds them) belong to the running old app and are skipped. The marker is written
+/// last, so a crash halfway retries next launch. Returns whether it copied.
+fn migrate_dir(old: &Path, new: &Path) -> Result<bool, String> {
+    if new.join(MIGRATED_MARKER).exists() || !old.is_dir() {
+        return Ok(false);
+    }
+    fs::create_dir_all(new).map_err(|e| e.to_string())?;
+    // Best effort: a file that won't copy is logged and skipped. The marker is written either
+    // way, so a later launch never copies again over what was changed in the new app since.
+    let mut failed = Vec::new();
+    copy_tree(old, new, &mut failed);
+    for (path, e) in &failed {
+        eprintln!("[aurelia] migration skipped {}: {e}", path.display());
+    }
+    fs::write(new.join(MIGRATED_MARKER), "").map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
+/// A consistent copy of a SQLite store that another process may be writing (`VACUUM INTO`
+/// reads one transaction's view, WAL included, into a fresh file).
+fn snapshot_db(from: &Path, to: &Path) -> Result<(), String> {
+    let _ = fs::remove_file(to);
+    let src = rusqlite::Connection::open_with_flags(from, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).map_err(|e| e.to_string())?;
+    src.execute("VACUUM INTO ?1", [to.to_string_lossy()]).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+fn copy_tree(from: &Path, to: &Path, failed: &mut Vec<(PathBuf, std::io::Error)>) {
+    if let Err(e) = fs::create_dir_all(to) {
+        return failed.push((to.to_path_buf(), e));
+    }
+    let entries = match fs::read_dir(from) {
+        Ok(entries) => entries,
+        Err(e) => return failed.push((from.to_path_buf(), e)),
+    };
+    for entry in entries.flatten() {
+        let name = entry.file_name();
+        let Ok(kind) = entry.file_type() else { continue };
+        let lossy = name.to_string_lossy();
+        // A SQLite store's -wal/-shm belong to the old app's open connection; the .db is snapshotted whole.
+        if name == "run" || lossy.ends_with(".sock") || lossy.ends_with(".db-wal") || lossy.ends_with(".db-shm") || kind.is_symlink() {
+            continue;
+        }
+        let target = to.join(&name);
+        if kind.is_dir() {
+            copy_tree(&entry.path(), &target, failed);
+        } else if kind.is_file() && lossy.ends_with(".db") {
+            if let Err(e) = snapshot_db(&entry.path(), &target) {
+                failed.push((entry.path(), std::io::Error::other(e)));
+            }
+        } else if kind.is_file() {
+            if let Err(e) = fs::copy(entry.path(), &target) {
+                failed.push((entry.path(), e));
+            }
+        }
     }
 }
 
@@ -158,6 +239,41 @@ pub struct VoiceConfig {
 pub struct HudConfig {
     /// Floating session HUD, shown only while AureliaSpace isn't the focused app.
     pub enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ProxyConfig {
+    /// Route chats through a local CLIProxyAPI hub (src-tauri/src/proxy.rs).
+    pub enabled: bool,
+    pub port: u16,
+}
+
+impl Default for ProxyConfig {
+    fn default() -> Self {
+        Self { enabled: false, port: 8317 }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TrayConfig {
+    /// The menu bar squid.
+    pub enabled: bool,
+    /// Sway while a thread is working.
+    pub animate: bool,
+    /// Points, 14-22.
+    pub size: u32,
+    /// `#rrggbb`, or empty to follow the menu bar (a template icon).
+    pub color: String,
+    /// Streamer mode: account details blurred until hovered 3 s or clicked.
+    pub streamer: bool,
+}
+
+impl Default for TrayConfig {
+    fn default() -> Self {
+        Self { enabled: true, animate: false, size: 18, color: String::new(), streamer: false }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -309,6 +425,8 @@ pub struct Config {
     pub cache: CacheConfig,
     pub voice: VoiceConfig,
     pub hud: HudConfig,
+    pub tray: TrayConfig,
+    pub proxy: ProxyConfig,
     pub discord: DiscordConfig,
     /// Account new Claude panes use when none is chosen; empty = ask.
     pub default_account: String,
@@ -329,6 +447,22 @@ pub struct Config {
     pub routines: Vec<Value>,
     pub effort: EffortConfig,
     pub remote: RemoteConfig,
+    /// Interface contrast: "normal" | "high" (T3-style accessibility).
+    pub contrast: String,
+    /// Chat column width: "comfortable" | "wide" | "full".
+    pub chat_width: String,
+    /// Turn off panel/message animations regardless of the OS setting.
+    pub reduce_motion: bool,
+    /// Enter sends a chat message; off means ⌘Enter sends and Enter inserts a newline.
+    pub chat_send_on_enter: bool,
+    /// Show the time next to chat messages.
+    pub chat_timestamps: bool,
+    /// Links clicked in chat: "system" | "local" (local dev servers in-app) | "app" (all in-app).
+    pub link_open: String,
+    /// Address-bar search engine: "duckduckgo" | "google" | "bing".
+    pub browser_search: String,
+    /// New threads start on their own git worktree by default.
+    pub worktree_by_default: bool,
 }
 
 impl Default for Config {
@@ -349,6 +483,8 @@ impl Default for Config {
             cache: CacheConfig::default(),
             voice: VoiceConfig::default(),
             hud: HudConfig::default(),
+            tray: TrayConfig::default(),
+            proxy: ProxyConfig::default(),
             discord: DiscordConfig::default(),
             default_account: String::new(),
             workspace_accounts: Default::default(),
@@ -361,6 +497,14 @@ impl Default for Config {
             routines: Vec::new(),
             effort: EffortConfig::default(),
             remote: RemoteConfig::default(),
+            contrast: "normal".into(),
+            chat_width: "comfortable".into(),
+            reduce_motion: false,
+            chat_send_on_enter: true,
+            chat_timestamps: false,
+            link_open: "local".into(),
+            browser_search: "duckduckgo".into(),
+            worktree_by_default: false,
         }
     }
 }
@@ -579,5 +723,105 @@ mod state_file_tests {
         // A directory where the file should be: reading it fails with something other than NotFound.
         fs::create_dir_all(dir.join("planner.json")).unwrap();
         assert!(read_state(&dir.join("planner.json")).is_err());
+    }
+}
+
+#[cfg(test)]
+mod migrate_tests {
+    use super::*;
+
+    fn temp(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("aurelia-migrate-test-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn copies_old_folder_but_not_sockets() {
+        let root = temp("copy");
+        let old = root.join("AureliaSpace");
+        fs::create_dir_all(old.join("run")).unwrap();
+        fs::create_dir_all(old.join("hooks")).unwrap();
+        fs::write(old.join("config.json"), "{}").unwrap();
+        fs::write(old.join("hooks/hook.sh"), "x").unwrap();
+        fs::write(old.join("run/control.sock"), "").unwrap();
+        fs::write(old.join("voice.sock"), "").unwrap();
+        let new = root.join("AureliaCode");
+        assert!(migrate_dir(&old, &new).unwrap());
+        assert_eq!(fs::read_to_string(new.join("config.json")).unwrap(), "{}");
+        assert_eq!(fs::read_to_string(new.join("hooks/hook.sh")).unwrap(), "x");
+        assert!(!new.join("run").exists());
+        assert!(!new.join("voice.sock").exists());
+        assert!(old.join("config.json").exists(), "the old app keeps its folder");
+    }
+
+    #[test]
+    fn a_stray_default_config_does_not_block_the_copy() {
+        // cargo test and early config::load() calls write a default config.json before the app's first run.
+        let root = temp("stray");
+        let old = root.join("AureliaSpace");
+        let new = root.join("AureliaCode");
+        fs::create_dir_all(&old).unwrap();
+        fs::create_dir_all(&new).unwrap();
+        fs::write(old.join("config.json"), "old").unwrap();
+        fs::write(new.join("config.json"), "default").unwrap();
+        assert!(migrate_dir(&old, &new).unwrap());
+        assert_eq!(fs::read_to_string(new.join("config.json")).unwrap(), "old");
+    }
+
+    #[test]
+    fn an_unreadable_file_is_skipped_and_the_copy_still_counts() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = temp("unreadable");
+        let old = root.join("AureliaSpace");
+        let new = root.join("AureliaCode");
+        fs::create_dir_all(&old).unwrap();
+        fs::write(old.join("config.json"), "old").unwrap();
+        fs::write(old.join("locked.json"), "x").unwrap();
+        fs::set_permissions(old.join("locked.json"), fs::Permissions::from_mode(0o000)).unwrap();
+        assert!(migrate_dir(&old, &new).unwrap());
+        assert_eq!(fs::read_to_string(new.join("config.json")).unwrap(), "old");
+        // Marked done, so a later launch never copies over what was changed since.
+        fs::write(new.join("config.json"), "edited").unwrap();
+        assert!(!migrate_dir(&old, &new).unwrap());
+        assert_eq!(fs::read_to_string(new.join("config.json")).unwrap(), "edited");
+    }
+
+    #[test]
+    fn the_store_is_copied_as_a_snapshot_not_raw_wal_files() {
+        let root = temp("db");
+        let old = root.join("AureliaSpace");
+        let new = root.join("AureliaCode");
+        fs::create_dir_all(&old).unwrap();
+        // The old app holds the store open in WAL mode while the new one copies it.
+        let live = rusqlite::Connection::open(old.join("aurelia.db")).unwrap();
+        live.execute_batch("PRAGMA journal_mode=WAL; PRAGMA wal_autocheckpoint=0; CREATE TABLE t(x); INSERT INTO t VALUES (42);").unwrap();
+        assert!(old.join("aurelia.db-wal").exists());
+        assert!(migrate_dir(&old, &new).unwrap());
+        assert!(!new.join("aurelia.db-wal").exists() && !new.join("aurelia.db-shm").exists());
+        let copy = rusqlite::Connection::open(new.join("aurelia.db")).unwrap();
+        assert_eq!(copy.query_row("SELECT x FROM t", [], |r| r.get::<_, i64>(0)).unwrap(), 42);
+        drop(live);
+    }
+
+    #[test]
+    fn copies_only_once() {
+        let root = temp("once");
+        let old = root.join("AureliaSpace");
+        let new = root.join("AureliaCode");
+        fs::create_dir_all(&old).unwrap();
+        fs::write(old.join("config.json"), "old").unwrap();
+        assert!(migrate_dir(&old, &new).unwrap());
+        fs::write(new.join("config.json"), "edited in AureliaCode").unwrap();
+        assert!(!migrate_dir(&old, &new).unwrap());
+        assert_eq!(fs::read_to_string(new.join("config.json")).unwrap(), "edited in AureliaCode");
+    }
+
+    #[test]
+    fn nothing_to_migrate_without_old_folder() {
+        let root = temp("none");
+        assert!(!migrate_dir(&root.join("AureliaSpace"), &root.join("AureliaCode")).unwrap());
+        assert!(!root.join("AureliaCode").exists());
     }
 }

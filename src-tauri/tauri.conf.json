@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "AureliaSpace",
+  "productName": "AureliaCode",
   "version": "0.1.0",
-  "identifier": "space.aurelia.terminal",
+  "identifier": "space.aurelia.code",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "AureliaSpace",
+        "title": "AureliaCode",
         "width": 1320,
         "height": 840,
         "minWidth": 640,

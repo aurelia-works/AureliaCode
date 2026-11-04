@@ -914,3 +914,82 @@
   font-size: 10px;
   color: var(--text-faint);
 }
+
+/* Permissions sheet: steps on the left, the draggable app on the right. */
+.perm-sheet {
+  width: min(560px, calc(100vw - 48px));
+}
+.perm-row {
+  display: flex;
+  gap: 18px;
+  align-items: center;
+  padding: 4px 16px 16px;
+}
+.perm-open {
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 6px;
+  background: var(--accent, #7c7cf5);
+  color: #fff;
+  font-weight: 500;
+}
+.perm-open:hover {
+  filter: brightness(1.1);
+}
+.perm-text {
+  flex: 1;
+  min-width: 0;
+}
+.perm-text h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+.perm-state {
+  padding: 1px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+.perm-state.ok {
+  color: var(--ok, #4ade80);
+  border-color: currentColor;
+}
+.perm-steps {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 6px;
+  color: var(--text-dim);
+}
+.perm-drag {
+  flex: none;
+  width: 116px;
+  height: 116px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 14px;
+  background: var(--surface-2);
+  cursor: grab;
+}
+.perm-drag:active {
+  cursor: grabbing;
+}
+.perm-drag span {
+  font-weight: 600;
+}
+.perm-drag small {
+  color: var(--text-faint);
+  font-size: 10.5px;
+}
+.perm-drag.off {
+  opacity: 0.5;
+  cursor: default;
+}

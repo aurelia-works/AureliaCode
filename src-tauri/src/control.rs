@@ -20,7 +20,8 @@ use std::sync::{mpsc, LazyLock, Mutex};
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 
-const REPLY_TIMEOUT: Duration = Duration::from_secs(20);
+// Long enough for aurelia_browser wait (15 s) after a page load.
+const REPLY_TIMEOUT: Duration = Duration::from_secs(30);
 const MAX_HTML: usize = 2 * 1024 * 1024;
 
 static PENDING: LazyLock<Mutex<HashMap<u64, mpsc::Sender<Value>>>> = LazyLock::new(Default::default);
@@ -107,7 +108,7 @@ fn answer(app: &AppHandle, req: Value) -> Value {
     PENDING.lock().unwrap().insert(id, tx);
     let sent = app.emit_to("main", "control-request", json!({ "id": id, "method": method, "params": params, "from": req["from"] }));
     let out = match sent {
-        Ok(()) => rx.recv_timeout(REPLY_TIMEOUT).unwrap_or_else(|_| json!({ "error": "AureliaSpace didn't answer in time" })),
+        Ok(()) => rx.recv_timeout(REPLY_TIMEOUT).unwrap_or_else(|_| json!({ "error": "AureliaCode didn't answer in time" })),
         Err(e) => json!({ "error": e.to_string() }),
     };
     PENDING.lock().unwrap().remove(&id);
@@ -169,7 +170,7 @@ fn start_renders() {
 
 /// Sends one request to the running app (used by the MCP process). Blocks until it answers.
 pub fn request(method: &str, params: Value) -> Result<Value, String> {
-    let mut stream = UnixStream::connect(socket_path()).map_err(|_| "AureliaSpace isn't running (no control socket)".to_string())?;
+    let mut stream = UnixStream::connect(socket_path()).map_err(|_| "AureliaCode isn't running (no control socket)".to_string())?;
     stream.set_read_timeout(Some(REPLY_TIMEOUT + Duration::from_secs(5))).ok();
     let from = std::env::var("AURELIA_PANE_ID").unwrap_or_default();
     writeln!(stream, "{}", json!({ "method": method, "params": params, "from": from })).map_err(|e| e.to_string())?;

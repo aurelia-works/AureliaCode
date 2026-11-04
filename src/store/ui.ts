@@ -1,6 +1,9 @@
 import { create } from "zustand";
 import { ipc } from "../lib/ipc";
+import { useConfig } from "./config";
 import { DEFAULT_PREFS, normalizePrefs, type ThreadPrefs } from "../lib/prefs";
+import { startWorktree } from "../lib/threadTools";
+import { setTerminalsAllowed } from "../lib/paneKind";
 
 /** A task the account picker will hand to the new Claude pane as its first prompt. */
 export interface PickerTask {
@@ -53,6 +56,8 @@ interface UiState {
   reviewOpen: boolean;
   /** Durable thread history search (SQLite). */
   historyOpen: boolean;
+  /** The drag-the-app-into-System-Settings sheet (components/PermissionsSheet.tsx). */
+  permissionsOpen: boolean;
   /** "split" | "tab" — where the account picker will open the new Claude pane. */
   accountPicker: null | { target: "split" | "tab"; task?: PickerTask };
   /** Give new Claude panes their own git worktree. */
@@ -80,7 +85,7 @@ interface UiState {
 
 export const useUi = create<UiState>((set) => ({
   mode: "terminals",
-  agentPanelOpen: true,
+  agentPanelOpen: false,
   railTab: "queue",
   railWidths: {},
   nav: "projects",
@@ -99,6 +104,7 @@ export const useUi = create<UiState>((set) => ({
   gridOpen: false,
   reviewOpen: false,
   historyOpen: false,
+  permissionsOpen: false,
   accountPicker: null,
   useWorktree: false,
   reviewWhenDone: false,
@@ -137,7 +143,7 @@ export async function loadUiState() {
   if (saved) {
     useUi.setState({
       mode: saved.mode === "agents" || saved.mode === "work" ? saved.mode : "terminals",
-      agentPanelOpen: saved.agentPanelOpen ?? true,
+      agentPanelOpen: saved.agentPanelOpen ?? false,
       railTab: saved.railTab === "changes" || saved.railTab === "details" || saved.railTab === "notes" ? saved.railTab : "queue",
       railWidths: saved.railWidths ?? {},
       nav:
@@ -149,7 +155,7 @@ export async function loadUiState() {
               ? null
               : "projects",
       single: saved.single ?? true,
-      useWorktree: saved.useWorktree ?? false,
+      useWorktree: startWorktree(saved.useWorktree, useConfig.getState().config?.worktreeByDefault),
       reviewWhenDone: saved.reviewWhenDone ?? false,
       claudeAsChat: saved.claudeAsChat ?? true,
       fontDelta: saved.fontDelta ?? 0,
@@ -157,8 +163,10 @@ export async function loadUiState() {
       stash: Array.isArray(saved.stash) ? saved.stash.filter((x): x is string => typeof x === "string").slice(-10) : [],
     });
   }
+  setTerminalsAllowed(useUi.getState().prefs.legacyTerminals);
   let last = "";
   useUi.subscribe((s) => {
+    setTerminalsAllowed(s.prefs.legacyTerminals);
     const next = JSON.stringify({
       mode: s.mode,
       agentPanelOpen: s.agentPanelOpen,

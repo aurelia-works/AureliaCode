@@ -7,6 +7,7 @@ import { agentVariants, launchSkillAgent, launchTeam, prepareCustomAgent, varian
 import { skillPrompt, type Skill } from "../lib/skills";
 import { SkillsPanel } from "./SkillsPanel";
 import { queueFirstMessage } from "../lib/chat";
+import { cleanTextarea } from "../lib/controlChars";
 import { shellQuote, startDir } from "../lib/launch";
 import { prAttention } from "../lib/threads";
 import { newScratchDir } from "../lib/scratch";
@@ -24,7 +25,6 @@ import { AgentAvatar } from "./AgentChip";
 import { AgentLogo } from "./AgentLogos";
 import { ArrowIcon, ArrowUpIcon, ChevronDownIcon, CloseIcon, FolderIcon, PrIcon, SparkIcon, TerminalIcon } from "./Icons";
 import { useChatTitle } from "./ProjectsSidebar";
-import { repoBadge } from "./ThreadHeader";
 import { TodayPanel } from "./planner/TodayPanel";
 import { HabitsPanel } from "./planner/HabitsPanel";
 import { BriefingCard } from "./planner/BriefingCard";
@@ -84,15 +84,18 @@ export function StartScreen({ paneId }: { paneId: string }) {
   const account = picked ?? preferred ?? accounts[0]?.name;
   const git = useGit((s) => s.info[expandPath(folder)] ?? s.info[folder]);
   const { updatePane } = useLayout.getState();
-  const asChat = useUi((s) => s.claudeAsChat);
+  // Chat-only unless Settings → Diagnostics → Legacy terminal panes is on.
+  const terms = prefs.legacyTerminals;
+  const asChat = useUi((s) => s.claudeAsChat) || !terms;
   const openClaude = (account: string | undefined, alt?: boolean) =>
-    updatePane(paneId, { account, launcher: undefined, ...(asChat !== !!alt && { mode: "chat" as const }) });
+    updatePane(paneId, { account, launcher: undefined, ...((terms ? asChat !== !!alt : true) && { mode: "chat" as const }) });
   const start = (patch: { account?: string }, command?: string) => {
     if (command) queueInit(paneId, command);
     updatePane(paneId, { ...patch, launcher: undefined });
   };
   /** DeepSeek skills run through OpenCode in a fresh terminal pane, not through Claude. */
   const runSkill = async (skill: Skill, task: string) => {
+    if (!terms) return toast("Skills run through OpenCode in a terminal pane: turn on Legacy terminal panes in Settings → Diagnostics", true);
     const variant = agentVariants(accounts).find((v) => v.id === "deepseek:opencode");
     if (!variant) return toast("OpenCode isn't configured; add a DeepSeek agent in Settings → My agents", true);
     if (!(await ipc.which("opencode").catch(() => false))) return toast("OpenCode isn't installed. Install it with: curl -fsSL https://opencode.ai/install | bash", true);
@@ -111,7 +114,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
 
   const choices: Choice[] = [
     // Saved agents first: they're the ones you set up on purpose.
-    ...customAgents.map((a) => ({
+    ...(terms ? customAgents : []).map((a) => ({
       key: `agent-${a.id}`,
       label: a.name,
       hint: variantOf(a)?.label ?? "missing CLI",
@@ -119,31 +122,36 @@ export function StartScreen({ paneId }: { paneId: string }) {
       agent: a,
       run: () => void startCustom(a),
     })),
-    ...teams.map((t) => ({
+    ...(terms ? teams : []).map((t) => ({
       key: `team-${t.id}`,
       label: t.name,
       hint: `team · ${t.agentIds.length} panes in a new tab`,
       logo: "more",
       run: () => void launchTeam(t),
     })),
-    // The folder's preferred account (workspace override, else the default) comes first.
-    ...[...accounts].sort((a, b) => Number(b.name === preferred) - Number(a.name === preferred)).map((a) => ({
+    // One account in the chip row; the composer's picker still offers all of them.
+    ...[...accounts]
+      .sort((a, b) => Number(b.name === preferred) - Number(a.name === preferred))
+      .slice(0, 1)
+      .map((a) => ({
       key: `acct-${a.name}`,
       label: `Claude · ${a.name}${a.name === preferred ? " (default)" : ""}`,
       hint: `${asChat ? "chat" : "terminal"} · ${shortenPath(a.configDir)}`,
       logo: "claude",
       run: (alt?: boolean) => openClaude(a.name, alt),
     })),
-    { key: "terminal", label: "Terminal", hint: "plain zsh with command blocks", logo: "terminal", run: () => start({}) },
-    ...(tools.codex ? [{ key: "codex", label: "Codex", hint: "codex", logo: "codex", run: () => start({}, "codex") }] : []),
-    ...(tools.gemini ? [{ key: "gemini", label: "Gemini CLI", hint: "gemini", logo: "gemini", run: () => start({}, "gemini") }] : []),
-    {
-      key: "more",
-      label: "More agents…",
-      hint: "several CLIs at once, worktrees, API keys",
-      logo: "more",
-      run: () => useUi.getState().set({ accountPicker: { target: "tab" } }),
-    },
+    ...(terms ? [{ key: "terminal", label: "Terminal", hint: "plain zsh with command blocks", logo: "terminal", run: () => start({}) }] : []),
+    ...(terms && tools.codex ? [{ key: "codex", label: "Codex", hint: "codex", logo: "codex", run: () => start({}, "codex") }] : []),
+    ...(terms && tools.gemini ? [{ key: "gemini", label: "Gemini CLI", hint: "gemini", logo: "gemini", run: () => start({}, "gemini") }] : []),
+    ...(terms
+      ? [{
+          key: "more",
+          label: "More agents…",
+          hint: "several CLIs at once, worktrees, API keys",
+          logo: "more",
+          run: () => useUi.getState().set({ accountPicker: { target: "tab" } }),
+        }]
+      : []),
   ];
   const quickOpen = recents.filter((r) => r !== folder).slice(0, 5);
 
@@ -165,7 +173,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
     const text = (over?.text ?? prompt).trim();
     if (!text) return;
     const dir = over?.dir ? await startDir(over.dir, false, text.slice(0, 40)) : await startDir(expandPath(folder), worktree && !!git, text.slice(0, 40));
-    const chat = asChat !== !!alt;
+    const chat = terms ? asChat !== !!alt : true;
     if (chat) queueFirstMessage(paneId, text);
     else queueInit(paneId, `claude ${shellQuote(text)}`);
     updatePane(paneId, { account, cwd: dir, launcher: undefined, ...(chat && { mode: "chat" as const }) });
@@ -225,16 +233,13 @@ export function StartScreen({ paneId }: { paneId: string }) {
 
   return (
     <div className="start-screen" tabIndex={-1} ref={rootRef} onKeyDown={onKey}>
-      <Bloom />
+      {prefs.bloom && <Bloom />}
       <div className="start-inner">
         <h2 className="hello">
-          What should we build <em>{timeWord(new Date())}</em>?
-        </h2>
-        <div className="where">
-          in
+          What should we build in{" "}
           {editing ? (
             <input
-              className="start-input"
+              className="start-input hello-input"
               autoFocus
               spellCheck={false}
               placeholder="~/path/to/project"
@@ -245,11 +250,9 @@ export function StartScreen({ paneId }: { paneId: string }) {
               aria-label="Folder path"
             />
           ) : (
-            <span className="pick-wrap">
-              <button className="pick" title={`${shortenPath(folder)}\nClick to pick another project`} onClick={() => setPicking(!picking)} aria-expanded={picking}>
-                <span className="mono-badge">{repoBadge(basename(folder) || "~")}</span>
+            <span className="pick-wrap hello-pick">
+              <button className="hello-project" title={`${shortenPath(folder)}\nClick to pick another project`} onClick={() => setPicking(!picking)} aria-expanded={picking}>
                 {basename(folder) || "~"}
-                <ChevronDownIcon width={12} height={12} />
               </button>
               {picking && (
                 <div className="pick-menu" role="menu" onMouseDown={(e) => e.preventDefault()}>
@@ -288,12 +291,27 @@ export function StartScreen({ paneId }: { paneId: string }) {
               )}
             </span>
           )}
+          ?
+        </h2>
+        <div className="where">
           {git ? (
             <>
-              {worktree ? "on a fresh worktree from" : "on"} <span className="mono br">{git.branch}</span>
+              {worktree ? "new worktree from" : "on"} <span className="mono br">{git.branch}</span>
             </>
           ) : (
             <span className="mono br">{shortenPath(folder)}</span>
+          )}
+          {prefs.noProject && (
+            <>
+              <span className="where-sep">·</span>
+              <button
+                className="where-link"
+                title="A new empty folder; its files stay after the thread is gone"
+                onClick={() => void newScratchDir().then((dir) => updatePane(paneId, { cwd: dir }), (e) => toast(String(e), true))}
+              >
+                Start without a project
+              </button>
+            </>
           )}
         </div>
         {setupDone === false ? (
@@ -309,8 +327,8 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 ref={promptRef}
                 rows={2}
                 value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder={`Describe the change. Enter starts a Claude chat; ⌥Enter a terminal${prefs.background ? "; ⌘Enter starts it and opens another" : ""}`}
+                onChange={(e) => setPrompt(cleanTextarea(e.target))}
+                placeholder="Ask anything…"
               />
               <div className="chat-card-bar">
                 {accounts.length > 0 && (
@@ -338,8 +356,12 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 </button>
               </div>
             </div>
+            <div className="start-hint">
+              <span>Enter to start</span>
+              {terms && <span>⌥Enter for a terminal</span>}
+              {prefs.background && <span>⌘Enter starts and opens another</span>}
+            </div>
             <div className="start-others">
-              <span>Or open</span>
               {choices.map((c, i) => (
                 <button key={c.key} className={`start-chip ${c.logo}`} onClick={(e) => c.run(e.altKey)} title={`${c.hint}${i < 9 ? ` (${i + 1})` : ""}`}>
                   <span className="start-logo">
@@ -349,27 +371,30 @@ export function StartScreen({ paneId }: { paneId: string }) {
                 </button>
               ))}
             </div>
-            <SkillsPanel task={prompt} onRun={(skill, task) => void runSkill(skill, task)} />
-            <BriefingCard />
-            <TodayPanel
-              onStart={(text, projectId) => {
-                const dir = usePlanner.getState().data.projects.find((p) => p.id === projectId)?.localRepoPath;
-                void begin(false, { text, dir: dir ? expandPath(dir) : undefined });
-              }}
-            />
-            <HabitsPanel />
+            <details className="start-extras">
+              <summary>
+                <SparkIcon width={13} height={13} />
+                Today &amp; tools
+                <span className="start-extras-meta">skills · briefing · goals · habits</span>
+              </summary>
+              <div className="start-extras-body">
+                <SkillsPanel task={prompt} onRun={(skill, task) => void runSkill(skill, task)} />
+                <BriefingCard />
+                <TodayPanel
+                  onStart={(text, projectId) => {
+                    const dir = usePlanner.getState().data.projects.find((p) => p.id === projectId)?.localRepoPath;
+                    void begin(false, { text, dir: dir ? expandPath(dir) : undefined });
+                  }}
+                />
+                <HabitsPanel />
+              </div>
+            </details>
             <Resume />
           </>
         )}
       </div>
     </div>
   );
-}
-
-/** The headline's one serif word, by the hour. */
-function timeWord(d: Date) {
-  const h = d.getHours();
-  return h < 5 ? "tonight" : h < 12 ? "this morning" : h < 18 ? "this afternoon" : "tonight";
 }
 
 const waited = (at: number | undefined) => {

@@ -13,13 +13,14 @@ import { paneDir, useGit } from "../store/git";
 import { paneIds, useLayout, type PaneMeta } from "../store/layout";
 import { usePrs } from "../store/prs";
 import { useRuntime } from "../store/runtime";
+import { tasksForPane, useTasks } from "../store/tasks";
 import { ipc, type PrInfo, type WorktreeEntry } from "../lib/ipc";
 import { matchesFilter, prAttention, snoozeChoices } from "../lib/threads";
 import { toast, useUi } from "../store/ui";
 import { useRemote } from "../lib/remote";
 import { usePaneAgent } from "./AgentChip";
 import { stateLabel, visualOf, type Visual } from "./StatusGlyph";
-import { FolderIcon, GearIcon, GlobeIcon, JellyIcon, LogIcon, PhoneIcon, PlusIcon, PrIcon, SearchIcon, TerminalIcon } from "./Icons";
+import { ArrowUpIcon, CheckIcon, CloseIcon, FolderIcon, GearIcon, GlobeIcon, JellyIcon, LogIcon, PhoneIcon, PinIcon, PlusIcon, PrIcon, SearchIcon, TerminalIcon, TimerIcon, TrashIcon } from "./Icons";
 
 
 const clock = (at: number) => {
@@ -31,7 +32,7 @@ const clock = (at: number) => {
 /** Closes every pane working inside `root`, then removes that worktree. Checks for uncommitted work first. */
 export async function cleanUpWorktree(root: string) {
   const entry = (await ipc.listWorktrees(root).catch(() => [] as WorktreeEntry[])).find((w) => w.path === root);
-  if (!entry) return toast("Only worktrees AureliaSpace made can be cleaned up.", true);
+  if (!entry) return toast("Only worktrees AureliaCode made can be cleaned up.", true);
   if (entry.dirty) return toast(`${basename(root)} has uncommitted changes; left alone.`, true);
   const layout = useLayout.getState();
   for (const id of Object.keys(layout.panes)) {
@@ -142,6 +143,8 @@ function Lead({ v, pane, running }: { v: Visual | undefined; pane: PaneMeta | un
   if (state === "needs_input") return <span className="dot-needs" aria-label="needs you" />;
   if (state) return <JellyIcon className={state === "working" || state === "starting" ? "working" : state === "done" ? "done" : "idle"} aria-label={stateLabel[state]} />;
   if (pane?.browser) return <GlobeIcon className="th-ico" />;
+  // Only real terminal panes (Legacy terminal panes switch) get the prompt icon.
+  if (!pane || pane.mode === "chat" || pane.launcher || pane.editor) return <JellyIcon className="idle" aria-label="idle" />;
   return <TerminalIcon className={`th-ico${running ? " busy" : ""}`} />;
 }
 
@@ -235,12 +238,13 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   });
   const [menu, setMenu] = useState(false);
   const title = useChatTitle(paneId);
+  const task = useTasks((s) => tasksForPane(s.projects, paneId).find((t) => t.status === "doing") ?? tasksForPane(s.projects, paneId)[0]);
   const custom = usePaneAgent(paneId);
   const account = pane?.account ?? agent?.account;
   const isClaude = !!agent || !!account;
   const v: Visual | undefined = agent ? visualOf(agent) : isClaude ? "starting" : undefined;
   const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher ? "New thread" : custom ? custom.name : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
-  const label = pane?.title ?? title ?? kind;
+  const label = pane?.title ?? title ?? task?.title ?? kind;
   const dir = paneDir(paneId);
   const repo = basename(git?.repo ?? dir) || "~";
   const attention = prAttention(pr, pane?.prSeenFeedback);
@@ -317,29 +321,29 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
         {away ? (
           <>
             {git?.worktree && (
-              <button className="nav-act" title="Close this thread and remove its worktree (only when it has no uncommitted changes)" onClick={() => void cleanUpWorktree(git.root)}>
-                Clean up
+              <button className="nav-act" title="Close this thread and remove its worktree (only when it has no uncommitted changes)" onClick={() => void cleanUpWorktree(git.root)} aria-label="Clean up">
+                <TrashIcon width={12} height={12} />
               </button>
             )}
-            <button className="nav-act" title="Back to the active threads" onClick={() => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")}>
-              Wake
+            <button className="nav-act" title="Back to the active threads" onClick={() => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")} aria-label="Wake">
+              <ArrowUpIcon width={12} height={12} />
             </button>
-            <button className="nav-act" title="Close this thread for good (Settle only files it away)" onClick={() => closePaneSafely(paneId)}>
-              Close
+            <button className="nav-act" title="Close this thread for good (Settle only files it away)" onClick={() => closePaneSafely(paneId)} aria-label="Close">
+              <CloseIcon width={12} height={12} />
             </button>
           </>
         ) : (
           <>
             {prefs.pin && (
-              <button className="nav-act" title={pane?.pinned !== undefined ? "Unpin" : "Pin above the other threads"} onClick={() => patchThreads([paneId], pinPatch(pane?.pinned === undefined, Date.now()), pane?.pinned === undefined ? "Pinned" : "Unpinned")}>
-                {pane?.pinned !== undefined ? "Unpin" : "Pin"}
+              <button className="nav-act" title={pane?.pinned !== undefined ? "Unpin" : "Pin above the other threads"} onClick={() => patchThreads([paneId], pinPatch(pane?.pinned === undefined, Date.now()), pane?.pinned === undefined ? "Pinned" : "Unpinned")} aria-label={pane?.pinned !== undefined ? "Unpin" : "Pin"}>
+                <PinIcon width={12} height={12} />
               </button>
             )}
-            <button className="nav-act" title="Snooze: out of the way until a time you pick, or until it needs you" onClick={() => setMenu(!menu)}>
-              Snooze
+            <button className="nav-act" title="Snooze: out of the way until a time you pick, or until it needs you" onClick={() => setMenu(!menu)} aria-label="Snooze">
+              <TimerIcon width={12} height={12} />
             </button>
-            <button className="nav-act" title="Settle: done for now, move it under Settled" onClick={() => patchThreads([paneId], settlePatch(), "Settled")}>
-              Settle
+            <button className="nav-act" title="Settle: done for now, move it under Settled" onClick={() => patchThreads([paneId], settlePatch(), "Settled")} aria-label="Settle">
+              <CheckIcon width={12} height={12} />
             </button>
           </>
         )}
@@ -383,7 +387,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   );
 }
 
-/** Worktrees AureliaSpace made for this repo that no open pane uses any more. */
+/** Worktrees AureliaCode made for this repo that no open pane uses any more. */
 function useLeftovers(roots: string[], panes: unknown, version: number) {
   const [byRoot, setByRoot] = useState<Record<string, WorktreeEntry[]>>({});
   const key = roots.join("\n");
@@ -429,8 +433,8 @@ export function ProjectsSidebar() {
   const prs = usePrs((s) => s.byDir);
   const chats = useChat((s) => s.byPane);
   const [away, setAway] = useState<"snoozed" | "settled" | null>(null);
-  const [finding, setFinding] = useState(false);
   const [filter, setFilter] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkMenu, setBulkMenu] = useState(false);
   const [removed, setRemoved] = useState(0);
@@ -440,6 +444,19 @@ export function ProjectsSidebar() {
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
+  }, []);
+  // "/" focuses thread search, the way T3's sidebar does; typing in a field or terminal keeps the key.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t?.isContentEditable) return;
+      if (document.querySelector('[role="dialog"]')) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
   const snoozed = (id: string) => (panes[id]?.snoozedUntil ?? 0) > now && sessions[id]?.status !== "needs_input";
 
@@ -582,41 +599,34 @@ export function ProjectsSidebar() {
         </div>
       ) : (
         <div className="side-top">
-          <button className="newt" onClick={() => useLayout.getState().newTab({ launcher: true })}>
+          <label className="side-search">
+            <SearchIcon width={13} height={13} />
+            <input
+              ref={searchRef}
+              type="search"
+              placeholder="Search threads"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") {
+                  setFilter("");
+                  e.currentTarget.blur();
+                }
+              }}
+              aria-label="Search threads"
+            />
+            {filter ? (
+              <button type="button" className="side-search-clear" aria-label="Clear search" onClick={() => { setFilter(""); searchRef.current?.focus(); }}>
+                ×
+              </button>
+            ) : (
+              <kbd>/</kbd>
+            )}
+          </label>
+          <button className="find" aria-label="New thread" title="New thread (⌘N)" onClick={() => useLayout.getState().newTab({ launcher: true })}>
             <PlusIcon />
-            New thread
-            <kbd>⌘N</kbd>
-          </button>
-          <button
-            className={`find${finding ? " on" : ""}`}
-            aria-label="Filter threads"
-            title="Filter threads"
-            aria-pressed={finding}
-            onClick={() => {
-              setFinding(!finding);
-              setFilter("");
-            }}
-          >
-            <SearchIcon />
           </button>
         </div>
-      )}
-      {finding && (
-        <input
-          className="nav-filter"
-          type="search"
-          autoFocus
-          placeholder="Filter by title, repo, branch or PR"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setFilter("");
-              setFinding(false);
-            }
-          }}
-          aria-label="Filter threads"
-        />
       )}
       <div
         className="side-list"

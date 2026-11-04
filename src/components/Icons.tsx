@@ -76,6 +76,9 @@ export const GridIcon = (p: SVGProps<SVGSVGElement>) => (
 export const DiffIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><path d="M5 2.5v6M2 5.5h6M8 11.5h6" /></svg>
 );
+export const TimerIcon = (p: SVGProps<SVGSVGElement>) => (
+  <svg {...base(p)}><circle cx="8" cy="8.7" r="5.3" /><path d="M8 5.6v3.3l2 1.2M6 1.6h4" /></svg>
+);
 export const BranchIcon = (p: SVGProps<SVGSVGElement>) => (
   <svg {...base(p)}><circle cx="4.5" cy="3.5" r="1.5" /><circle cx="4.5" cy="12.5" r="1.5" /><circle cx="11.5" cy="5.5" r="1.5" /><path d="M4.5 5v6M11.5 7c0 2.5-3 2.5-6.5 4.2" /></svg>
 );

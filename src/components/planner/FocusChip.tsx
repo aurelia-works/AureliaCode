@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { clock, remainingMs } from "../../lib/plannerHabits";
 import { useFocus } from "../../store/focus";
 import { usePlanner } from "../../store/planner";
+import { TimerIcon } from "../Icons";
 
 /** Title-bar focus timer: pick a project and start; shows the countdown and logs the session when it ends. */
 export function FocusChip() {
@@ -32,8 +33,8 @@ export function FocusChip() {
   }
   return (
     <span className="tb-focus-wrap">
-      <button className="tb-focus" aria-expanded={menu} title="Start a focus session" onClick={() => setMenu(!menu)}>
-        Focus
+      <button className="tb-focus icon" aria-expanded={menu} aria-label="Start a focus session" title="Start a focus session" onClick={() => setMenu(!menu)}>
+        <TimerIcon />
       </button>
       {menu && (
         <div className="tb-focus-menu" role="dialog" aria-label="Start focus">
