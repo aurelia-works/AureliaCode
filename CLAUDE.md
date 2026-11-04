@@ -30,6 +30,10 @@ Any change to `src/components/`, `src/styles/` or anything else on screen needs 
 
 The harness (`design/preview/mock.ts`) mocks the Tauri IPC. Add a view there when a screen has none.
 
+For a PR, `npm run shots` captures before (merge base) and after shots of the views the diff touches
+(`src/lib/previewViews.ts` maps files to views; `--views a,b` overrides). `--publish` pushes them to the
+`pr-shots` branch and prints the table for the PR's Screenshots section.
+
 ## Review
 
 - Reviews follow [REVIEW.md](REVIEW.md).

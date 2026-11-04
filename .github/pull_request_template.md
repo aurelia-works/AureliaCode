@@ -1,22 +1,20 @@
-## What and why
+## What
+<!-- What now works, one line. -->
 
-<!-- One or two sentences. -->
+## Why
+<!-- One line. -->
 
-## Testing
+## Details
+<!-- Only what the diff doesn't show. Delete if none. -->
 
-<!-- Commands from CLAUDE.md → Verification and their result lines. Screenshots for UI changes (which preview view). Anything not tested, and why. -->
+## Screenshots
+<!-- UI changes: `npm run shots -- --publish` and paste its table. Delete if nothing on screen changed. -->
 
-- [ ] `npx tsc --noEmit -p .`
-- [ ] `npm test`
-- [ ] `cargo test --manifest-path src-tauri/Cargo.toml`
-- [ ] `npm run build`
-- [ ] Screenshot check (UI changes)
-- [ ] `/code-review` run on this diff (max 3 rounds)
+## Tests
+<!-- Result lines of CLAUDE.md → Verification (tsc, npm test, cargo test, build). -->
 
-## Risk
+## Limits
+<!-- What wasn't tested, and why. -->
 
-<!-- What could break, for whom, and how you'd notice. Saved state, chat protocol, worktrees, secrets? -->
-
-## How to revert
-
-<!-- Usually `git revert <sha>`. Say if saved state, config or anything outside the repo needs undoing too. -->
+**Risk:** <!-- one line: what could break, for whom -->
+**Revert:** `git revert <sha>` <!-- plus anything outside the repo -->

@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            rust:
+              - 'src-tauri/**'
+              - '.github/workflows/**'
+
+  # Type check, front-end tests and the web build need no macOS APIs, so they run on the cheaper, faster runner.
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Type check
+        run: npx tsc --noEmit -p .
+      - name: Front-end tests
+        run: npm test
+      - name: Web build
+        run: npx vite build
+
+  # The back end links WKWebView and AppKit, so it needs macOS. Skipped when nothing under src-tauri changed.
+  rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v4
+      # tauri's generate_context! only checks that frontendDist exists; the web job builds the real one.
+      - run: mkdir -p dist && touch dist/index.html
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Back-end tests
+        run: cargo test --manifest-path src-tauri/Cargo.toml
