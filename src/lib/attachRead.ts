@@ -1,4 +1,4 @@
-import { kindOf, looksLikeText, mediaTypeFor, type Attachment } from "./attachments";
+import { IMAGE_MAX_BYTES, kindOf, looksLikeText, mediaTypeFor, type Attachment } from "./attachments";
 import { ipc, type ChatImage } from "./ipc";
 
 /**
@@ -7,8 +7,6 @@ import { ipc, type ChatImage } from "./ipc";
  * read by the Rust side).
  */
 
-/** Claude's limit is 5 MB per image (base64); bigger ones are scaled down to fit. */
-const IMAGE_MAX_BYTES = 3_500_000;
 const IMAGE_MAX_SIDE = 2000;
 
 export async function readImage(file: Blob & { type: string }): Promise<ChatImage> {

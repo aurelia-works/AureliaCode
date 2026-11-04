@@ -78,17 +78,21 @@ export function mediaTypeFor(kind: AttachKind, name: string, mime = ""): string 
   return mime || "application/octet-stream";
 }
 
+/** Claude's limit is 5 MB per image (base64); bigger ones are scaled down to fit (lib/attachRead.ts). */
+export const IMAGE_MAX_BYTES = 3_500_000;
+
 /** Bytes this attachment adds to the request (base64 is already its sent size). */
 export function sentBytes(a: Pick<Attachment, "kind" | "data" | "size">): number {
   if (a.kind === "path") return 0;
-  if (!a.data) return a.kind === "text" ? a.size : Math.ceil(a.size / 3) * 4;
+  if (!a.data) return a.kind === "text" ? a.size : Math.ceil((a.kind === "image" ? Math.min(a.size, IMAGE_MAX_BYTES) : a.size) / 3) * 4;
   return a.kind === "text" ? new TextEncoder().encode(a.data).length : a.data.length;
 }
 
 /** Why one more of `size` sent bytes can't join `list`, or null when it fits. */
 export function capError(list: Pick<Attachment, "kind" | "data" | "size" | "status">[], adding: number): string | null {
-  if (list.length >= MAX_ATTACHMENTS) return `A message holds up to ${MAX_ATTACHMENTS} files`;
-  const used = list.filter((a) => a.status !== "error").reduce((n, a) => n + sentBytes(a), 0);
+  const live = list.filter((a) => a.status !== "error");
+  if (live.length >= MAX_ATTACHMENTS) return `A message holds up to ${MAX_ATTACHMENTS} files`;
+  const used = live.reduce((n, a) => n + sentBytes(a), 0);
   if (used + adding > MAX_MESSAGE_BYTES) return `Over the ${formatSize(MAX_MESSAGE_BYTES)} a message can carry (${formatSize(used)} attached)`;
   return null;
 }
@@ -101,6 +105,10 @@ export function settleRead<T extends Attachment>(list: T[], id: string, patch: P
   const i = list.findIndex((a) => a.id === id);
   if (i < 0) return list;
   const done = { ...list[i], ...patch } as T;
+  if (done.status === "ready" && done.kind !== "path" && !done.data) {
+    const { data: _, ...rest } = done;
+    return list.map((a, j) => (j === i ? ({ ...rest, status: "error", error: "Empty file, nothing to send" } as T) : a));
+  }
   if (done.status === "ready") {
     const why = capError(list.filter((a) => a.id !== id), sentBytes(done));
     if (why) {

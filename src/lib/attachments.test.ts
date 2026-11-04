@@ -91,3 +91,21 @@ test("files dropped from Finder (size unknown until read) can't add up past the 
   list = settleRead(list, "c", { ...read, data: "A".repeat(1000) });
   assert.equal(list[2].status, "ready");
 });
+
+test("a big picked image counts as what it's scaled down to, not its raw size", () => {
+  const png: Attachment = { id: "i", name: "huge.png", size: 40_000_000, kind: "image", mediaType: "image/png", status: "reading" };
+  assert.equal(capError([], sentBytes(png)), null);
+  assert.ok(sentBytes(png) < 5_000_000);
+});
+
+test("chips that failed don't use up the 20-file limit", () => {
+  const failed = Array.from({ length: MAX_ATTACHMENTS }, (_, i): Attachment => ({ id: `e${i}`, name: "x.bin", size: 1, kind: "path", mediaType: "", status: "error", error: "nope" }));
+  assert.equal(capError(failed, 10), null);
+});
+
+test("an empty file is an error chip, not a silent drop at send", () => {
+  const draft: Attachment = { id: "z", name: "empty.txt", size: 0, kind: "text", mediaType: "text/plain", status: "reading" };
+  const [done] = settleRead([draft], "z", { size: 0, data: "", status: "ready" });
+  assert.equal(done.status, "error");
+  assert.match(done.error ?? "", /empty/i);
+});
