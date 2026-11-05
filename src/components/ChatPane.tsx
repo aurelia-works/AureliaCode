@@ -8,6 +8,7 @@ import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
 import { cleanTextarea } from "../lib/controlChars";
 import { liveToolLabel, pickBySeed, THINKING, toolPhrase } from "../lib/toolPhrase";
+import { agentPrompt, PROMPT_HIDDEN } from "../lib/agentPrompt";
 import { ACCEPT, capError, forSend, sendProblem, sentBytes, settleRead, type Attachment } from "../lib/attachments";
 import { draftAttachment, readFile, readPath } from "../lib/attachRead";
 import { AttachChips, SentFiles } from "./AttachChips";
@@ -743,6 +744,8 @@ function ToolLine({ item, cwd }: { item: Tool; cwd?: string }) {
   const running = item.result === undefined;
   const summary = toolSummary(item.name, item.input, cwd);
   const state = running ? "running" : item.isError ? "error" : "ok";
+  const promptsOn = useUi((s) => s.prefs.agentPrompts);
+  const told = promptsOn ? agentPrompt(item.name, item.input) : null;
   return (
     <div className={`chat-tool ${state}`}>
       <button type="button" className="chat-tool-line" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
@@ -767,7 +770,17 @@ function ToolLine({ item, cwd }: { item: Tool; cwd?: string }) {
               ))}
             </ol>
           )}
-          <pre className="chat-tool-input">{inputText(item.name, item.input, item.partial)}</pre>
+          {told ? (
+            <div className="chat-tool-prompt">
+              <div className="chat-tool-prompt-head">
+                Prompt{told.agent ? ` · ${told.agent}` : ""}
+                {told.model ? ` · ${told.model}` : ""}
+              </div>
+              {told.prompt === null ? <p className="muted">{PROMPT_HIDDEN}</p> : <Markdown text={told.prompt} streaming={false} />}
+            </div>
+          ) : (
+            <pre className="chat-tool-input">{inputText(item.name, item.input, item.partial)}</pre>
+          )}
           {item.result !== undefined && (
             <pre className={`chat-tool-result${item.isError ? " error" : ""}`}>
               {item.result.length > RESULT_MAX ? `${item.result.slice(0, RESULT_MAX)}\n… ${item.result.length - RESULT_MAX} more characters` : item.result || "(no output)"}

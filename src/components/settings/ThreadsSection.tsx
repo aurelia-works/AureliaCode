@@ -15,6 +15,7 @@ const REVIEW_SWITCHES: Switch[] = [
   { key: "revertAction", label: "Revert a merged PR from the thread menu" },
   { key: "scrapAction", label: "Scrap and start over in the thread menu" },
   { key: "threadCost", label: "Thread cost on grid cards" },
+  { key: "agentPrompts", label: "Show sub-agent prompts", hint: "What each sub-agent was told, in the chat and on the grid feed" },
 ];
 
 const SWITCHES: Switch[] = [
