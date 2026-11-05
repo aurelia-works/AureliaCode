@@ -641,7 +641,7 @@ body {
 /* ---------- Thread header (above the stage) ---------- */
 .thread-head {
   flex: none;
-  height: 50px;
+  height: var(--thread-head-h);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -659,11 +659,22 @@ body {
 }
 .crumb h1 {
   margin: 0;
+  min-width: 2.5em;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text);
   font-size: var(--fs-body);
   font-weight: 500;
+}
+.crumb h1.fixed {
+  flex: none;
+}
+/* The count gives way before the title does. */
+.crumb .num {
+  flex-shrink: 100;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .mono-badge {
   flex: none;

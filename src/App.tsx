@@ -1,6 +1,6 @@
 import { UndoToast } from "./components/UndoToast";
 import { CaptureBox } from "./components/planner/CaptureBox";
-import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 import { AccountPicker } from "./components/AccountPicker";
 import { GridPicker } from "./components/GridPicker";
 import { PromptFill } from "./components/PromptFill";
@@ -12,6 +12,7 @@ import { RightPanel } from "./components/RightPanel";
 import { ThreadHeader } from "./components/ThreadHeader";
 import { TitleBar } from "./components/TitleBar";
 import { Toast } from "./components/Toast";
+import { gridFits } from "./lib/gridFit";
 import { fitAllTerminals, focusTerminal } from "./lib/terminals";
 import { activeTab, useLayout } from "./store/layout";
 import { useUi } from "./store/ui";
@@ -85,6 +86,21 @@ export function App() {
   const weeklyOpen = useUi((s) => s.weeklyOpen);
   const checkpointsOpen = useUi((s) => !!s.checkpointsPaneId);
   const focusKey = useLayout((s) => `${s.activeTabId}:${s.tabs.find((t) => t.id === s.activeTabId)?.focusedPaneId}`);
+  // Stage width, for folding a grid that would squeeze its panes below PANE_MIN_WIDTH.
+  const tabsArea = useRef<HTMLDivElement>(null);
+  const [stageWidth, setStageWidth] = useState(0);
+  useEffect(() => {
+    const el = tabsArea.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setStageWidth(Math.round(e!.contentRect.width)));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const activeRoot = tabs.find((t) => t.id === activeTabId)?.root;
+  const folded = !single && !!activeRoot && !gridFits(activeRoot, stageWidth);
+  useEffect(() => {
+    if (useUi.getState().gridFolded !== folded) useUi.getState().set({ gridFolded: folded });
+  }, [folded]);
   const modalOpen = useUi((s) => s.settingsOpen || s.captureOpen || s.roadmapOpen || s.weeklyOpen || !!s.accountPicker || s.gridOpen || s.reviewOpen || s.paletteOpen || s.historyOpen || s.permissionsOpen);
 
   // Below 760px the thread list is a drawer: fold it once on the way down, and let the title-bar toggle reopen it.
@@ -111,7 +127,7 @@ export function App() {
   useEffect(() => {
     const id = requestAnimationFrame(fitAllTerminals);
     return () => cancelAnimationFrame(id);
-  }, [nav, agentPanelOpen, railTab, railWidth, single, focusKey]);
+  }, [nav, agentPanelOpen, railTab, railWidth, single, folded, focusKey]);
 
   // Keyboard focus follows the focused pane.
   useEffect(() => {
@@ -133,10 +149,10 @@ export function App() {
         {nav && <Navigator view={nav} />}
         <main className="stage">
           <ThreadHeader />
-          <div className={`tabs-area${mode !== "terminals" ? " mode-hidden" : ""}`}>
+          <div ref={tabsArea} className={`tabs-area${mode !== "terminals" ? " mode-hidden" : ""}`}>
             {tabs.map((tab) => (
               <div key={tab.id} className={`tab-content${tab.id === activeTabId ? "" : " hidden"}`}>
-                <LayoutView node={tab.root} zoom={single ? tab.focusedPaneId : undefined} />
+                <LayoutView node={tab.root} zoom={single || (tab.id === activeTabId && folded) ? tab.focusedPaneId : undefined} />
               </div>
             ))}
           </div>

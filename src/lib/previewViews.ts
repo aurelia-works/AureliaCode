@@ -32,6 +32,7 @@ const RULES: [RegExp, PreviewView[]][] = [
   [/^src\/components\/AgentLogos\.tsx$/, ["threads", "chat", "start"]],
   [/^src\/components\/(ChatPane|Composer|SuggestBar|PromptFill|Checkpoints|SessionExtras|CacheBadge|UsageChip|UsageMeter)\.tsx$|^src\/lib\/(chat|chatModel|chatComposer|chatReplay|contextFill|toolPhrase|markdown)\.ts$/, ["chat"]],
   [/^src\/components\/ChangesPanel\.tsx$/, ["threads&rail=changes"]],
+  [/^src\/lib\/gridFit\.ts$/, ["threads", "threads&rail=changes"]],
   [/^src\/components\/(ThreadPanel|ThreadHeader|QueueRail|DetailsPanel|RightPanel|Navigator|ProjectsSidebar|StatusGlyph|AgentChip|UsageStrip)\.tsx$|^src\/lib\/(threads|threadOrder|threadActions)\.ts$/, ["threads", "threads&single=1"]],
   [/^src\/components\/(StartScreen|SkillsPanel|ChatStart)\.tsx$|^src\/lib\/(startMode|chatStart)\.ts$/, ["start"]],
   [/^src\/components\/AgentsBoard\.tsx$/, ["board"]],
