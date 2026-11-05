@@ -111,6 +111,8 @@ export interface ThreadPrefs {
   scrapAction: boolean;
   /** Grid cards show what the thread has cost so far. */
   threadCost: boolean;
+  /** Sub-agent calls show the prompt they were given (chat tool card, and a hover on the grid feed). */
+  agentPrompts: boolean;
   alerts: AlertPrefs;
 }
 
@@ -165,6 +167,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   revertAction: true,
   scrapAction: true,
   threadCost: true,
+  agentPrompts: true,
   alerts: DEFAULT_ALERTS,
 };
 

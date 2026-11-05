@@ -3,10 +3,14 @@
  * `failed` comes from a chat transcript's tool result; hook sessions only see PreToolUse, so
  * their steps never show as failed.
  */
+import { agentPrompt, PROMPT_HIDDEN } from "./agentPrompt.ts";
+
 export interface Step {
   id: string;
   text: string;
   failed: boolean;
+  /** A sub-agent's prompt, shown on hover. */
+  detail?: string;
 }
 
 type Item = { kind: string; id: string } & ({ kind: "tool"; name: string; input: Record<string, unknown>; isError?: boolean } | { kind: string });
@@ -42,8 +46,16 @@ function phrase(name: string, input: Record<string, unknown>): string {
   }
 }
 
+const DETAIL_MAX = 600;
+
 export function recentSteps(items: readonly Item[], n = 4): Step[] {
   const out: Step[] = [];
-  for (const i of items) if (i.kind === "tool" && "name" in i) out.push({ id: i.id, text: phrase(i.name, i.input), failed: !!i.isError });
+  for (const i of items) {
+    if (i.kind !== "tool" || !("name" in i)) continue;
+    const step: Step = { id: i.id, text: phrase(i.name, i.input), failed: !!i.isError };
+    const p = agentPrompt(i.name, i.input);
+    if (p) step.detail = p.prompt === null ? PROMPT_HIDDEN : p.prompt.slice(0, DETAIL_MAX);
+    out.push(step);
+  }
   return out.slice(-n);
 }

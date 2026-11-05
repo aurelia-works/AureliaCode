@@ -24,3 +24,14 @@ test("unknown tools keep their name; nothing yet is an empty list", () => {
   assert.deepEqual(recentSteps([tool("1", "mcp__x__y", {})]), [{ id: "1", text: "Used mcp__x__y", failed: false }]);
   assert.deepEqual(recentSteps([]), []);
 });
+
+test("a sub-agent step carries its prompt for the hover, or says the provider hid it", () => {
+  const steps = recentSteps([
+    { kind: "tool", id: "a", name: "Task", input: { description: "Scan", prompt: "Find dead code in src/" } },
+    { kind: "tool", id: "b", name: "Task", input: { description: "Secret", encrypted_content: "gAAA" } },
+    { kind: "tool", id: "c", name: "Bash", input: { command: "ls" } },
+  ]);
+  assert.equal(steps[0].detail, "Find dead code in src/");
+  assert.equal(steps[1].detail, "Prompt hidden by the provider");
+  assert.equal(steps[2].detail, undefined);
+});
