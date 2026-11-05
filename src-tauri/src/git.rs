@@ -40,7 +40,7 @@ fn find_repo(start: &Path) -> Option<(PathBuf, PathBuf)> {
     }
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn git_info(cwd: String) -> Option<GitInfo> {
     let (root, gitdir) = find_repo(Path::new(&expand_path(&cwd)))?;
     let head = fs::read_to_string(gitdir.join("HEAD")).ok()?;
@@ -285,7 +285,7 @@ pub(crate) fn parse_numstat(out: &str) -> DiffStat {
     s
 }
 
-#[tauri::command]
+#[tauri::command(async)]
 pub fn git_diffstat(cwd: String) -> Result<DiffStat, String> {
     let top = toplevel(&PathBuf::from(expand_path(&cwd)))?;
     let tracked = git_ok(&top, &["diff", "--numstat", "HEAD"]).or_else(|_| git_ok(&top, &["diff", "--numstat"]))?;

@@ -33,7 +33,7 @@ fn allowed(path: &Path) -> bool {
 }
 
 /// Assistant-message usage appended to a Claude transcript since `offset`.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn transcript_usage(path: String, offset: u64) -> Result<UsageBatch, String> {
     let real = std::fs::canonicalize(&path).map_err(|e| e.to_string())?;
     if !allowed(&real) {

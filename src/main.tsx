@@ -1,7 +1,8 @@
 import { listen } from "@tauri-apps/api/event";
 import { homeDir } from "@tauri-apps/api/path";
+import { Profiler } from "react";
 import { createRoot } from "react-dom/client";
-import { App } from "./App";
+import { App, preloadScreens } from "./App";
 import { startCacheWatch } from "./lib/cache";
 import { startHandoffAdvisor } from "./lib/handoffAdvisor";
 import { startDiscord } from "./lib/discord";
@@ -85,19 +86,26 @@ function persistLayout(canSave: boolean) {
   window.addEventListener("beforeunload", save);
 }
 
+/** `npm run perf` reads these marks: boot:start, boot:render, boot:painted, boot:splash, boot:ready. */
+const mark = (name: string) => performance.mark(`boot:${name}`);
+/** The preview harness sets `__perfProfile` to total React render time (`npm run perf`). */
+const perf = (window as { __perfProfile?: { commits: number; ms: number } }).__perfProfile;
+
 async function boot() {
-  await useConfig.getState().load();
-  setHome(await homeDir().catch(() => ""));
-  await Promise.all([loadUiState(), loadTasks(), loadRecents(), loadCustomAgents(), loadPrompts(), loadPlanner(), loadTeamRuns()]);
-  // After tasks, so the first run on this build can migrate them into the work graph.
-  await useWork.getState().load();
-  const layoutRead = await readSaved(() => ipc.loadState<SavedLayout>("layout"));
+  mark("start");
+  // Independent reads go out together; each await below is something the next step needs.
+  const [home] = await Promise.all([homeDir().catch(() => ""), useConfig.getState().load()]);
+  setHome(home);
+  const [layoutRead] = await Promise.all([
+    readSaved(() => ipc.loadState<SavedLayout>("layout")),
+    // Work after tasks, so the first run on this build can migrate them into the work graph.
+    Promise.all([loadUiState(), loadTasks(), loadRecents(), loadCustomAgents(), loadPrompts(), loadPlanner(), loadTeamRuns()]).then(() => useWork.getState().load()),
+  ]);
   if (!layoutRead.ok) warnUnreadable("layout.json", layoutRead.error);
   const saved = layoutRead.ok ? layoutRead.value : null;
   useLayout.getState().hydrate(saved);
   watchSettled();
   startNavHistory();
-  await planResume(saved);
   startTeamRunWatch();
   persistLayout(layoutRead.ok);
   startThreadStore();
@@ -114,18 +122,37 @@ async function boot() {
   useConfig.subscribe((s, prev) => s.config !== prev.config && applyTheme());
   useUi.subscribe((s, prev) => s.fontDelta !== prev.fontDelta && applyAppearance());
 
-  await listen<{ paneId: string; code: number | null }>("pty-exit", (e) => useLayout.getState().closePane(e.payload.paneId));
-  await listen<AgentEvent>("agent-event", (e) => useAgents.getState().handle(e.payload));
-  ipc.agentEventsReady().catch(() => {});
+  // Before the first render: resume plans queue each terminal's first command, and terminals spawn on render.
+  await Promise.all([
+    planResume(saved),
+    listen<{ paneId: string; code: number | null }>("pty-exit", (e) => useLayout.getState().closePane(e.payload.paneId)),
+    listen<AgentEvent>("agent-event", (e) => useAgents.getState().handle(e.payload)).then(() => ipc.agentEventsReady().catch(() => {})),
+    listen("menu-settings", () => useUi.getState().set({ settingsOpen: true })),
+    listen("menu-select-all", selectAll),
+  ]);
   // Shells the terminal host kept for panes that are no longer in the layout.
   if (saved && useConfig.getState().config?.terminal.keepAlive !== false) ipc.ptyPrune(Object.keys(useLayout.getState().panes)).catch(() => {});
-  await listen("menu-settings", () => useUi.getState().set({ settingsOpen: true }));
-  await listen("menu-select-all", selectAll);
 
   window.addEventListener("focus", () => useUi.getState().set({ windowFocused: true }));
   window.addEventListener("blur", () => useUi.getState().set({ windowFocused: false }));
   installShortcuts();
-  await installFileDrop();
+
+  mark("render");
+  const app = <App />;
+  createRoot(document.getElementById("root")!).render(
+    perf ? (
+      <Profiler id="app" onRender={(_id, _phase, ms) => ((perf.commits += 1), (perf.ms += ms))}>
+        {app}
+      </Profiler>
+    ) : (
+      app
+    ),
+  );
+  requestAnimationFrame(() => mark("painted"));
+  hideSplash();
+
+  // Background work starts once the first frame is queued.
+  installFileDrop().catch(() => {});
   startUsagePolling();
   startGitPolling();
   startPrPolling();
@@ -152,10 +179,9 @@ async function boot() {
   startControl().catch(() => {});
   startDiscord();
   checkFullDiskAccess();
-
-  createRoot(document.getElementById("root")!).render(<App />);
-  hideSplash();
   startPromptLinks().catch(() => {});
+  preloadScreens();
+  mark("ready");
 }
 
 /** Without Full Disk Access, commands run in the terminals trigger a macOS prompt per
@@ -182,13 +208,14 @@ async function checkFullDiskAccess() {
   });
 }
 
-/** Fades out the load-in splash from index.html once the first frame is up, after a minimum show time. */
+/** Fades out the load-in splash from index.html once the first frame is up, after the shortest show time you set. */
 function hideSplash() {
   const splash = document.getElementById("splash");
-  if (!splash) return;
   const start = (window as { __splashStart?: number }).__splashStart ?? 0;
-  const wait = Math.max(0, 1600 - (performance.now() - start));
+  const wait = Math.max(0, useUi.getState().prefs.splashMinMs - (performance.now() - start));
   setTimeout(() => {
+    mark("splash");
+    if (!splash) return;
     requestAnimationFrame(() => splash.classList.add("out"));
     setTimeout(() => splash.remove(), 700);
   }, wait);

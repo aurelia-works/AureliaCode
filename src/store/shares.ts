@@ -101,6 +101,8 @@ export async function startShares() {
   setInterval(() => {
     const now = Date.now() / 1000;
     const { byPane } = useShares.getState();
+    // Nothing shared: no feeds to push, and no guest can ask (a guest's message also nudges us below).
+    if (!Object.keys(byPane).length) return;
     // Expired links, and threads that were closed, stop being shared.
     for (const [id, exp] of Object.entries(byPane)) if (exp <= now || !useLayout.getState().panes[id]) void stopSharing(id);
     void pushFeeds();

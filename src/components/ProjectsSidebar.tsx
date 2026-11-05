@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { freshChat } from "../lib/chatStart";
 import { isOpenCode, useChat } from "../lib/chat";
 import { basename } from "../lib/format";
@@ -506,7 +506,15 @@ export function ProjectsSidebar() {
   const sessions = useAgents((s) => s.sessions);
   const git = useGit((s) => s.info);
   const prs = usePrs((s) => s.byDir);
-  const chats = useChat((s) => s.byPane);
+  // Each chat's status, and whether it has a first prompt yet, as one short string: streaming text changes
+  // neither, so it doesn't re-render the list. The prompt text is read when the key changes.
+  const chatKey = useChat((s) => Object.entries(s.byPane).map(([id, c]) => `${id}:${c.status}:${c.transcript.items.some((i) => i.kind === "user") ? 1 : 0}`).join("\n"));
+  const chats = useMemo(() => {
+    const byPane = useChat.getState().byPane;
+    return Object.fromEntries(
+      Object.entries(byPane).map(([id, c]) => [id, { status: c.status, first: (c.transcript.items.find((i) => i.kind === "user") as { text?: string } | undefined)?.text }]),
+    );
+  }, [chatKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const [away, setAway] = useState<"snoozed" | "settled" | null>(null);
   const [filter, setFilter] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -547,10 +555,9 @@ export function ProjectsSidebar() {
 
   const shown = (id: string) => {
     if (!filter.trim()) return true;
-    const first = chats[id]?.transcript.items.find((i) => i.kind === "user");
     const d = dirOf(id);
     const g = git[d];
-    return matchesFilter(filter, [basename(g?.repo ?? d), first?.kind === "user" ? first.text : undefined, panes[id]?.account, d, g?.branch, prs[d] ? `#${prs[d]!.number} ${prs[d]!.title}` : undefined]);
+    return matchesFilter(filter, [basename(g?.repo ?? d), chats[id]?.first, panes[id]?.account, d, g?.branch, prs[d] ? `#${prs[d]!.number} ${prs[d]!.title}` : undefined]);
   };
   const visible = all.filter(shown);
   const snoozedIds = visible.filter((id) => snoozed(id) && !panes[id]?.settled);

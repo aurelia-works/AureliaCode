@@ -97,6 +97,8 @@ export interface ThreadPrefs {
   nightlyReview: boolean;
   /** Local hour (0-23) the nightly review runs after. */
   nightlyHour: number;
+  /** Shortest time the launch splash stays up, in ms (0: it fades as soon as the app paints). */
+  splashMinMs: number;
   /** Council score a thread needs to count as Ready. */
   readyScore: number;
   /** Low / Medium / High from what the change touches, on the review page. */
@@ -174,6 +176,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   reviewRoundCap: 3,
   nightlyReview: false,
   nightlyHour: 3,
+  splashMinMs: 0,
   readyScore: 8,
   riskBadge: true,
   explainDiff: true,
@@ -216,6 +219,9 @@ export function normalizePrefs(raw: unknown): ThreadPrefs {
     } else if (k === "nightlyHour") {
       const n = r[k];
       if (typeof n === "number" && Number.isFinite(n)) out[k] = Math.min(23, Math.max(0, Math.round(n)));
+    } else if (k === "splashMinMs") {
+      const n = r[k];
+      if (typeof n === "number" && Number.isFinite(n)) out[k] = Math.min(3000, Math.max(0, Math.round(n)));
     } else if (k === "reviewRoundCap" || k === "readyScore") {
       const n = r[k];
       if (typeof n === "number" && Number.isFinite(n)) out[k] = Math.min(k === "readyScore" ? 10 : 20, Math.max(0, n));

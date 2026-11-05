@@ -94,6 +94,7 @@ async function sweep() {
 }
 
 export function startDevServerWatch() {
+  // The first sweep finds servers still running from before a reload; after that only running ones need watching.
   void sweep();
-  setInterval(() => void sweep(), POLL_MS);
+  setInterval(() => Object.keys(useDevServers.getState().byPane).length && void sweep(), POLL_MS);
 }

@@ -3,7 +3,7 @@ import { clampUndoSeconds, UNDO_SECONDS, type ThreadPrefs } from "../../lib/pref
 import { runNightly } from "../../store/nightly";
 import { useUi } from "../../store/ui";
 
-type Switch = { key: Exclude<keyof ThreadPrefs, "undoSeconds" | "followUp" | "newModel" | "newEffort" | "fallback" | "councilModels" | "reviewRoundCap" | "readyScore" | "nightlyHour">; label: string; hint?: string };
+type Switch = { key: Exclude<keyof ThreadPrefs, "undoSeconds" | "followUp" | "newModel" | "newEffort" | "fallback" | "councilModels" | "reviewRoundCap" | "readyScore" | "nightlyHour" | "splashMinMs">; label: string; hint?: string };
 
 /** From Theo Browne's 2026-11-04 stream: review councils, proof before done, and cheap ways out. */
 const REVIEW_SWITCHES: Switch[] = [
@@ -78,6 +78,11 @@ export function ThreadsSection() {
           </span>
         </label>
       ))}
+      <label className="field">
+        <span>Launch splash, shortest show (ms)</span>
+        <input type="number" min={0} max={3000} step={100} value={prefs.splashMinMs} onChange={(e) => e.target.value !== "" && set({ splashMinMs: Math.min(3000, Math.max(0, Math.round(Number(e.target.value)))) })} />
+      </label>
+      <p className="hint">0 fades the splash as soon as the app is ready. It used to stay at least 1600 ms.</p>
       <label className="field">
         <span>Undo window (seconds)</span>
         <input

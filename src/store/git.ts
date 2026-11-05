@@ -3,7 +3,10 @@ import { ipc, type DiffStat, type GitInfo } from "../lib/ipc";
 import { useAgents } from "./agents";
 import { useLayout } from "./layout";
 
-const POLL_MS = 3000;
+/** Branch and ahead/behind; a cd or window focus refreshes at once, so this only catches outside changes. */
+const POLL_MS = 5000;
+/** A hidden window skips polls; focus catches up. */
+const shown = () => typeof document === "undefined" || !document.hidden;
 
 interface GitState {
   /** Keyed by directory; null = not in a repo. */
@@ -51,9 +54,13 @@ async function refresh() {
 
 export function startGitPolling() {
   refresh();
-  setInterval(refresh, POLL_MS);
+  setInterval(() => shown() && refresh(), POLL_MS);
   void refreshStats();
-  setInterval(refreshStats, STAT_MS);
+  setInterval(() => shown() && void refreshStats(), STAT_MS);
+  window.addEventListener("focus", () => {
+    refresh();
+    void refreshStats();
+  });
   // Pick up cd's right away rather than on the next tick.
   let last = "";
   const onChange = () => {
