@@ -17,6 +17,8 @@ import { AgentChip, usePaneAgent } from "./AgentChip";
 import { ArrowIcon, BranchIcon, GridIcon, SparkIcon } from "./Icons";
 import { paneTail } from "./paneTail";
 import { MetricsLine, PermissionButtons, ReplyBox, since } from "./SessionExtras";
+import { DiffStat } from "./ThreadCard";
+import { liveToolLabel } from "../lib/toolPhrase";
 import { StatusGlyph, visualOf, type Visual } from "./StatusGlyph";
 
 /** A card on the board: a Claude session, or any other live terminal (Codex, Gemini, a shell). */
@@ -60,12 +62,14 @@ function Card({ it, selected, onSelect, replyRef }: { it: Item; selected: boolea
   const rt = useRuntime((st) => st.panes[it.paneId]);
   const dir = s?.cwd ?? pane?.cwd;
   const git = useGit((g) => (dir ? g.info[dir] : undefined));
+  const stat = useGit((g) => (dir ? g.stat[dir] : undefined));
   const task = useTasks((t) => {
     const attached = tasksForPane(t.projects, it.paneId);
     return (attached.find((x) => x.status === "doing") ?? attached[0])?.title;
   });
   const now = useNow();
   const custom = usePaneAgent(it.paneId);
+  const showTab = useUi((u) => u.prefs.cardTabLabel);
   const v = s ? visualOf(s) : undefined;
   const ref = useRef<HTMLElement>(null);
 
@@ -80,10 +84,10 @@ function Card({ it, selected, onSelect, replyRef }: { it: Item; selected: boolea
       ? s.message || "Needs you"
       : v === "working"
         ? s.tool
-          ? `Running ${s.tool}`
+          ? liveToolLabel({ name: s.tool, input: (s.toolInput ?? {}) as Record<string, unknown> }, it.paneId)
           : "Thinking…"
         : v === "done"
-          ? "Finished. Your turn."
+          ? "Done. Read the result and reply."
           : v === "starting"
             ? "Starting Claude…"
             : "Idle at the prompt"
@@ -103,20 +107,21 @@ function Card({ it, selected, onSelect, replyRef }: { it: Item; selected: boolea
       onDoubleClick={() => showPane(it.paneId)}
     >
       <header className="card-head">
-        {v ? <StatusGlyph state={v} /> : <StatusGlyph state="shell" busy={!!rt?.running} />}
+        {v ? <StatusGlyph state={v} word /> : <StatusGlyph state="shell" busy={!!rt?.running} />}
         <span className="card-title" title={shortenPath(dir)}>
           {title}
         </span>
         {custom ? <AgentChip agent={custom} title={`${custom.name} · ${who}`} /> : <span className="account-chip">{who}</span>}
         <span className="card-meta num">
-          <span title="Which tab it's in">Tab {it.tab + 1}</span>
+          {showTab && <span title="Which tab it's in">Tab {it.tab + 1}</span>}
           {s && <span title="Since the last status change">{since(now - s.updatedAt)}</span>}
         </span>
         <button className="card-open" onClick={() => showPane(it.paneId)} title="Open pane (↵)" aria-label={`Open ${title}`}>
+          <span>Open</span>
           <ArrowIcon width={12} height={12} />
         </button>
       </header>
-      {(git || task || pane?.goal) && (
+      {(git || task || pane?.goal || stat?.files) && (
         <div className="card-context">
           {git && (
             <span className="git-chip">
@@ -125,6 +130,7 @@ function Card({ it, selected, onSelect, replyRef }: { it: Item; selected: boolea
               {git.worktree && <span className="wt">wt</span>}
             </span>
           )}
+          <DiffStat stat={stat} />
           {task && <span className="card-task">◆ {task}</span>}
           {pane?.goal && !pane.goal.ended && (
             <span className="card-goal num" title={`Goal: ${pane.goal.text}`}>
@@ -175,6 +181,7 @@ function Spend({ items }: { items: Item[] }) {
  * output and the actions that unblock it, so a whole fleet can be steered from here.
  */
 export function AgentsBoard() {
+  const boardPrefs = useUi((u) => u.prefs);
   const sessions = useAgents((s) => s.sessions);
   const tabs = useLayout((s) => s.tabs);
   const panes = useLayout((s) => s.panes);
@@ -229,15 +236,17 @@ export function AgentsBoard() {
           <Spend items={items} />
         </div>
         <div className="board-actions">
-          <button className="btn quiet" onClick={() => openAgentView(false)} title="Every live pane and team run on one screen">
+          <button className="btn" onClick={() => openAgentView(false)} title="Every live pane and team run on one screen">
             Agent view
           </button>
-          <button className="btn quiet" onClick={() => openAgentView(true)} title="Start a lead and its workers on one task">
+          <button className="btn" onClick={() => openAgentView(true)} title="Start a lead and its workers on one task">
             <SparkIcon width={12} height={12} /> Run team
           </button>
-          <button className="btn quiet" onClick={() => useUi.getState().set({ gridOpen: true })} title="New grid tab (⌘G)">
-            <GridIcon width={12} height={12} /> Grid
-          </button>
+          {boardPrefs.boardGridButton && (
+            <button className="btn" onClick={() => useUi.getState().set({ gridOpen: true })} title="New grid tab (⌘G)">
+              <GridIcon width={12} height={12} /> New grid
+            </button>
+          )}
           <button className="btn primary" onClick={() => useUi.getState().set({ accountPicker: { target: "tab" } })} title="Launch agents (⇧⌘E)">
             <SparkIcon width={12} height={12} /> Launch agents
           </button>

@@ -35,3 +35,13 @@ test("a typed undo window is clamped, and junk keeps the old value", () => {
   assert.equal(clampUndoSeconds("abc", 7), 7);
   assert.equal(clampUndoSeconds(4.6, 5), 5);
 });
+
+test("new-thread defaults and the fallback are kept as text; anything else is dropped", () => {
+  const p = normalizePrefs({ newModel: "sonnet", newEffort: "high", fallback: "opencode:x/y" });
+  assert.equal(p.newModel, "sonnet");
+  assert.equal(p.newEffort, "high");
+  assert.equal(p.fallback, "opencode:x/y");
+  const bad = normalizePrefs({ newModel: 3, fallback: true });
+  assert.equal(bad.newModel, "");
+  assert.equal(bad.fallback, "");
+});

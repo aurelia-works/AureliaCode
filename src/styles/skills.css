@@ -19,7 +19,7 @@
   align-items: center;
   gap: 6px;
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   letter-spacing: 0.02em;
   color: var(--text);
@@ -35,7 +35,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 
@@ -53,7 +53,7 @@
   border-radius: 8px;
   background: var(--pane-bg);
   color: var(--text);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .start-skills-search input:focus {
@@ -67,7 +67,7 @@
   border-radius: 8px;
   background: transparent;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 
 .start-skills-all:hover {
@@ -93,7 +93,7 @@
   border-radius: 999px;
   background: transparent;
   color: var(--text-dim);
-  font-size: 11px;
+  font-size: var(--fs-meta);
   white-space: nowrap;
 }
 
@@ -123,14 +123,14 @@
   border-radius: 999px;
   background: color-mix(in oklab, var(--attn) 18%, transparent);
   color: var(--attn);
-  font-size: 9px;
+  font-size: var(--fs-label);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 
 .start-skills-empty {
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 
 .start-skills-run {
@@ -148,7 +148,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 
@@ -166,7 +166,7 @@
   border-radius: 8px;
   background: var(--surface-2);
   color: var(--text);
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 
 .start-skills-go:hover:not(:disabled) {

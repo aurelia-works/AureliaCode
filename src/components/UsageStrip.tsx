@@ -29,7 +29,8 @@ export function UsageStrip() {
   return (
     <div className="usage-strip" role="group" aria-label="Usage left">
       <span className="usage-lbl">Left</span>
-      {shown.map((a) => {
+      {/* The account closest to its limit leads; the others open out on hover or keyboard focus. */}
+      {[...shown].sort((x, y) => (usage[y.name]?.fiveHour ?? -1) - (usage[x.name]?.fiveHour ?? -1)).map((a, i) => {
         const u = usage[a.name];
         const five = u?.fiveHour ?? null;
         const week = u?.sevenDay ?? null;
@@ -39,7 +40,7 @@ export function UsageStrip() {
         return (
           <button
             key={a.name}
-            className={`u${left !== null && left < 20 ? " low" : ""}`}
+            className={`u${left !== null && left < 20 ? " low" : ""}${i > 0 ? " u-rest" : ""}`}
             aria-label={left === null ? `${a.name}: usage unknown` : `${a.name}: ${left}% left, resets ${resetClock(u!.fiveHourResetsAt)}`}
             onClick={() => void useUsage.getState().refresh(a.name, true)}
           >
@@ -48,7 +49,7 @@ export function UsageStrip() {
             </span>
             <span className="u-name">{a.name}</span>
             <span className="u-pct num">{left === null ? "–" : `${left}%`}</span>
-            {left !== null && <span className="u-left">left</span>}
+            {left !== null && <span className="u-left">of 5h left</span>}
             <span className="u-bar">
               <b style={{ width: `${left ?? 0}%` }} />
             </span>

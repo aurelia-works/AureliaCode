@@ -35,7 +35,7 @@
   margin: 0 0 var(--sp-2);
   padding: 6px 0;
   background: var(--bg);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-dim);
 }
@@ -87,7 +87,7 @@
 }
 .av-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: var(--fs-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -95,14 +95,14 @@
 .av-who,
 .av-tab,
 .av-ago {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 .av-ago {
   margin-left: auto;
 }
 .av-detail {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
@@ -113,7 +113,7 @@
 }
 .av-state {
   flex: none;
-  font-size: 10px;
+  font-size: var(--fs-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
@@ -165,7 +165,7 @@
   border-radius: 999px;
   background: var(--surface-3);
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: var(--fs-label);
   letter-spacing: 0.07em;
   text-transform: uppercase;
 }
@@ -189,7 +189,7 @@
   border: 0;
   background: none;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 600;
   text-align: left;
   white-space: nowrap;
@@ -202,12 +202,12 @@
 }
 .av-run-meta {
   flex: none;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 .av-run-plan {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   line-height: 1.45;
   color: var(--text-faint);
 }
@@ -215,7 +215,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .av-run-panes {
   color: var(--text-faint);
@@ -232,7 +232,7 @@
   background: var(--surface-2);
   color: var(--text-dim);
   font-family: var(--font-mono);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   white-space: pre-wrap;
 }
 

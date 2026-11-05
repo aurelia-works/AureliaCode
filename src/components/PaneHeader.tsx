@@ -15,8 +15,9 @@ import { useRuntime } from "../store/runtime";
 import { tasksForPane, useTasks } from "../store/tasks";
 import { AccountSwitch } from "./AccountSwitch";
 import { AgentChip, usePaneAgent } from "./AgentChip";
-import { BranchIcon, CloseIcon, GlobeIcon, MicIcon, OpenIcon, SplitDownIcon, SplitRightIcon } from "./Icons";
+import { BranchIcon, CloseIcon, GlobeIcon, MicIcon, MoreIcon, OpenIcon, SplitDownIcon, SplitRightIcon } from "./Icons";
 import { startPaneDrag } from "./PaneDrag";
+import { useChatTitle } from "./ProjectsSidebar";
 import { PermissionButtons } from "./SessionExtras";
 import { StatusGlyph, stateLabel, visualOf } from "./StatusGlyph";
 import { ChatUsageChip, UsageChip } from "./UsageChip";
@@ -139,6 +140,9 @@ export function PaneHeader({ paneId }: { paneId: string }) {
   const git = useGit((s) => (dir ? s.info[dir] : undefined));
   const dirty = useEditors((s) => !!s.dirty[paneId]);
   const queued = useOutbox((s) => s.byPane[paneId]?.length ?? 0);
+  const oneHeader = useUi((s) => s.prefs.oneHeader);
+  const headerMode = useUi((s) => s.prefs.headerModeChip);
+  const chatTitle = useChatTitle(paneId);
   if (!pane) return null;
 
   if (pane.editor) {
@@ -176,6 +180,36 @@ export function PaneHeader({ paneId }: { paneId: string }) {
   const running = runtime?.running;
   const v = agent ? visualOf(agent) : undefined;
 
+  // One header pattern with the chat view: state, folder / thread, then a labelled More menu.
+  if (oneHeader && (agent || pane.account || pane.mode === "chat")) {
+    const folder = basename(dir) || "~";
+    const name = pane.title ?? chatTitle ?? task?.title ?? "New thread";
+    return (
+      <div className="pane-header one" onPointerDown={(e) => startPaneDrag(e, paneId)}>
+        <div className="pane-id">
+          <StatusGlyph state={v ?? "idle"} />
+          <span className="pane-crumb" title={`${dir ?? ""}\n${name}`}>
+            <span className="pane-crumb-folder">{folder}</span>
+            <span aria-hidden>/</span>
+            <span className="pane-name">{name}</span>
+          </span>
+          {headerMode && account && (agent || pane.account ? <AccountSwitch paneId={paneId} account={account} /> : <span className="account-chip">{account}</span>)}
+        </div>
+        <div className="pane-signals">
+          {v === "needs_input" && <PermissionButtons paneId={paneId} />}
+          {queued > 0 && (
+            <button className="pane-queued" title="Messages waiting for Claude to finish its turn · click to see or edit them" onClick={() => useUi.getState().set({ composerPaneId: paneId })}>
+              {queued} queued
+            </button>
+          )}
+        </div>
+        <div className="pane-end">
+          <PaneMenu paneId={paneId} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="pane-header" onPointerDown={(e) => startPaneDrag(e, paneId)}>
       <div className="pane-id">
@@ -206,9 +240,11 @@ export function PaneHeader({ paneId }: { paneId: string }) {
         )}
         {v && v !== "idle" && (
           <span className={`state-text ${v}`} title={agent?.message || agent?.tool || undefined}>
-            {v === "working" && agent?.tool ? agent.tool : stateLabel[v]}
+            {stateLabel[v][0].toUpperCase() + stateLabel[v].slice(1)}
           </span>
         )}
+        {/* What it is running, in plain text: blue means working, never a tool's name. */}
+        {v === "working" && agent?.tool && <span className="pane-tool">{agent.tool}</span>}
         {v === "needs_input" && <PermissionButtons paneId={paneId} />}
         {queued > 0 && (
           <button className="pane-queued" title="Messages waiting for Claude to finish its turn · click to see or edit them" onClick={() => useUi.getState().set({ composerPaneId: paneId })}>
@@ -234,4 +270,71 @@ function hostOf(url: string) {
   } catch {
     return url;
   }
+}
+
+/**
+ * The pane's own tools behind one labelled button (the thread header's overflow): dictate,
+ * browser, splits and close, each with its name and shortcut, so the header keeps a few controls.
+ */
+export function PaneMenu({ paneId }: { paneId: string }) {
+  const voiceInstalled = useVoice((s) => s.installed);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!pos) return;
+    const close = () => setPos(null);
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && close();
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [pos]);
+  const { splitPane } = useLayout.getState();
+  const items: { label: string; keys: string; run: () => void }[] = [
+    ...(voiceInstalled ? [{ label: "Dictate", keys: "⌥⌘V", run: () => toggleVoice(paneId) }] : []),
+    { label: "Open a browser pane", keys: "⇧⌘B", run: () => openInBrowserPane(paneId, "") },
+    { label: "Split right", keys: "⌘D", run: () => splitPane(paneId, "row") },
+    { label: "Split down", keys: "⇧⌘D", run: () => splitPane(paneId, "column") },
+    { label: "Close this thread", keys: "⌘W", run: () => closePaneSafely(paneId) },
+  ];
+  return (
+    <>
+      <button
+        ref={btn}
+        type="button"
+        className="ib labelled"
+        aria-haspopup="menu"
+        aria-expanded={!!pos}
+        title="Dictate, browser, split and close"
+        onClick={() => {
+          const r = btn.current?.getBoundingClientRect();
+          if (r) setPos(pos ? null : { x: Math.min(r.left, window.innerWidth - 240), y: r.bottom + 4 });
+        }}
+      >
+        <MoreIcon width={14} height={14} />
+        <span>More</span>
+      </button>
+      {pos &&
+        createPortal(
+          <div className="account-menu" role="menu" style={{ left: pos.x, top: pos.y }} onMouseDown={(e) => e.stopPropagation()}>
+            {items.map((it) => (
+              <button
+                key={it.label}
+                role="menuitem"
+                onClick={() => {
+                  setPos(null);
+                  it.run();
+                }}
+              >
+                <span>{it.label}</span>
+                <span className="account-room">{it.keys}</span>
+              </button>
+            ))}
+          </div>,
+          document.body,
+        )}
+    </>
+  );
 }

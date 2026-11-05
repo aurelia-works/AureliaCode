@@ -13,6 +13,7 @@ import { HudSection } from "./HudSection";
 import { IntegrationsSection } from "./IntegrationsSection";
 import { MenubarSection } from "./MenubarSection";
 import { MyAgentsSection } from "./MyAgentsSection";
+import { NewThreadsSection } from "./NewThreadsSection";
 import { RemoteSection } from "./RemoteSection";
 import { RoutinesSection } from "./RoutinesSection";
 import { ShortcutsSection } from "./ShortcutsSection";
@@ -49,6 +50,7 @@ export interface SettingsSection {
 export const SECTIONS: SettingsSection[] = [
   { id: "general", label: "General", group: "App", keywords: "workspace folder editor permissions restore resume keep alive notifications prompt cache", Component: GeneralSection },
   { id: "appearance", label: "Appearance", group: "App", keywords: "theme palette dark light system terminal font contrast chat width motion animation", Component: AppearanceSection },
+  { id: "new-threads", label: "New threads", group: "App", keywords: "model effort fallback provider limit opencode permissions workspace worktree default new thread", Component: NewThreadsSection },
   { id: "chat", label: "Chat", group: "App", keywords: "send enter command enter queue steer follow-up timestamps messages", Component: ChatSection },
   { id: "sounds", label: "Sounds", group: "App", keywords: "sound volume notification alert", Component: SoundsSection },
   { id: "accounts", label: "Accounts", group: "App", keywords: "claude account config folder default workspace", Component: AccountsSection },

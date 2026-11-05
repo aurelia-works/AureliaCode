@@ -14,7 +14,7 @@ export function CacheBadge({ session }: { session: AgentSession | undefined }) {
   const live = useLive((s) => (session ? s.byPane[session.paneId] : undefined));
   const c = cacheState(session, now, session ? cacheTtlFor(session.paneId) : undefined, live);
   if (c.kind === "none") return null;
-  const text = c.kind === "live" ? "cache live" : c.kind === "cold" ? "cold" : `cache ${formatRemaining(c.remainingMs)}`;
+  const text = c.kind === "live" ? "cache live" : c.kind === "cold" ? "cold" : `cache warm ${formatRemaining(c.remainingMs)}`;
   const pc = live?.cache;
   const stats = pc?.requests
     ? `\n\n${pc.requests} requests · ${Math.round((pc.hitRatio ?? 0) * 100)}% read from cache${pc.misses ? ` · ${pc.misses} miss${pc.misses === 1 ? "" : "es"}${pc.lastMissCause ? ` (last: ${pc.lastMissCause.replace(/_/g, " ")})` : ""}` : ""}${pc.ttl ? ` · ${pc.ttl} cache` : ""}`

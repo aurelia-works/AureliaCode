@@ -28,10 +28,14 @@ export interface AgentSession {
   attention?: boolean;
   /** Claude Code's permission mode, from hooks or read off the screen after a change here. */
   permissionMode?: string;
+  /** Its last few tool calls, newest last (capped), for the grid card's activity feed. */
+  recent?: { id: string; kind: "tool"; name: string; input: Record<string, unknown> }[];
   /** Start of the last model request (user prompt or tool result); drives the prompt-cache timer. */
   lastRequestAt?: number;
   updatedAt: number;
 }
+
+const RECENT_MAX = 6;
 
 /** Shape written by src-tauri/resources/hook.sh. */
 export interface AgentEvent {
@@ -147,6 +151,10 @@ export const useAgents = create<AgentsState>((set, get) => ({
       // Kept while Claude asks permission for it, so the prompt can say what it would run.
       tool: ev.event === "PreToolUse" ? ev.payload.tool_name : status === "working" || status === "needs_input" ? prev?.tool : undefined,
       toolInput: ev.event === "PreToolUse" ? ev.payload.tool_input : status === "working" || status === "needs_input" ? prev?.toolInput : undefined,
+      recent:
+        ev.event === "PreToolUse" && ev.payload.tool_name
+          ? [...(prev?.recent ?? []), { id: `${at}-${prev?.recent?.length ?? 0}`, kind: "tool" as const, name: ev.payload.tool_name, input: (ev.payload.tool_input ?? {}) as Record<string, unknown> }].slice(-RECENT_MAX)
+          : prev?.recent,
       attention: status === "working" ? false : prev?.attention,
       permissionMode: ev.payload.permission_mode ?? prev?.permissionMode,
       // Each prompt and each tool result triggers a new API request that refreshes the cache.
