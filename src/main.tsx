@@ -33,6 +33,7 @@ import { useConfig } from "./store/config";
 import { startGitPolling } from "./store/git";
 import { startPrPolling } from "./store/prs";
 import { startMergeQueue } from "./store/mergeQueue";
+import { startDevServerWatch } from "./store/devServers";
 import { serializeLayout, useLayout, type SavedLayout } from "./store/layout";
 import { loadCustomAgents } from "./store/customAgents";
 import { loadPrompts, startPromptLinks } from "./store/prompts";
@@ -122,6 +123,7 @@ async function boot() {
   startGitPolling();
   startPrPolling();
   startMergeQueue().catch(() => {});
+  startDevServerWatch();
   trackAttention();
   trackNoticeFocus();
   startCacheWatch();
