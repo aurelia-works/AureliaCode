@@ -30,6 +30,7 @@ export function repoBadge(name: string) {
  */
 export function ThreadHeader() {
   const single = useUi((s) => s.single);
+  const gridFolded = useUi((s) => s.gridFolded);
   // The composer's picker shows a chat's permission mode; this repeats it in the header (Settings → Threads & keys).
   const headerMode = useUi((s) => s.prefs.headerModeChip);
   const oneHeader = useUi((s) => s.prefs.oneHeader);
@@ -111,11 +112,17 @@ export function ThreadHeader() {
     return (
       <div className="thread-head">
         <div className="crumb">
-          <h1>All threads</h1>
-          <span className="num">
-            · {ids.length} {ids.length === 1 ? "thread" : "threads"} in this tab
-            {working ? `, ${working} working` : ""}
-          </span>
+          <h1 className="fixed">All threads</h1>
+          {gridFolded ? (
+            <span className="num" title={`Too narrow for ${ids.length} threads side by side${working ? ` (${working} working)` : ""}. Close the side panel or widen the window to see the grid.`}>
+              · 1 of {ids.length} shown
+            </span>
+          ) : (
+            <span className="num">
+              · {ids.length} {ids.length === 1 ? "thread" : "threads"} in this tab
+              {working ? `, ${working} working` : ""}
+            </span>
+          )}
         </div>
         <span className="sp" />
         {tools}

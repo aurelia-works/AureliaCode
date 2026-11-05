@@ -122,6 +122,7 @@
 
   /* Frame. */
   --titlebar-h: 44px;
+  --thread-head-h: 50px;
   --statusbar-h: 0px;
   --nav-w: 288px;
   --rail-w: 312px;

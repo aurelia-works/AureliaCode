@@ -707,11 +707,11 @@ input[type="checkbox"] {
 
 /* ---------- Toast ---------- */
 
-/* Top centre under the title bar: clear of composers, footers and the notice stack. */
+/* Top centre under the thread header: clear of its chips, composers, footers and the notice stack. */
 .toast {
   position: fixed;
   left: 50%;
-  top: calc(var(--titlebar-h) + 10px);
+  top: calc(var(--titlebar-h) + var(--thread-head-h) + 10px);
   transform: translateX(-50%);
   z-index: 200;
   max-width: min(560px, 80vw);

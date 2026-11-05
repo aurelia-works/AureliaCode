@@ -3126,6 +3126,7 @@ textarea::placeholder {
 }
 .pane-brief-trip {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   padding: 6px 10px;
@@ -3135,7 +3136,7 @@ textarea::placeholder {
   font-size: var(--fs-meta);
 }
 .pane-brief-trip span {
-  flex: 1;
+  flex: 1 1 12em;
   min-width: 0;
 }
 .tc-cost {

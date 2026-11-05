@@ -35,6 +35,8 @@ interface UiState {
   nav: NavView;
   /** One thread at a time: the stage shows only each tab's focused pane, full size. */
   single: boolean;
+  /** The active tab's grid doesn't fit the stage, so it shows only the focused pane (App.tsx, lib/gridFit.ts). Not saved. */
+  gridFolded: boolean;
   settingsOpen: boolean;
   /** Section to show when Settings next opens (then cleared). */
   settingsSection: string | null;
@@ -91,6 +93,7 @@ export const useUi = create<UiState>((set) => ({
   railWidths: {},
   nav: "projects",
   single: true,
+  gridFolded: false,
   settingsOpen: false,
   settingsSection: null,
   captureOpen: false,
