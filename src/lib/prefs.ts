@@ -125,6 +125,8 @@ export interface ThreadPrefs {
   mergeQueue: boolean;
   /** "Start dev server" in the thread menu: the repo's dev script on a free port, opened next to the thread. */
   devServer: boolean;
+  /** "Share read-only link" in a chat thread's menu (needs Remote on). */
+  shareLink: boolean;
   alerts: AlertPrefs;
 }
 
@@ -186,6 +188,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   threadFamily: true,
   mergeQueue: false,
   devServer: true,
+  shareLink: true,
   alerts: DEFAULT_ALERTS,
 };
 

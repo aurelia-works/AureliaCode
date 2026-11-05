@@ -17,6 +17,7 @@ import { useAgents } from "../store/agents";
 import { paneDir, useGit } from "../store/git";
 import { paneIds, useLayout, type PaneMeta } from "../store/layout";
 import { usePrs } from "../store/prs";
+import { shareThread, stopSharing, useShares } from "../store/shares";
 import { addToQueue, queueItemOf, removeFromQueue, useMergeQueue } from "../store/mergeQueue";
 import { openDevServer, startDevServer, stopDevServer, useDevServers } from "../store/devServers";
 import { useRuntime } from "../store/runtime";
@@ -178,6 +179,7 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
     return d ? s.byDir[d] : undefined;
   });
   const isChat = useLayout((s) => s.panes[paneId]?.mode === "chat");
+  const shared = useShares((s) => !!s.byPane[paneId]);
   const queued = useMergeQueue((s) => queueItemOf(s.items, paneId)?.stage);
   const dev = useDevServers((s) => s.byPane[paneId]?.port);
   const close = () => {
@@ -229,6 +231,8 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
       {prefs.devServer && !dev && item("Start dev server", () => void startDevServer(paneId))}
       {prefs.devServer && dev && item(`Open dev server :${dev}`, () => openDevServer(paneId))}
       {dev && item("Stop dev server", () => void stopDevServer(paneId))}
+      {prefs.shareLink && isChat && !shared && item("Share read-only link", () => void shareThread(paneId))}
+      {shared && item("Stop sharing", () => void stopSharing(paneId))}
       {prefs.scrapAction && item("Scrap and start over", () => scrapThread(paneId))}
       {!away && item("Snooze…", onSnooze)}
       {away ? item("Wake", () => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")) : item("Settle", () => patchThreads([paneId], settlePatch(), "Settled"))}
@@ -289,6 +293,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
     if (prefs.diffTripwire && v === "working") noteBase(paneId, stat);
   }, [prefs.diffTripwire, v, stat]);
   const grown = prefs.diffTripwire ? diffGrowth(base, stat) : null;
+  const sharedUntil = useShares((s) => s.byPane[paneId]);
   const queue = useMergeQueue((s) => (prefs.mergeQueue ? queueItemOf(s.items, paneId) : undefined));
   const devPort = useDevServers((s) => (prefs.devServer ? s.byPane[paneId]?.port : undefined));
 
@@ -361,6 +366,11 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
               }}
             >
               :{devPort}
+            </span>
+          )}
+          {sharedUntil && (
+            <span className="th-shared" title={`Shared read-only until ${clock(sharedUntil * 1000)}. Stop sharing from the thread menu`}>
+              Shared
             </span>
           )}
           {pane?.babysit && (

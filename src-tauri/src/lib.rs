@@ -35,6 +35,7 @@ mod proxy;
 mod ptyhost;
 mod remote;
 mod rules;
+mod share;
 mod review;
 mod store;
 mod subagents;
@@ -199,6 +200,12 @@ pub fn run() {
             devserver::dev_server_stop,
             devserver::dev_server_list,
             devserver::dev_server_log,
+            share::share_create,
+            share::share_revoke,
+            share::share_list,
+            share::share_feed,
+            share::share_asks,
+            share::share_take,
             browser::browser_open,
             browser::browser_bounds,
             browser::browser_visible,
