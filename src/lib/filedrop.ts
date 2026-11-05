@@ -1,6 +1,5 @@
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { useLayout } from "../store/layout";
-import { useUi } from "../store/ui";
 import { attachToChat, focusChat, insertIntoChat } from "./chatComposer";
 import { insertAtPrompt, showPane } from "./terminals";
 
@@ -22,8 +21,8 @@ function setHovered(el: HTMLElement | null) {
 function paneAt(position: { x: number; y: number }): HTMLElement | null {
   const ratio = window.devicePixelRatio || 1;
   const el = document.elementFromPoint(position.x / ratio, position.y / ratio);
-  // A pane, or a thread row in the sidebar (when Settings → Threads & keys allows it).
-  return el?.closest<HTMLElement>(useUi.getState().prefs.dropFiles ? "[data-pane-id], [data-thread]" : "[data-pane-id]") ?? null;
+  // A pane, or a thread row in the sidebar.
+  return el?.closest<HTMLElement>("[data-pane-id], [data-thread]") ?? null;
 }
 
 /**

@@ -33,7 +33,6 @@ export function ThreadHeader() {
   const gridFolded = useUi((s) => s.gridFolded);
   // The composer's picker shows a chat's permission mode; this repeats it in the header (Settings → Threads & keys).
   const headerMode = useUi((s) => s.prefs.headerModeChip);
-  const oneHeader = useUi((s) => s.prefs.oneHeader);
   const board = useUi((s) => s.mode === "agents");
   const work = useUi((s) => s.mode === "work");
   const full = board || work;
@@ -143,7 +142,7 @@ export function ThreadHeader() {
   return (
     <div className="thread-head">
       <div className="crumb" title={dir}>
-        {oneHeader && chat && <StatusGlyph state={agent ? visualOf(agent) : chatIcon(chatStatus, approvals)} />}
+        {chat && <StatusGlyph state={agent ? visualOf(agent) : chatIcon(chatStatus, approvals)} />}
         <span className="mono-badge">{repoBadge(repo)}</span>
         {repo}
         <span>/</span>

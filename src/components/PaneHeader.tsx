@@ -19,8 +19,7 @@ import { BranchIcon, CloseIcon, GlobeIcon, MicIcon, MoreIcon, OpenIcon, SplitDow
 import { startPaneDrag } from "./PaneDrag";
 import { useChatTitle } from "./ProjectsSidebar";
 import { PermissionButtons } from "./SessionExtras";
-import { StatusGlyph, stateLabel, visualOf } from "./StatusGlyph";
-import { ChatUsageChip, UsageChip } from "./UsageChip";
+import { StatusGlyph, visualOf } from "./StatusGlyph";
 
 function PaneActions({ paneId, browser, editor }: { paneId: string; browser?: boolean; editor?: string }) {
   const { splitPane } = useLayout.getState();
@@ -140,7 +139,6 @@ export function PaneHeader({ paneId }: { paneId: string }) {
   const git = useGit((s) => (dir ? s.info[dir] : undefined));
   const dirty = useEditors((s) => !!s.dirty[paneId]);
   const queued = useOutbox((s) => s.byPane[paneId]?.length ?? 0);
-  const oneHeader = useUi((s) => s.prefs.oneHeader);
   const headerMode = useUi((s) => s.prefs.headerModeChip);
   const chatTitle = useChatTitle(paneId);
   if (!pane) return null;
@@ -181,7 +179,7 @@ export function PaneHeader({ paneId }: { paneId: string }) {
   const v = agent ? visualOf(agent) : undefined;
 
   // One header pattern with the chat view: state, folder / thread, then a labelled More menu.
-  if (oneHeader && (agent || pane.account || pane.mode === "chat")) {
+  if (agent || pane.account || pane.mode === "chat") {
     const folder = basename(dir) || "~";
     const name = pane.title ?? chatTitle ?? task?.title ?? "New thread";
     return (
@@ -213,14 +211,11 @@ export function PaneHeader({ paneId }: { paneId: string }) {
   return (
     <div className="pane-header" onPointerDown={(e) => startPaneDrag(e, paneId)}>
       <div className="pane-id">
-        {v ? <StatusGlyph state={v} /> : <StatusGlyph state="shell" busy={!!running} />}
+        <StatusGlyph state="shell" busy={!!running} />
         {custom && <AgentChip agent={custom} />}
-        {account && (agent || pane.account ? <AccountSwitch paneId={paneId} account={account} /> : <span className="account-chip">{account}</span>)}
         <span className="pane-name" title={dir}>
           {pane.launcher ? "New tab" : basename(dir) || "~"}
         </span>
-        {agent && pane.mode !== "chat" && <ModeChip paneId={paneId} />}
-        {pane.mode === "chat" ? <ChatUsageChip paneId={paneId} /> : (agent || pane.account) && <UsageChip paneId={paneId} />}
         {git && (
           <span
             className={`git-chip hide-tight${git.worktree ? " worktree" : ""}`}
@@ -233,19 +228,11 @@ export function PaneHeader({ paneId }: { paneId: string }) {
         )}
       </div>
       <div className="pane-signals">
-        {running && !agent && (
+        {running && (
           <span className="pane-running mono" title={running}>
             ▸ {running}
           </span>
         )}
-        {v && v !== "idle" && (
-          <span className={`state-text ${v}`} title={agent?.message || agent?.tool || undefined}>
-            {stateLabel[v][0].toUpperCase() + stateLabel[v].slice(1)}
-          </span>
-        )}
-        {/* What it is running, in plain text: blue means working, never a tool's name. */}
-        {v === "working" && agent?.tool && <span className="pane-tool">{agent.tool}</span>}
-        {v === "needs_input" && <PermissionButtons paneId={paneId} />}
         {queued > 0 && (
           <button className="pane-queued" title="Messages waiting for Claude to finish its turn · click to see or edit them" onClick={() => useUi.getState().set({ composerPaneId: paneId })}>
             {queued} queued

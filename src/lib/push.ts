@@ -37,11 +37,11 @@ export function pushAlert(kind: NoticeKind, title: string, body?: string) {
   const p = useConfig.getState().config?.push;
   if (!p?.enabled || !p.topic || !PUSHED.includes(kind)) return;
   const urgent = kind === "permission" || kind === "needs_input";
-  void publish(p.server || "https://ntfy.sh", p.topic, p.detail ? title : "AureliaSpace", p.detail ? body || title : GENERIC[kind] ?? "Claude needs you.", urgent ? 4 : 3);
+  void publish(p.server || "https://ntfy.sh", p.topic, p.detail ? title : "AureliaCode", p.detail ? body || title : GENERIC[kind] ?? "Claude needs you.", urgent ? 4 : 3);
 }
 
 /** Settings "Send a test": resolves to an error message, or null when it went out. */
 export function pushTest(server: string, topic: string): Promise<string | null> {
   if (!topic) return Promise.resolve("Make a topic first.");
-  return publish(server || "https://ntfy.sh", topic, "AureliaSpace", "Phone alerts are working.", 3);
+  return publish(server || "https://ntfy.sh", topic, "AureliaCode", "Phone alerts are working.", 3);
 }

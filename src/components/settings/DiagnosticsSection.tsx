@@ -83,7 +83,7 @@ export function DiagnosticsSection({ notify }: SectionProps) {
             Open permissions
           </button>
         </div>
-        <p className="hint">Brings back AureliaSpace's terminal panes: plain zsh, Codex, Gemini, OpenCode skills, saved agents and teams. Off: every thread is a chat.</p>
+        <p className="hint">Brings back the old terminal panes: plain zsh, Codex, Gemini, OpenCode skills, saved agents and teams. Off: every thread is a chat.</p>
       </section>
 
       <section className="set-group">

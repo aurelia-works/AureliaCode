@@ -29,7 +29,7 @@ export function startDiscord() {
       const noun = sessions.length === 1 ? "agent" : "agents";
       presence = {
         clientId: CLIENT_ID,
-        details: sessions.length ? `Running ${sessions.length} ${noun}` : "Idle in AureliaSpace",
+        details: sessions.length ? `Running ${sessions.length} ${noun}` : "Idle in AureliaCode",
         state: sessions.length ? (project ? `${project} · ${working} working` : `${working} working`) : undefined,
         startedAt,
       };

@@ -27,9 +27,7 @@ const ACTION: Partial<Record<Visual, string>> = {
 export function PaneBrief({ paneId, cwd }: { paneId: string; cwd?: string }) {
   const t = useThreadSummary(paneId, cwd);
   const goal = useLayout((s) => s.panes[paneId]?.goal);
-  const oneHeader = useUi((s) => s.prefs.oneHeader);
   const feedOn = useUi((s) => s.prefs.briefFeed);
-  const promptsOn = useUi((s) => s.prefs.agentPrompts);
   const recent = useAgents((s) => s.sessions[paneId]?.recent);
   const steps = useMemo(() => recentSteps(recent ?? [], 4), [recent]);
   const [, tick] = useState(0);
@@ -44,18 +42,17 @@ export function PaneBrief({ paneId, cwd }: { paneId: string; cwd?: string }) {
   const stat = useGit((s) => (dir ? s.stat[dir] : undefined));
   const review = useReviews((s) => (root ? s.byRoot[root] : undefined));
   const base = useReviews((s) => s.base[paneId]);
-  const proof = prefs.proofLine && (v === "done" || (v === "idle" && (goal || review))) ? proofOf({ bar: prefs.readyScore, goal, review: markOf(review), stat }) : null;
-  const grown = prefs.diffTripwire ? diffGrowth(base, stat) : null;
+  const proof = (v === "done" || (v === "idle" && (goal || review))) ? proofOf({ bar: prefs.readyScore, goal, review: markOf(review), stat }) : null;
+  const grown = diffGrowth(base, stat);
 
   return (
     <div className={`pane-brief ${v}`} role="status">
       <ThreadCardHead t={t} />
-      {!oneHeader && <p className="pane-brief-title">{t.title}</p>}
       <p className="pane-brief-detail">{t.detail}</p>
       {feedOn && steps.length > 0 && (
         <ol className="pane-brief-feed" aria-label="Recent steps">
           {steps.map((s) => (
-            <li key={s.id} className={s.failed ? "failed" : undefined} title={promptsOn ? s.detail : undefined}>
+            <li key={s.id} className={s.failed ? "failed" : undefined} title={s.detail}>
               {s.text}
             </li>
           ))}

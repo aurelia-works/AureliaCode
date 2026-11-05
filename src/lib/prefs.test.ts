@@ -8,11 +8,16 @@ test("missing or junk prefs give the defaults", () => {
 });
 
 test("known keys of the right type are kept, wrong types and unknown keys ignored", () => {
-  const p = normalizePrefs({ undo: false, pin: "yes", nonsense: true, undoSeconds: 9 });
-  assert.equal(p.undo, false);
-  assert.equal(p.pin, true);
+  const p = normalizePrefs({ navRight: true, council: "yes", nonsense: true, undoSeconds: 9 });
+  assert.equal(p.navRight, true);
+  assert.equal(p.council, true);
   assert.equal(p.undoSeconds, 9);
   assert.ok(!("nonsense" in p));
+});
+
+test("an old file's switches for always-on features are dropped, so the features stay on", () => {
+  const p = normalizePrefs({ undo: false, pin: false, diffTripwire: false, oneHeader: false, steerKey: false });
+  for (const k of ["undo", "pin", "diffTripwire", "oneHeader", "steerKey"]) assert.ok(!(k in p), k);
 });
 
 test("follow-up mode accepts queue or steer only", () => {

@@ -81,7 +81,7 @@ export function RemoteSection({ draft, update, notify }: SectionProps) {
         <h3>Phone remote</h3>
         <label className="field check">
           <input type="checkbox" checked={r.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
-          <span>Control AureliaSpace from my phone's browser</span>
+          <span>Control AureliaCode from my phone's browser</span>
         </label>
         <p className="hint">See every pane, read and type into it, answer Claude's questions and open new agents, from anywhere on your Tailscale network.</p>
         <label className="field check">
@@ -159,7 +159,7 @@ export function RemoteSection({ draft, update, notify }: SectionProps) {
             <div className="remote-qr-row">
               <div className="remote-qr" role="img" aria-label="Pairing QR code" dangerouslySetInnerHTML={{ __html: status.qrSvg }} />
               <div className="remote-qr-help">
-                <p>Scan with your phone's camera while Tailscale is on. It opens AureliaSpace in the browser and remembers that phone.</p>
+                <p>Scan with your phone's camera while Tailscale is on. It opens AureliaCode in the browser and remembers that phone.</p>
                 <p className="hint">The code works once and for {Math.max(1, Math.round(status.codeExpiresIn / 60))} more min; a new one appears after.</p>
                 <p className="hint">Tip: Share → Add to Home Screen makes it a full-screen app.</p>
               </div>

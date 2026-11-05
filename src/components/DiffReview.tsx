@@ -375,16 +375,14 @@ export function DiffReview() {
             </span>
           )}
         </div>
-        {prefs.riskBadge && files.length > 0 && (
+        {files.length > 0 && (
           <span className={`risk-badge ${risk.level}`} title={risk.why.length ? risk.why.join("\n") : "Small change to ordinary files"}>
             {risk.level === "low" ? "Low risk" : risk.level === "medium" ? "Medium risk" : "High risk"}
           </span>
         )}
-        {prefs.explainDiff && (
-          <button className="btn" onClick={runExplain} disabled={!files.length || explain === "running"} title="What is changing, why, and where the risk is. A DeepSeek read; no Claude limits.">
-            {explain === "running" ? "Explaining…" : "Explain"}
-          </button>
-        )}
+        <button className="btn" onClick={runExplain} disabled={!files.length || explain === "running"} title="What is changing, why, and where the risk is. A DeepSeek read; no Claude limits.">
+          {explain === "running" ? "Explaining…" : "Explain"}
+        </button>
         {prefs.council && (
           <button
             className="btn"

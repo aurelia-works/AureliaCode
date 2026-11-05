@@ -23,7 +23,6 @@ export function ChatStart({ paneId, starting }: { paneId: string; starting: bool
   const recents = useRecents((s) => s.folders);
   const workspace = useConfig((s) => s.config?.defaultWorkspace);
   const setupDone = useConfig((s) => s.config?.setupDone);
-  const noProject = useUi((s) => s.prefs.noProject);
   const worktree = useUi((s) => s.useWorktree);
   const folder = cwd || workspace || "~";
   const git = useGit((s) => s.info[expandPath(folder)] ?? s.info[folder]);
@@ -87,11 +86,9 @@ export function ChatStart({ paneId, starting }: { paneId: string; starting: bool
                 <button role="menuitem" className="pick-act" onClick={() => (setPicking(false), setDraft(shortenPath(cwd || workspace || "")), setEditing(true))}>
                   Type a path…
                 </button>
-                {noProject && (
-                  <button role="menuitem" className="pick-act" title="A new empty folder; its files stay after the thread is gone" onClick={() => void newScratchDir().then(moveTo, (e) => toast(String(e), true))}>
-                    No project (scratch folder)
-                  </button>
-                )}
+                <button role="menuitem" className="pick-act" title="A new empty folder; its files stay after the thread is gone" onClick={() => void newScratchDir().then(moveTo, (e) => toast(String(e), true))}>
+                  No project (scratch folder)
+                </button>
               </div>
             )}
           </span>

@@ -196,10 +196,10 @@ export function StartScreen({ paneId }: { paneId: string }) {
 
   const onKey = (e: React.KeyboardEvent) => {
     if (e.target instanceof HTMLTextAreaElement && e.metaKey && !e.ctrlKey) {
-      if (e.key === "Enter" && prefs.background) {
+      if (e.key === "Enter") {
         e.preventDefault();
         void beginBackground();
-      } else if (e.key.toLowerCase() === "s" && !e.altKey && !e.shiftKey && prefs.stash) {
+      } else if (e.key.toLowerCase() === "s" && !e.altKey && !e.shiftKey) {
         e.preventDefault();
         stashKey();
       }
@@ -274,19 +274,17 @@ export function StartScreen({ paneId }: { paneId: string }) {
                   <button role="menuitem" className="pick-act" onClick={() => { setPicking(false); setDraft(shortenPath(cwd || workspace || "")); setEditing(true); }}>
                     Type a path…
                   </button>
-                  {prefs.noProject && (
-                    <button
-                      role="menuitem"
-                      className="pick-act"
-                      title="A new empty folder; its files stay after the thread is gone"
-                      onClick={() => {
-                        setPicking(false);
-                        void newScratchDir().then((dir) => updatePane(paneId, { cwd: dir }), (e) => toast(String(e), true));
-                      }}
-                    >
-                      No project (scratch folder)
-                    </button>
-                  )}
+                  <button
+                    role="menuitem"
+                    className="pick-act"
+                    title="A new empty folder; its files stay after the thread is gone"
+                    onClick={() => {
+                      setPicking(false);
+                      void newScratchDir().then((dir) => updatePane(paneId, { cwd: dir }), (e) => toast(String(e), true));
+                    }}
+                  >
+                    No project (scratch folder)
+                  </button>
                 </div>
               )}
             </span>
@@ -301,18 +299,16 @@ export function StartScreen({ paneId }: { paneId: string }) {
           ) : (
             <span className="mono br">{shortenPath(folder)}</span>
           )}
-          {prefs.noProject && (
-            <>
-              <span className="where-sep">·</span>
-              <button
-                className="where-link"
-                title="A new empty folder; its files stay after the thread is gone"
-                onClick={() => void newScratchDir().then((dir) => updatePane(paneId, { cwd: dir }), (e) => toast(String(e), true))}
-              >
-                Start without a project
-              </button>
-            </>
-          )}
+          <>
+            <span className="where-sep">·</span>
+            <button
+              className="where-link"
+              title="A new empty folder; its files stay after the thread is gone"
+              onClick={() => void newScratchDir().then((dir) => updatePane(paneId, { cwd: dir }), (e) => toast(String(e), true))}
+            >
+              Start without a project
+            </button>
+          </>
         </div>
         {setupDone === false ? (
           <FirstRunSetup />
@@ -359,7 +355,7 @@ export function StartScreen({ paneId }: { paneId: string }) {
             <div className="start-hint">
               <span>Enter to start</span>
               {terms && <span>⌥Enter for a terminal</span>}
-              {prefs.background && <span>⌘Enter starts and opens another</span>}
+              <span>⌘Enter starts and opens another</span>
             </div>
             <div className="start-others">
               {choices.map((c, i) => (

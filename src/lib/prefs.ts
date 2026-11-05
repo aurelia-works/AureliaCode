@@ -1,6 +1,6 @@
 import { clampHoldSeconds } from "./greeting.ts";
 
-/** Switches and sizes for the thread-handling features (Settings → Threads & keys), kept in ui.json. */
+/** Thread-handling preferences (Settings → Threads & keys), kept in ui.json. Features that are always on have no pref. */
 
 /** Which notices may reach you; permission prompts and errors always do. */
 export interface AlertPrefs {
@@ -15,27 +15,7 @@ export interface AlertPrefs {
 export const DEFAULT_ALERTS: AlertPrefs = { finished: true, needs_input: true, context: true, cache: true, burn: true, limit: true };
 
 export interface ThreadPrefs {
-  /** Undo toast and ⌘Z after close, settle and snooze. */
-  undo: boolean;
   undoSeconds: number;
-  /** ⌘⇧T reopens the last closed thread. */
-  reopen: boolean;
-  /** Middle-click a thread row to close it. */
-  middleClick: boolean;
-  /** Pinned threads. */
-  pin: boolean;
-  /** ↑ ↓ Enter, F2 and ⇧F10 in the thread list. */
-  sidebarKeys: boolean;
-  /** Drag threads between sections. */
-  dragSections: boolean;
-  /** Send and open a fresh composer. */
-  background: boolean;
-  /** Stash the composer draft. */
-  stash: boolean;
-  /** Start a thread with no project. */
-  noProject: boolean;
-  /** Queue or Steer toggle while the agent runs. */
-  steerKey: boolean;
   /** What Enter does with a message while the agent runs: wait for the turn to end, or interrupt it and send now. */
   followUp: "queue" | "steer";
   /** New threads' model and effort; "" follows the Auto effort settings. Effort starts at Medium; High is a pick you make. */
@@ -45,38 +25,16 @@ export interface ThreadPrefs {
   effortMoved: boolean;
   /** Where a thread goes when its account hits its limit (lib/fallback.ts); "" for none. */
   fallback: string;
-  /** `>` in the palette shows only actions. */
-  paletteActions: boolean;
-  /** Copy PR link and number. */
-  prCopy: boolean;
-  /** Regenerate a thread title. */
-  regenTitle: boolean;
-  /** aurelia://new links. */
-  promptLinks: boolean;
-  /** Drop files onto a thread row. */
-  dropFiles: boolean;
-  /** ⌘[ and ⌘] between threads. */
-  backForward: boolean;
   /** The thread list on the right of the window instead of the left. */
   navRight: boolean;
   /** Empty panes in a grid show a compact status card (state, task, what it waits on) instead of the big empty prompt. */
   paneBrief: boolean;
   /** Jellyfish as the thread list's state icons, instead of the one status icon set. */
   jellyIcons: boolean;
-  /** Busy threads you aren't looking at go grey in the list (T3's recede rule). */
-  recedeWorking: boolean;
-  /** Lines added and removed on each thread row. */
-  rowDiffStat: boolean;
-  /** One picker for model and effort. */
-  mergeModelEffort: boolean;
-  /** A narrow composer folds permissions, provider and style into a "…" menu. */
-  composerFold: boolean;
   /** A "New grid" button on the board (⌘G does the same). */
   boardGridButton: boolean;
   /** "Tab 2" on board cards. */
   cardTabLabel: boolean;
-  /** Grid pane headers read like the chat header: state, folder / thread, More. */
-  oneHeader: boolean;
   /** Grid cards list the thread's last few steps. */
   briefFeed: boolean;
   /** The board's Signals start folded to one line. */
@@ -103,38 +61,14 @@ export interface ThreadPrefs {
   nightlyReview: boolean;
   /** Local hour (0-23) the nightly review runs after. */
   nightlyHour: number;
-  /** Shortest time the launch splash stays up, in ms (0: it fades as soon as the app paints). */
+  /** Shortest time the launch splash stays up, in ms (0: it fades as soon as the app paints). Not in Settings. */
   splashMinMs: number;
   /** Council score a thread needs to count as Ready. */
   readyScore: number;
-  /** Low / Medium / High from what the change touches, on the review page. */
-  riskBadge: boolean;
-  /** "Explain" on the review page: what is changing, why, where the risk is. */
-  explainDiff: boolean;
-  /** A Ready group in the thread list: finished threads with proof (a passing check or council). */
-  readyGroup: boolean;
-  /** Grid cards say what proves a finished thread works, or that nothing does yet. */
-  proofLine: boolean;
-  /** A thread whose diff more than doubles since it started moves to Needs you. */
-  diffTripwire: boolean;
-  /** "Revert PR" on a thread whose PR is merged. */
-  revertAction: boolean;
-  /** "Scrap and start over" in the thread menu. */
-  scrapAction: boolean;
-  /** Grid cards show what the thread has cost so far. */
-  threadCost: boolean;
   /** The Work board shows a project's human time per PR (approvals, comments, wait, reverts). */
   humanStats: boolean;
-  /** Sub-agent calls show the prompt they were given (chat tool card, and a hover on the grid feed). */
-  agentPrompts: boolean;
-  /** Cards say which thread started this one, and how many it started. */
-  threadFamily: boolean;
   /** "Add to merge queue" on threads with an open PR: rebase, checks, reviewer PASS, then squash-merge, one at a time. Off by default: it merges code. */
   mergeQueue: boolean;
-  /** "Start dev server" in the thread menu: the repo's dev script on a free port, opened next to the thread. */
-  devServer: boolean;
-  /** "Share read-only link" in a chat thread's menu (needs Remote on). */
-  shareLink: boolean;
   /** On the hour the title-bar wordmark morphs into "Morning, Jah", holds, and morphs back (lib/greeting.ts). */
   greeting: boolean;
   /** Seconds the greeting holds before it morphs back (2-20). */
@@ -145,38 +79,17 @@ export interface ThreadPrefs {
 }
 
 export const DEFAULT_PREFS: ThreadPrefs = {
-  undo: true,
   undoSeconds: 5,
-  reopen: true,
-  middleClick: true,
-  pin: true,
-  sidebarKeys: true,
-  dragSections: true,
-  background: true,
-  stash: true,
-  noProject: true,
-  steerKey: true,
   followUp: "queue",
   newModel: "",
   newEffort: "medium",
   effortMoved: true,
   fallback: "",
-  paletteActions: true,
-  prCopy: true,
-  regenTitle: true,
-  promptLinks: true,
-  dropFiles: true,
-  backForward: true,
   navRight: false,
   paneBrief: true,
   jellyIcons: false,
-  recedeWorking: true,
-  rowDiffStat: true,
-  mergeModelEffort: true,
-  composerFold: true,
   boardGridButton: false,
   cardTabLabel: false,
-  oneHeader: true,
   briefFeed: true,
   signalsFolded: true,
   inbox: true,
@@ -192,20 +105,8 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   nightlyHour: 3,
   splashMinMs: 0,
   readyScore: 8,
-  riskBadge: true,
-  explainDiff: true,
-  readyGroup: true,
-  proofLine: true,
-  diffTripwire: true,
-  revertAction: true,
-  scrapAction: true,
-  threadCost: true,
   humanStats: true,
-  agentPrompts: true,
-  threadFamily: true,
   mergeQueue: false,
-  devServer: true,
-  shareLink: true,
   greeting: true,
   greetingHoldS: 6,
   greetingName: "Jah",
