@@ -336,12 +336,39 @@ fn thread_from(lines: impl Iterator<Item = String>) -> Vec<ThreadItem> {
     items
 }
 
-#[tauri::command]
+/// How much of a transcript's end is parsed first. Long sessions grow to tens of MB, and the
+/// panel polls every few seconds while an agent works.
+const THREAD_TAIL: u64 = 2 * 1024 * 1024;
+
+#[tauri::command(async)]
 pub fn transcript_thread(path: String, max_items: usize) -> Result<Vec<ThreadItem>, String> {
-    let f = fs::File::open(expand_path(&path)).map_err(|e| e.to_string())?;
-    let items = thread_from(BufReader::new(f).lines().map_while(Result::ok));
-    let skip = items.len().saturating_sub(max_items.max(1));
-    Ok(items.into_iter().skip(skip).collect())
+    thread_tail(&PathBuf::from(expand_path(&path)), max_items.max(1), THREAD_TAIL)
+}
+
+/// The last `max` items, parsing only the file's last `window` bytes when that holds more than
+/// `max` items (the first one may be cut mid-message, so it must fall outside the kept ones);
+/// otherwise the whole file, as before.
+fn thread_tail(path: &Path, max: usize, window: u64) -> Result<Vec<ThreadItem>, String> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut f = fs::File::open(path).map_err(|e| e.to_string())?;
+    let len = f.metadata().map_err(|e| e.to_string())?.len();
+    let last = |items: Vec<ThreadItem>| {
+        let skip = items.len().saturating_sub(max);
+        items.into_iter().skip(skip).collect::<Vec<_>>()
+    };
+    if len > window {
+        f.seek(SeekFrom::Start(len - window)).map_err(|e| e.to_string())?;
+        let mut buf = Vec::new();
+        f.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+        // Drop the partial line the window starts in.
+        let from = buf.iter().position(|b| *b == b'\n').map(|i| i + 1).unwrap_or(buf.len());
+        let items = thread_from(String::from_utf8_lossy(&buf[from..]).lines().map(String::from));
+        if items.len() > max {
+            return Ok(last(items));
+        }
+        f.seek(SeekFrom::Start(0)).map_err(|e| e.to_string())?;
+    }
+    Ok(last(thread_from(BufReader::new(f).lines().map_while(Result::ok))))
 }
 
 #[cfg(test)]
@@ -435,5 +462,32 @@ mod tests {
             [("user", "fix the bug", false), ("assistant", "Looking.\n\nFound it.", false), ("tool", "cargo test", true), ("assistant", "Fixed.", false)]
         );
         assert_eq!(t[2].tool.as_deref(), Some("Bash"));
+    }
+
+    #[test]
+    fn the_tail_read_matches_a_full_parse() {
+        let dir = std::env::temp_dir().join(format!("aurelia-tail-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("t.jsonl");
+        let mut body = String::new();
+        for n in 0..400 {
+            body.push_str(&format!(r#"{{"type":"user","message":{{"content":"ask {n}"}}}}"#));
+            body.push('\n');
+            body.push_str(&format!(r#"{{"type":"assistant","message":{{"id":"m{n}","content":[{{"type":"text","text":"part one {n}"}}]}}}}"#));
+            body.push('\n');
+            body.push_str(&format!(r#"{{"type":"assistant","message":{{"id":"m{n}","content":[{{"type":"tool_use","id":"t{n}","name":"Bash","input":{{"command":"run {n}"}}}}]}}}}"#));
+            body.push('\n');
+            body.push_str(&format!(r#"{{"type":"user","message":{{"content":[{{"type":"tool_result","tool_use_id":"t{n}","is_error":{},"content":"x"}}]}}}}"#, n % 3 == 0));
+            body.push('\n');
+        }
+        fs::write(&path, &body).unwrap();
+        let full = thread_tail(&path, 30, u64::MAX).unwrap();
+        // Windows that cut mid-line, hold just enough, and hold too few (falls back to the whole file).
+        for window in [9_000, 5_000, 2_000, 300] {
+            assert_eq!(thread_tail(&path, 30, window).unwrap(), full, "window {window}");
+        }
+        assert_eq!(full.len(), 30);
+        assert_eq!(full.last().unwrap().text, "run 399");
+        fs::remove_dir_all(&dir).ok();
     }
 }

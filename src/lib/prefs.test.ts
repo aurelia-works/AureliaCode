@@ -61,3 +61,11 @@ test("the nightly review is off by default and its hour stays a whole hour of th
   assert.equal(normalizePrefs({ nightlyHour: 4.6 }).nightlyHour, 5);
   assert.equal(normalizePrefs({ nightlyHour: "3" }).nightlyHour, 3, "not a number: the default");
 });
+
+test("the splash hides as soon as the app paints unless you ask it to stay, up to 3 s", () => {
+  assert.equal(normalizePrefs({}).splashMinMs, 0);
+  assert.equal(normalizePrefs({ splashMinMs: 1600 }).splashMinMs, 1600);
+  assert.equal(normalizePrefs({ splashMinMs: 9000 }).splashMinMs, 3000);
+  assert.equal(normalizePrefs({ splashMinMs: -5 }).splashMinMs, 0);
+  assert.equal(normalizePrefs({ splashMinMs: "800" }).splashMinMs, 0, "not a number: the default");
+});

@@ -1233,8 +1233,12 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
     else drafts.delete(paneId);
   }, [paneId, text, atts]);
   // ↑ in an empty composer (or on its first line) walks back through what you sent, like a shell.
-  const items = useChat((s) => s.byPane[paneId]?.transcript.items);
-  const sent = useMemo(() => (items ?? []).flatMap((i) => (i.kind === "user" && i.text ? [i.text] : [])), [items]);
+  // Only the count is watched, so a streaming reply (new items every frame) doesn't re-render the composer.
+  const sentCount = useChat((s) => (s.byPane[paneId]?.transcript.items ?? []).reduce((n, i) => (i.kind === "user" && i.text ? n + 1 : n), 0));
+  const sent = useMemo(
+    () => (useChat.getState().byPane[paneId]?.transcript.items ?? []).flatMap((i) => (i.kind === "user" && i.text ? [i.text] : [])),
+    [paneId, sentCount],
+  );
   const [hist, setHist] = useState<{ at: number; draft: string } | null>(null);
   const recall = (dir: -1 | 1) => {
     const at = (hist?.at ?? sent.length) + dir;

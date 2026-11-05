@@ -741,6 +741,20 @@ mockIPC(
   { shouldMockEvents: true },
 );
 
+// `?ipcMs=4`: every IPC call (events included) takes that long, like a round trip to Rust,
+// so boot steps that wait on each other show up in `npm run perf`. `__ipcLog` counts every call.
+{
+  const internals = (window as any).__TAURI_INTERNALS__;
+  const inner = internals.invoke;
+  const ipcMs = Number(params.get("ipcMs") ?? 0);
+  if (params.get("perf")) (window as any).__perfProfile = { commits: 0, ms: 0 };
+  internals.invoke = async (cmd: string, args: unknown, opts: unknown) => {
+    ((window as any).__ipcLog ??= []).push({ cmd, at: performance.now() });
+    if (ipcMs) await new Promise((r) => setTimeout(r, ipcMs));
+    return inner(cmd, args, opts);
+  };
+}
+
 // Settle: boot, let PTYs paint, then play hook events through the real agent store.
 await import("../../src/main.tsx");
 const { useAgents } = await import("../../src/store/agents.ts");
@@ -1046,4 +1060,9 @@ if (view === "chat" && params.get("scroll") === "up") {
   if (log) log.scrollTop = 0;
   await sleep(100);
 }
+// Screens load lazily (App.tsx): screenshots wait until their code is in and React has drawn them.
+await (await import("../../src/App.tsx")).loadScreens();
+await new Promise((r) => setTimeout(r, 50));
+// A screen that just mounted is still fading in; finite animations settle first (spinners loop forever).
+await Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {})));
 (window as any).__ready = true;

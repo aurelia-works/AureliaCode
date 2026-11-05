@@ -150,7 +150,7 @@ pub fn project_slug(cwd: &str) -> String {
 /// The conversation a restored pane should reopen: `prefer` (the session the pane last
 /// ran) when its transcript is still there, else the newest conversation that account
 /// had in that folder. None when there is nothing to resume.
-#[tauri::command]
+#[tauri::command(async)]
 pub fn resumable_session(account: String, cwd: String, prefer: Option<String>) -> Option<String> {
     let cfg = config::load();
     let acct = cfg.accounts.iter().find(|a| a.name == account)?;
