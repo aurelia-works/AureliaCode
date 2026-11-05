@@ -1,3 +1,5 @@
+import { clampHoldSeconds } from "./greeting.ts";
+
 /** Switches and sizes for the thread-handling features (Settings → Threads & keys), kept in ui.json. */
 
 /** Which notices may reach you; permission prompts and errors always do. */
@@ -133,6 +135,12 @@ export interface ThreadPrefs {
   devServer: boolean;
   /** "Share read-only link" in a chat thread's menu (needs Remote on). */
   shareLink: boolean;
+  /** On the hour the title-bar wordmark morphs into "Morning, Jah", holds, and morphs back (lib/greeting.ts). */
+  greeting: boolean;
+  /** Seconds the greeting holds before it morphs back (2-20). */
+  greetingHoldS: number;
+  /** The name in the greeting; "" for just "Morning". */
+  greetingName: string;
   alerts: AlertPrefs;
 }
 
@@ -198,6 +206,9 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   mergeQueue: false,
   devServer: true,
   shareLink: true,
+  greeting: true,
+  greetingHoldS: 6,
+  greetingName: "Jah",
   alerts: DEFAULT_ALERTS,
 };
 
@@ -215,7 +226,9 @@ export function normalizePrefs(raw: unknown): ThreadPrefs {
   if (!raw || typeof raw !== "object") return out;
   const r = raw as Record<string, unknown>;
   for (const k of Object.keys(DEFAULT_PREFS) as (keyof ThreadPrefs)[]) {
-    if (k === "undoSeconds") {
+    if (k === "greetingHoldS") {
+      if (typeof r[k] === "number") out.greetingHoldS = clampHoldSeconds(r[k] as number);
+    } else if (k === "undoSeconds") {
       if (typeof r[k] === "number" && Number.isFinite(r[k])) out.undoSeconds = clampUndoSeconds(r[k] as number, DEFAULT_PREFS.undoSeconds);
     } else if (k === "alerts") {
       const a = (r.alerts && typeof r.alerts === "object" ? r.alerts : {}) as Record<string, unknown>;

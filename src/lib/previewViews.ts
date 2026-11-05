@@ -9,7 +9,7 @@ export const CORE_VIEWS: PreviewView[] = ["threads", "chat", "start", "settings"
 
 /** Every view the harness knows, in the order screenshots are listed. */
 export const ALL_VIEWS: PreviewView[] = [
-  "threads", "threads&toast=1", "threads&inbox=1", "threads&single=1", "threads&rail=changes", "threads&nav=right", "chat", "chat&opencode=1", "chat&attach=1", "chat&delegate=1", "chat&visual=1", "chat&goal=1", "chat&goal=dialog", "start", "board", "work", "review",
+  "threads", "threads&toast=1", "threads&inbox=1", "threads&greet=1", "threads&single=1", "threads&rail=changes", "threads&nav=right", "chat", "chat&opencode=1", "chat&attach=1", "chat&delegate=1", "chat&visual=1", "chat&goal=1", "chat&goal=dialog", "start", "board", "work", "review",
   "settings", "settings&section=accounts", "settings&section=providers", "palette", "files", "terminals", "permissions", "commit",
   "history", "agentview", "tray", "weekly", "roadmap",
   "remote", "remote&pane=chat", "remote&sheet=new",
@@ -42,6 +42,7 @@ const RULES: [RegExp, PreviewView[]][] = [
   [/^src\/components\/(AccountPicker|AccountSwitch)\.tsx$|^src\/components\/settings\/AccountsSection\.tsx$/, ["settings&section=accounts"]],
   [/^src\/components\/settings\/ProvidersSection\.tsx$|^src\/lib\/providers\.ts$|^src\/store\/providers\.ts$/, ["settings&section=providers", "chat"]],
   [/^src\/components\/(BackgroundInbox|Notices)\.tsx$|^src\/lib\/inbox\.ts$|^src\/styles\/notices\.css$/, ["threads&inbox=1"]],
+  [/^src\/components\/Wordmark\.tsx$|^src\/lib\/greeting\.ts$/, ["threads&greet=1"]],
   [/^src\/components\/settings\//, ["settings"]],
   [/^src\/components\/CommandPalette\.tsx$/, ["palette"]],
   [/^src\/components\/(FilesPanel|EditorPane|SearchPanel|ProblemsPanel)\.tsx$/, ["files"]],

@@ -864,6 +864,8 @@ if (view === "weekly") useUi.setState({ weeklyOpen: true });
 if (view === "roadmap") useUi.setState({ roadmapOpen: true, roadmapProject: params.get("project") });
 if (view === "settings") useUi.setState({ settingsOpen: true, settingsSection: params.get("section") });
 if (params.get("queue")) useUi.setState((s) => ({ prefs: { ...s.prefs, mergeQueue: true } }));
+// view=threads&greet=1: the title-bar wordmark plays its hourly greeting a moment after load.
+if (params.get("greet") === "1") setTimeout(() => useUi.setState({ greetingPlayAt: Date.now() }), 800);
 if (params.get("nav") === "right") useUi.setState((s) => ({ prefs: { ...s.prefs, navRight: true } }));
 if (params.get("overnight") === "1") {
   // view=board&overnight=1: the morning after a nightly review (store/nightly.ts) found one agreed bug.

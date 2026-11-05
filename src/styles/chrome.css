@@ -51,6 +51,52 @@
   font-weight: 500;
 }
 
+/* The wordmark (Wordmark.tsx): Instrument Serif italic. On the hour each letter blurs out a beat
+   after the one before it while the greeting's letters blur in, and the box eases to the new width. */
+.wm {
+  position: relative;
+  display: inline-block;
+  height: 24px;
+  font-family: "Instrument Serif", Georgia, serif;
+  font-style: italic;
+  font-weight: 400;
+  font-size: var(--fs-page);
+  line-height: 24px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  transition: width 620ms var(--ease);
+}
+.wm-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+.wm .wm-ch {
+  display: inline-block;
+  color: var(--text);
+  font-weight: 400;
+  transition:
+    opacity 360ms var(--ease),
+    filter 360ms var(--ease),
+    transform 360ms var(--ease);
+  transition-delay: calc(var(--i) * 28ms);
+}
+.wm .wm-ch.dim {
+  color: var(--text-faint);
+}
+.wm[data-show="brand"] .wm-greet .wm-ch,
+.wm[data-show="greeting"] .wm-brand .wm-ch {
+  opacity: 0;
+  filter: blur(6px);
+  transform: translateY(3px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .wm,
+  .wm .wm-ch {
+    transition: none;
+  }
+}
+
 .mode-switch {
   flex: none;
   display: inline-flex;
