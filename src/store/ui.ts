@@ -81,6 +81,8 @@ interface UiState {
   /** Pane whose checkpoints dialog is open. */
   checkpointsPaneId: string | null;
   fontDelta: number;
+  /** Set to Date.now() to play the title-bar greeting once (Settings → Appearance → Play it now). Not saved. */
+  greetingPlayAt: number;
   windowFocused: boolean;
 
   set(patch: Partial<Omit<UiState, "set">>): void;
@@ -120,6 +122,7 @@ export const useUi = create<UiState>((set) => ({
   promptFill: null,
   checkpointsPaneId: null,
   fontDelta: 0,
+  greetingPlayAt: 0,
   windowFocused: document.hasFocus(),
   set: (patch) => set(patch),
 }));

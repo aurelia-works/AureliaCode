@@ -1,9 +1,10 @@
 import { basename } from "../lib/format";
 import { useUi } from "../store/ui";
-import { AureliaMark, SidebarIcon } from "./Icons";
+import { SidebarIcon } from "./Icons";
 import { UsageStrip } from "./UsageStrip";
 import { NoticeBell } from "./Notices";
 import { FocusChip } from "./planner/FocusChip";
+import { Wordmark } from "./Wordmark";
 
 /** A pane's short title: the command running in it, else its folder. */
 export function paneTitle(cwd: string | undefined, running: string | undefined): string {
@@ -27,10 +28,7 @@ export function TitleBar() {
         <SidebarIcon />
       </button>
       <div className="brand" data-tauri-drag-region>
-        <AureliaMark className="brand-mark" width={20} height={20} />
-        <span className="brand-name" data-tauri-drag-region>
-          Aurelia<span>Code</span>
-        </span>
+        <Wordmark />
         <DevMark />
       </div>
       <span className="tb-sp" data-tauri-drag-region />

@@ -1,8 +1,52 @@
+import { HOLD_SECONDS, clampHoldSeconds } from "../../lib/greeting";
 import { PALETTES, swatchColors } from "../../lib/palettes";
+import type { ThreadPrefs } from "../../lib/prefs";
 import { resolveDark } from "../../lib/theme";
 import { useConfig } from "../../store/config";
 import { useUi } from "../../store/ui";
 import type { SectionProps } from "./registry";
+
+const setPrefs = (patch: Partial<ThreadPrefs>) => useUi.getState().set({ prefs: { ...useUi.getState().prefs, ...patch } });
+
+/** The title-bar wordmark and its hourly greeting (dev panel: on/off, hold, name, play). Applies at once. */
+function WordmarkGroup() {
+  const on = useUi((s) => s.prefs.greeting);
+  const hold = useUi((s) => s.prefs.greetingHoldS);
+  const name = useUi((s) => s.prefs.greetingName);
+  return (
+    <section className="set-group">
+      <h3>Wordmark</h3>
+      <label className="field check">
+        <input type="checkbox" checked={on} onChange={(e) => setPrefs({ greeting: e.target.checked })} />
+        <span>Hourly greeting</span>
+      </label>
+      <p className="hint">On the hour, “AureliaCode” in the title bar turns into “Morning, {name.trim() || "…"}”, holds, then turns back. With reduce motion it swaps without the morph.</p>
+      <label className="field">
+        <span>Hold</span>
+        <input
+          type="range"
+          min={HOLD_SECONDS.min}
+          max={HOLD_SECONDS.max}
+          step={1}
+          value={hold}
+          disabled={!on}
+          aria-label="Greeting hold in seconds"
+          onChange={(e) => setPrefs({ greetingHoldS: clampHoldSeconds(Number(e.target.value)) })}
+        />
+        <span className="hint inline">{hold} s</span>
+      </label>
+      <label className="field">
+        <span>Name</span>
+        <input value={name} placeholder="No name: just “Morning”" disabled={!on} onChange={(e) => setPrefs({ greetingName: e.target.value })} spellCheck={false} />
+      </label>
+      <p className="hint">
+        <button type="button" className="link-btn" disabled={!on} onClick={() => useUi.getState().set({ greetingPlayAt: Date.now() })}>
+          Play it now
+        </button>
+      </p>
+    </section>
+  );
+}
 
 export function AppearanceSection({ draft, update }: SectionProps) {
   const terms = useUi((s) => s.prefs.legacyTerminals);
@@ -79,6 +123,8 @@ export function AppearanceSection({ draft, update }: SectionProps) {
         </label>
         <p className="hint">Shows agent logos in their own colour, like Claude's orange. Off, colour only ever means a thread's state.</p>
       </section>
+
+      <WordmarkGroup />
 
       {terms && <section className="set-group">
         <h3>Terminal</h3>

@@ -47,16 +47,10 @@ body {
     transform: scale(1, 1);
   }
 }
-.pulsing .brand-mark,
 .pulsing .bell.working {
   animation: deep-pulse var(--beat) cubic-bezier(0.22, 1, 0.36, 1) infinite;
 }
-.brand-mark {
-  transform-origin: 50% 40%;
-  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--attn) 30%, transparent));
-}
 @media (prefers-reduced-motion: reduce) {
-  .pulsing .brand-mark,
   .pulsing .bell.working {
     animation: none;
   }
@@ -76,10 +70,6 @@ body {
   font-size: var(--fs-body);
   font-weight: 600;
   letter-spacing: -0.01em;
-}
-.brand-name span {
-  font-weight: 400;
-  color: var(--text-dim);
 }
 .tb-sp {
   flex: 1;
