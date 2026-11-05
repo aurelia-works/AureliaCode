@@ -22,6 +22,7 @@ const REVIEW_SWITCHES: Switch[] = [
   { key: "threadFamily", label: "Thread family on cards", hint: "Which thread started this one, and how many it started" },
   { key: "mergeQueue", label: "Merge queue", hint: "Thread menu → Add to merge queue: rebase, wait for checks and a reviewer PASS for that commit, then squash-merge, one PR at a time" },
   { key: "devServer", label: "Dev server per thread", hint: "Thread menu → Start dev server: the repo's dev script on its own free port, so worktrees don't fight over 5173" },
+  { key: "shareLink", label: "Share a thread read-only", hint: "Chat thread menu → Share read-only link: a 24-hour link over Remote (your tailnet). Guests read it; what they send waits for your OK" },
 ];
 
 const SWITCHES: Switch[] = [

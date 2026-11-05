@@ -2638,6 +2638,18 @@ body.resizing-row .rail-grip {
   color: var(--text);
 }
 
+/* A thread with a live read-only share link (store/shares.ts): it's visible to someone else. */
+.th-shared {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: var(--r-xs);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  background: var(--attn-soft);
+  color: var(--warn);
+  white-space: nowrap;
+}
+
 /* Composer attachments (AttachChips.tsx): one chip per file, saying what will happen to it. */
 .chat-attach {
   list-style: none;

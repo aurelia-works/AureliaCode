@@ -18,10 +18,10 @@
 //! which then listens on this Mac only (unless LAN is allowed too).
 
 use axum::extract::ws::{Message, WebSocket, WebSocketUpgrade};
-use axum::extract::{ConnectInfo, Query, State};
+use axum::extract::{ConnectInfo, Path, Query, State};
 use axum::http::{header, HeaderMap, StatusCode, Uri};
 use axum::response::{IntoResponse, Response};
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::Router;
 use futures_util::{SinkExt, StreamExt};
 use serde::Serialize;
@@ -358,6 +358,137 @@ async fn ws(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr
     upgrade.on_upgrade(move |socket| session(ctx, socket, token))
 }
 
+// ---------------------------------------------------------------- share links (share.rs)
+//
+// A guest's token is only ever looked up in share.rs; `paired()` never accepts it, so it opens no socket and no
+// remote page. The address allowlist applies as everywhere else.
+
+/// The token is in the URL: no referrer leaves the page, nothing is cached, and the page can only talk to us.
+fn guest_headers() -> [(header::HeaderName, &'static str); 5] {
+    [
+        (header::CACHE_CONTROL, "no-store"),
+        (header::REFERRER_POLICY, "no-referrer"),
+        (header::X_CONTENT_TYPE_OPTIONS, "nosniff"),
+        (header::X_FRAME_OPTIONS, "DENY"),
+        (
+            header::CONTENT_SECURITY_POLICY,
+            "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        ),
+    ]
+}
+
+fn no_share() -> Response {
+    (StatusCode::NOT_FOUND, guest_headers(), "This link has expired or was stopped.").into_response()
+}
+
+async fn share_page(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr>, Path(token): Path<String>) -> Response {
+    if !allowed(addr.ip(), ctx.allow_lan) {
+        return forbidden();
+    }
+    if crate::share::SHARES.lock().unwrap().pane_of(&token, crate::share::now()).is_none() {
+        return no_share();
+    }
+    let mut res = (StatusCode::OK, guest_headers(), SHARE_PAGE).into_response();
+    res.headers_mut().insert(header::CONTENT_TYPE, header::HeaderValue::from_static("text/html; charset=utf-8"));
+    res
+}
+
+async fn share_feed(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr>, Path(token): Path<String>) -> Response {
+    if !allowed(addr.ip(), ctx.allow_lan) {
+        return forbidden();
+    }
+    let now = crate::share::now();
+    let shares = crate::share::SHARES.lock().unwrap();
+    let Some(feed) = shares.feed(&token, now) else { return no_share() };
+    let body = json!({ "feed": feed, "waiting": shares.pending_for(&token, now) }).to_string();
+    let mut res = (StatusCode::OK, guest_headers(), body).into_response();
+    res.headers_mut().insert(header::CONTENT_TYPE, header::HeaderValue::from_static("application/json"));
+    res
+}
+
+async fn share_ask(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr>, Path(token): Path<String>, headers: HeaderMap, body: String) -> Response {
+    if !allowed(addr.ip(), ctx.allow_lan) {
+        return forbidden();
+    }
+    // A form on another site can't send JSON without a preflight, which we never answer.
+    let json_body = headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).is_some_and(|v| v.starts_with("application/json"));
+    if !json_body {
+        return (StatusCode::UNSUPPORTED_MEDIA_TYPE, guest_headers(), "Send JSON.").into_response();
+    }
+    let text = serde_json::from_str::<Value>(&body).ok().and_then(|v| v["text"].as_str().map(String::from)).unwrap_or_default();
+    let id = crate::pairing::random_hex(8);
+    let result = crate::share::SHARES.lock().unwrap().ask(&token, &text, id, crate::share::now());
+    use crate::share::AskError::*;
+    let (status, msg) = match result {
+        Ok(()) => (StatusCode::ACCEPTED, "Sent for approval. It reaches the thread only if they say yes."),
+        Err(NoShare) => return no_share(),
+        Err(Empty) => (StatusCode::BAD_REQUEST, "Write something first."),
+        Err(TooLong) => (StatusCode::PAYLOAD_TOO_LARGE, "That's too long: 2000 characters at most."),
+        Err(TooMany) => (StatusCode::TOO_MANY_REQUESTS, "Three messages are already waiting for an answer."),
+    };
+    if status == StatusCode::ACCEPTED {
+        ctx.host.action(json!({ "kind": "shareAsk" }));
+    }
+    (status, guest_headers(), msg).into_response()
+}
+
+/// The base URLs share links use (the same ways in as pairing). Refuses while the server is off, and when no other
+/// device could reach it: a loopback link would look fine here and never open for a guest. Slow: runs the
+/// tailscale CLI.
+pub fn share_bases() -> Result<Vec<String>, String> {
+    let port = running_port().ok_or("Turn on Remote in Settings first: share links use its server")?;
+    let cfg = crate::config::load().remote;
+    let ts = crate::tailscale::info();
+    let out: Vec<String> = bases(&cfg, port, &ts, serving()).into_iter().map(|l| l.url).collect();
+    if out.is_empty() {
+        return Err("No one else can reach this Mac yet: connect Tailscale, or allow the local network in Settings → Remote".into());
+    }
+    Ok(out)
+}
+
+/// The guest's page: the conversation, read only, and a box whose messages wait for approval. Text is set with
+/// textContent, never as HTML, so nothing in the thread can run here.
+const SHARE_PAGE: &str = r#"<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
+<meta name=referrer content=no-referrer><title>Shared thread</title>
+<style>
+:root{color-scheme:dark;--bg:#08090c;--fg:#ece8e1;--dim:#a7aab2;--line:#23252b;--card:#111317}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 -apple-system,system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px 16px 140px}
+h1{font-size:18px;margin:8px 0 2px}.sub{color:var(--dim);font-size:13px;margin:0 0 16px}
+.m{padding:10px 12px;border-radius:10px;margin:8px 0;white-space:pre-wrap;word-wrap:break-word}
+.user{background:var(--card);border:1px solid var(--line)}.text{padding-left:0}
+.tool,.notice,.turn{color:var(--dim);font-size:13px;padding:2px 0}.failed{color:#f0a37a}
+form{position:fixed;left:0;right:0;bottom:0;background:var(--bg);border-top:1px solid var(--line);padding:12px 16px}
+.row{max-width:760px;margin:0 auto;display:flex;gap:8px}textarea{flex:1;resize:none;height:44px;background:var(--card);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit}
+button{background:var(--fg);color:var(--bg);border:0;border-radius:10px;padding:0 16px;font:600 14px system-ui}
+#note{max-width:760px;margin:6px auto 0;color:var(--dim);font-size:12px}
+</style>
+<main><h1 id=title>Shared thread</h1><p class=sub id=sub>Read only. Messages you send wait for the owner's OK.</p><div id=log></div></main>
+<form id=f><div class=row><textarea id=t maxlength=2000 placeholder="Ask something (the owner approves it first)"></textarea><button>Send</button></div><p id=note></p></form>
+<script>
+const base = location.pathname.replace(/\/$/, "");
+const log = document.getElementById("log"), note = document.getElementById("note");
+let last = "";
+function line(i){const d=document.createElement("div");d.className="m "+i.kind+(i.failed?" failed":"");d.textContent=i.kind==="tool"?(i.name+(i.text?" · "+i.text:"")):i.text;return d}
+async function poll(){
+  try{
+    const r=await fetch(base+"/feed",{cache:"no-store"});
+    if(!r.ok){document.getElementById("sub").textContent="This link has expired or was stopped.";document.getElementById("f").hidden=true;return}
+    const {feed,waiting}=await r.json();
+    const key=JSON.stringify(feed);
+    if(key!==last){last=key;const atEnd=innerHeight+scrollY>=document.body.scrollHeight-40;
+      document.getElementById("title").textContent=(feed&&feed.title)||"Shared thread";
+      log.replaceChildren(...((feed&&feed.items)||[]).map(line));if(atEnd)scrollTo(0,document.body.scrollHeight)}
+    note.textContent=waiting?waiting+" waiting for the owner's OK":"";
+  }catch{}
+  setTimeout(poll,3000);
+}
+document.getElementById("f").addEventListener("submit",async e=>{e.preventDefault();const t=document.getElementById("t");if(!t.value.trim())return;
+  const r=await fetch(base+"/ask",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:t.value})});
+  note.textContent=await r.text();if(r.ok)t.value=""});
+poll();
+</script></html>"#;
+
 const MANIFEST: &str = r##"{"name":"AureliaBot","short_name":"Aurelia","start_url":"/","display":"standalone","background_color":"#08090c","theme_color":"#08090c","icons":[{"src":"/icon.png","sizes":"256x256","type":"image/png"}]}"##;
 
 async fn files(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<SocketAddr>, headers: HeaderMap, uri: Uri) -> Response {
@@ -526,6 +657,9 @@ fn start(host: Arc<dyn Host>, port: u16, allow_lan: bool, local_only: bool) -> R
         .route("/pair", get(pair))
         .route("/healthz", get(healthz))
         .route("/ws", get(ws))
+        .route("/s/{token}", get(share_page))
+        .route("/s/{token}/feed", get(share_feed))
+        .route("/s/{token}/ask", post(share_ask))
         .fallback(files)
         .with_state(ctx)
         .into_make_service_with_connect_info::<SocketAddr>();
@@ -926,6 +1060,96 @@ mod tests {
         assert_eq!(got, b"hello world");
         exit(pane);
         assert!(matches!(rx.try_recv(), Ok(Out::Exit)));
+    }
+
+    /// Records what the server asked the app to do, so a test can show a guest never typed into a pane.
+    #[derive(Default)]
+    struct Recorder {
+        writes: Mutex<Vec<String>>,
+        actions: Mutex<Vec<Value>>,
+    }
+
+    impl Host for Recorder {
+        fn write(&self, pane: &str, data: &[u8]) -> Result<(), String> {
+            self.writes.lock().unwrap().push(format!("{pane}: {}", String::from_utf8_lossy(data)));
+            Ok(())
+        }
+        fn resize(&self, _: &str, _: u16, _: u16) -> Result<(), String> {
+            Ok(())
+        }
+        fn action(&self, action: Value) {
+            self.actions.lock().unwrap().push(action);
+        }
+        fn asset(&self, _: &str) -> Option<(Vec<u8>, String)> {
+            Some((b"<html>remote page</html>".to_vec(), "text/html".into()))
+        }
+        fn clients(&self, _: usize) {}
+    }
+
+    /// One raw HTTP/1.1 request; returns the status code and the whole response text.
+    fn http(port: u16, req: &str) -> (u16, String) {
+        use std::io::{Read, Write};
+        let mut s = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+        s.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+        s.write_all(req.as_bytes()).unwrap();
+        let mut out = String::new();
+        let _ = s.read_to_string(&mut out);
+        let code = out.split_whitespace().nth(1).and_then(|c| c.parse().ok()).unwrap_or(0);
+        (code, out)
+    }
+
+    /// The whole guest path through the real server: a share token reads only its thread, opens nothing else, and
+    /// its message waits for approval without reaching the pane.
+    #[test]
+    fn a_share_link_is_read_only_and_scoped_to_one_thread() {
+        let host = Arc::new(Recorder::default());
+        let port = start(host.clone(), 0, false, true).unwrap();
+        let now = crate::share::now();
+        let (a, b) = ("tok-share-a-0123456789abcdef", "tok-share-b-0123456789abcdef");
+        {
+            let mut sh = crate::share::SHARES.lock().unwrap();
+            sh.create("pane-a", a.into(), now);
+            sh.create("pane-b", b.into(), now);
+            sh.set_feed("pane-a", json!({ "title": "A", "items": [{ "kind": "text", "text": "plan for A" }] }), now);
+            sh.set_feed("pane-b", json!({ "title": "B", "items": [{ "kind": "text", "text": "plan for B" }] }), now);
+        }
+        let get = |path: &str, extra: &str| http(port, &format!("GET {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{extra}Connection: close\r\n\r\n"));
+
+        let (code, page) = get(&format!("/s/{a}"), "");
+        assert_eq!(code, 200);
+        assert!(page.to_lowercase().contains("content-security-policy: default-src 'none'"), "{page}");
+        assert!(page.to_lowercase().contains("referrer-policy: no-referrer"));
+
+        let (code, feed) = get(&format!("/s/{a}/feed"), "");
+        assert_eq!(code, 200);
+        assert!(feed.contains("plan for A") && !feed.contains("plan for B"), "token A reads thread A only: {feed}");
+        assert_eq!(get("/s/not-a-token/feed", "").0, 404);
+        assert_eq!(get("/s/not-a-token", "").0, 404);
+
+        // The share token is not a pairing cookie: no socket, no remote page.
+        let cookie = format!("Cookie: {COOKIE}={a}\r\n");
+        let ws_req = format!("{cookie}Origin: http://127.0.0.1:{port}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n");
+        assert_eq!(http(port, &format!("GET /ws HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\n{ws_req}\r\n")).0, 401);
+        let (code, home) = get("/", &cookie);
+        assert_eq!(code, 401, "{home}");
+        assert!(!home.contains("remote page"));
+
+        let post = |path: &str, ctype: &str, body: &str| {
+            http(port, &format!("POST {path} HTTP/1.1\r\nHost: 127.0.0.1:{port}\r\nContent-Type: {ctype}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()))
+        };
+        assert_eq!(post(&format!("/s/{a}/ask"), "application/x-www-form-urlencoded", "text=hi").0, 415, "a cross-site form can't post");
+        let (code, said) = post(&format!("/s/{a}/ask"), "application/json", r#"{"text":"please run the tests"}"#);
+        assert_eq!(code, 202, "{said}");
+        assert!(host.writes.lock().unwrap().is_empty(), "a guest's message never types into a pane");
+        assert_eq!(*host.actions.lock().unwrap(), vec![json!({ "kind": "shareAsk" })], "the app is only told to look");
+        let pending = crate::share::SHARES.lock().unwrap().pending();
+        assert!(pending.iter().any(|q| q.pane == "pane-a" && q.text == "please run the tests"));
+        assert_eq!(post("/s/not-a-token/ask", "application/json", r#"{"text":"hi"}"#).0, 404);
+
+        crate::share::SHARES.lock().unwrap().revoke("pane-a");
+        assert_eq!(get(&format!("/s/{a}/feed"), "").0, 404, "a stopped link dies at once");
+        crate::share::SHARES.lock().unwrap().revoke("pane-b");
+        stop();
     }
 
     struct Demo {

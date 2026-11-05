@@ -32,6 +32,7 @@ import { trackNoticeFocus, useNotices } from "./store/notifications";
 import { useConfig } from "./store/config";
 import { startGitPolling } from "./store/git";
 import { startPrPolling } from "./store/prs";
+import { startShares } from "./store/shares";
 import { startMergeQueue } from "./store/mergeQueue";
 import { startDevServerWatch } from "./store/devServers";
 import { serializeLayout, useLayout, type SavedLayout } from "./store/layout";
@@ -122,6 +123,7 @@ async function boot() {
   startUsagePolling();
   startGitPolling();
   startPrPolling();
+  startShares().catch(() => {});
   startMergeQueue().catch(() => {});
   startDevServerWatch();
   trackAttention();

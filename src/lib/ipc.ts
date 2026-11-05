@@ -249,6 +249,14 @@ export interface DevInfo {
   running: boolean;
 }
 
+/** A guest's message on a share link, waiting for your OK (src-tauri/src/share.rs). */
+export interface ShareAsk {
+  id: string;
+  pane: string;
+  text: string;
+  at: number;
+}
+
 /** The pull request for a branch (src-tauri/src/pr.rs). */
 export interface PrInfo {
   number: number;
@@ -572,6 +580,15 @@ export const ipc = {
   /** The working tree against the thread's last checkpoint ("turn") or its branch's base ("branch"). */
   diffScope: (cwd: string, pane: string, scope: "turn" | "branch") => invoke<Diff>("diff_scope", { cwd, pane, scope }),
   prStatus: (cwd: string) => invoke<PrInfo | null>("pr_status", { cwd }),
+  /** A read-only guest link for a chat thread, on the Remote server (fails while Remote is off). */
+  shareCreate: (pane: string) => invoke<{ pane: string; urls: string[]; expires: number }>("share_create", { pane }),
+  shareRevoke: (pane: string) => invoke<void>("share_revoke", { pane }),
+  shareList: () => invoke<{ pane: string; expires: number }[]>("share_list"),
+  /** What guests see; refused (false) for a thread that isn't shared. */
+  shareFeed: (pane: string, feed: unknown) => invoke<boolean>("share_feed", { pane, feed }),
+  shareAsks: () => invoke<ShareAsk[]>("share_asks"),
+  /** Removes a guest's message (sent or declined) and returns it. */
+  shareTake: (id: string) => invoke<ShareAsk | null>("share_take", { id }),
   /** Runs the repo's dev (or start) script on a free port for this thread; one per thread. */
   devServerStart: (pane: string, cwd: string) => invoke<DevInfo>("dev_server_start", { pane, cwd }),
   devServerStop: (pane: string) => invoke<void>("dev_server_stop", { pane }),

@@ -607,6 +607,18 @@ mockIPC(
         return [];
       case "dev_server_stop":
         return null;
+      // ?share=1: the web chat thread (p10) is shared and a guest has asked something.
+      case "share_list":
+        return params.get("share") ? [{ pane: "p10", expires: Math.floor(Date.now() / 1000) + 20 * 3600 }] : [];
+      case "share_asks":
+        return params.get("share") ? [{ id: "q1", pane: "p10", text: "Could you also cover the Escape key in the settings nav test?", at: Math.floor(Date.now() / 1000) }] : [];
+      case "share_create":
+        return { pane: args.pane, urls: ["https://mac.tailnet.ts.net/s/3f9c0d7a"], expires: Math.floor(Date.now() / 1000) + 86400 };
+      case "share_feed":
+        return true;
+      case "share_take":
+      case "share_revoke":
+        return null;
       case "pr_status":
         return PRS[String(args.cwd).split("/").pop()!] ?? null;
       case "fetch_usage":
