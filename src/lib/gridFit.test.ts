@@ -4,8 +4,9 @@ import { gridFits, layoutMinWidth, PANE_MIN_WIDTH } from "./gridFit.ts";
 import type { LayoutNode } from "../store/layout.ts";
 
 const pane = (id: string): LayoutNode => ({ type: "pane", id });
-const row = (a: LayoutNode, b: LayoutNode, ratio = 0.5): LayoutNode => ({ type: "split", id: `r-${Math.random()}`, dir: "row", ratio, a, b });
-const col = (a: LayoutNode, b: LayoutNode, ratio = 0.5): LayoutNode => ({ type: "split", id: `c-${Math.random()}`, dir: "column", ratio, a, b });
+let n = 0;
+const row = (a: LayoutNode, b: LayoutNode, ratio = 0.5): LayoutNode => ({ type: "split", id: `r${n++}`, dir: "row", ratio, a, b });
+const col = (a: LayoutNode, b: LayoutNode, ratio = 0.5): LayoutNode => ({ type: "split", id: `c${n++}`, dir: "column", ratio, a, b });
 
 // The preview's six-thread tab: three columns of two, made of nested row splits (1/3 + 2/3 of 1/2 each).
 const sixGrid = row(col(pane("a"), pane("d")), row(col(pane("b"), pane("e")), col(pane("c"), pane("f"))), 1 / 3);

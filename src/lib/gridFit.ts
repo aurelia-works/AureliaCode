@@ -5,11 +5,11 @@ import type { LayoutNode } from "../store/layout.ts";
 /** Narrowest a grid pane may be before the grid folds to one pane. */
 export const PANE_MIN_WIDTH = 260;
 
-/** The stage width this layout needs so that every pane gets at least `min` px at its current ratios. */
-export function layoutMinWidth(node: LayoutNode, min = PANE_MIN_WIDTH): number {
-  if (node.type === "pane") return min;
-  const a = layoutMinWidth(node.a, min);
-  const b = layoutMinWidth(node.b, min);
+/** The stage width this layout needs so that every pane gets at least PANE_MIN_WIDTH at its current ratios. */
+export function layoutMinWidth(node: LayoutNode): number {
+  if (node.type === "pane") return PANE_MIN_WIDTH;
+  const a = layoutMinWidth(node.a);
+  const b = layoutMinWidth(node.b);
   if (node.dir === "column") return Math.max(a, b);
   // Side by side: each child gets its share of the width, so the narrow share sets the need.
   const r = Math.min(0.95, Math.max(0.05, node.ratio));
@@ -17,6 +17,6 @@ export function layoutMinWidth(node: LayoutNode, min = PANE_MIN_WIDTH): number {
 }
 
 /** True when the grid fits `width`. An unmeasured stage (0) counts as fitting. */
-export function gridFits(node: LayoutNode, width: number, min = PANE_MIN_WIDTH): boolean {
-  return width <= 0 || node.type === "pane" || width >= layoutMinWidth(node, min) - 0.5;
+export function gridFits(node: LayoutNode, width: number): boolean {
+  return width <= 0 || node.type === "pane" || width >= layoutMinWidth(node) - 0.5;
 }
