@@ -43,6 +43,13 @@ test("a bare fragment gets a document around it", () => {
   assert.match(doc, /color-scheme: light/);
 });
 
+test("a <header> or <html-like> tag is not mistaken for <head> or <html>", () => {
+  const doc = visualSrcdoc('<header class="hero">Hi</header>', {}, "light");
+  assert.match(doc, /^<!doctype html><html><head>/);
+  assert.match(doc, /<body><header class="hero">Hi<\/header><\/body><\/html>$/);
+  assert.match(visualSrcdoc("<html-card>x</html-card>", {}, "light"), /<body><html-card>x<\/html-card><\/body>/);
+});
+
 test("a theme value can't close the style tag", () => {
   const doc = visualSrcdoc("x", { "--bg": "red</style><script>alert(1)</script>" }, "dark");
   assert.doesNotMatch(doc, /red<\/style>/);

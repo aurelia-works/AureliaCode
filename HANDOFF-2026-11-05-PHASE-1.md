@@ -14,7 +14,7 @@ Plan: `PLAN.md` in the main checkout (the UI pass plan; uncommitted there). Bran
 - Files: `src/lib/visualReply.ts` (+ test), `src/components/VisualReply.tsx`, `ChatPane.tsx` (WorkBlock), `deep.css`, `control.rs` (+ test).
 
 ## Evidence
-- `npx tsc --noEmit -p .`: no output. `npm test`: pass 401, fail 0 (8 new). `cargo test`: 192 passed (1 new). `npm run build`: built in 237ms. `npm run app:build:dev`: Finished 1 bundle.
+- `npx tsc --noEmit -p .`: no output. `npm test`: pass 402, fail 0 (9 new). `cargo test`: 192 passed (1 new). `npm run build`: built in 237ms. `npm run app:build:dev`: Finished 1 bundle.
 - Haiku Playwright check: 10/10 PASS (sandbox, theme var, height 214 px, card above answer, expand 815 px, Esc closes, live theme follow, no console errors).
 - GIFs: `.shots/pr/chat-visual-1-clip.gif` (static view), `.shots/pr/visual-reply-expand.gif` (card → expand → back).
 

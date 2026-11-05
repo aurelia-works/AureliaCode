@@ -70,10 +70,10 @@ export function visualSrcdoc(html: string, vars: Record<string, string>, scheme:
     `<meta charset="utf-8"><style>:root { color-scheme: ${scheme}; ${decls} }\n` +
     `html, body { margin: 0; } body { padding: 14px 16px; color: var(--text); font: 13px/1.55 var(--font-ui, system-ui, sans-serif); }\n` +
     `a { color: var(--accent-strong, var(--accent)); }</style><script>${BRIDGE}</script>`;
-  const open = html.match(/<head[^>]*>/i);
+  const open = html.match(/<head(?=[\s>])[^>]*>/i);
   if (open) return html.replace(open[0], `${open[0]}${head}`);
   const doctype = html.match(/^\s*<!doctype[^>]*>/i);
-  const htmlTag = html.match(/<html[^>]*>/i);
+  const htmlTag = html.match(/<html(?=[\s>])[^>]*>/i);
   if (htmlTag) return html.replace(htmlTag[0], `${htmlTag[0]}<head>${head}</head>`);
   const body = doctype ? html.slice(doctype[0].length) : html;
   return `<!doctype html><html><head>${head}</head><body>${body}</body></html>`;
