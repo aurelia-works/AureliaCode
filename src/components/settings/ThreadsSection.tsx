@@ -54,6 +54,7 @@ const SWITCHES: Switch[] = [
   { key: "oneHeader", label: "One header style for every thread", hint: "Grid panes show state, folder / thread and More, like the chat view. Off: the older chips and icon buttons" },
   { key: "briefFeed", label: "Recent steps on grid cards", hint: "The last few things each agent did, under its status" },
   { key: "signalsFolded", label: "Fold Signals on the board", hint: "One line with the count; click to open" },
+  { key: "inbox", label: "Background inbox in Alerts", hint: "Delegations, routines, the nightly review, PR babysits and team runs in one list" },
   { key: "headerModeChip", label: "Branch, cost, mode and account chips in the thread header", hint: "The sidebar row and the composer already show them" },
   { key: "bloom", label: "Jellyfish on the start screen", hint: "One per live thread" },
 ];

@@ -1,3 +1,4 @@
+import { create } from "zustand";
 import { useAgents } from "../store/agents";
 import { useConfig } from "../store/config";
 import { useLayout } from "../store/layout";
@@ -17,6 +18,9 @@ import { readSaved } from "./savedState";
  */
 let lastRun: Record<string, number> = {};
 const lastPane = new Map<string, string>();
+
+/** Routines run this session and the pane each opened, for the background inbox. */
+export const useRoutineRuns = create<{ runs: Record<string, { at: number; paneId: string }> }>(() => ({ runs: {} }));
 const startedAt = Date.now();
 
 /** False when routines.json couldn't be read: its run times aren't replaced by this session's. */
@@ -30,6 +34,7 @@ export function runRoutine(r: Routine): string {
   if (chat) queueFirstMessage(paneId, r.prompt);
   else queueInit(paneId, `claude ${shellQuote(r.prompt)}`);
   lastPane.set(r.id, paneId);
+  useRoutineRuns.setState((s) => ({ runs: { ...s.runs, [r.id]: { at: Date.now(), paneId } } }));
   lastRun = { ...lastRun, [r.id]: Date.now() };
   void save();
   useNotices.getState().push({ kind: "info", key: `routine:${r.id}`, paneId, title: `Routine started: ${r.name || "untitled"}`, body: r.prompt.slice(0, 160) });

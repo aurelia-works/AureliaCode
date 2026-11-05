@@ -270,3 +270,40 @@
 .app:has(.rail):not(:has(.page)):not(:has(.settings-page)) .notice-stack {
   right: calc(var(--rail-w) + 12px);
 }
+
+/* Alerts → Inbox (BackgroundInbox.tsx): background work, what needs you first. */
+.notice-tabs {
+  margin: 0;
+}
+.notice-tabs button {
+  font-weight: 600;
+}
+.inbox-row:disabled {
+  cursor: default;
+}
+.inbox-row:disabled:hover {
+  background: none;
+}
+.inbox-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.inbox-dot.running {
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.inbox-dot.waiting {
+  border-radius: 2px;
+  transform: rotate(45deg) scale(0.9);
+  background: var(--attn);
+}
+.inbox-dot.failed {
+  background: var(--err);
+}
+.inbox-row.done {
+  opacity: 0.7;
+}
