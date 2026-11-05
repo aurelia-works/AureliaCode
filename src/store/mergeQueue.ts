@@ -5,9 +5,10 @@ import { active, advance, enqueue, verdictFor, type QueueEvent, type QueueItem }
 import { prNumberRef } from "../lib/threadTools";
 import { useAgents } from "./agents";
 import { paneDir } from "./git";
-import { alertUser } from "./notifications";
+import { alertUser, warnUnreadable } from "./notifications";
 import { panePr } from "./prs";
 import { toast, useUi } from "./ui";
+import { readSaved } from "../lib/savedState";
 
 /** One step of the active item per tick: gh calls GitHub, so this stays slow. */
 const TICK_MS = 20_000;
@@ -22,7 +23,11 @@ export const useMergeQueue = create<QueueState>(() => ({ items: [], syncedAt: {}
 
 export const queueItemOf = (items: QueueItem[], paneId: string) => items.find((i) => i.paneId === paneId);
 
+/** False when mergequeue.json couldn't be read: the queue there isn't replaced by this session's. */
+let canSave = true;
+
 function save() {
+  if (!canSave) return;
   // Merged items don't need to come back after a restart; bounced ones stay until you act on them.
   void ipc.saveState("mergequeue", useMergeQueue.getState().items.filter((i) => i.stage !== "merged")).catch(() => {});
 }
@@ -116,7 +121,12 @@ export async function tick() {
 }
 
 export async function startMergeQueue() {
-  const saved = await ipc.loadState<QueueItem[]>("mergequeue").catch(() => null);
+  const r = await readSaved(() => ipc.loadState<QueueItem[]>("mergequeue"));
+  if (!r.ok) {
+    canSave = false;
+    warnUnreadable("mergequeue.json", r.error);
+  }
+  const saved = r.ok ? r.value : null;
   if (Array.isArray(saved)) {
     // A sync cut off by a quit starts over: it refuses a dirty tree and rebasing twice is harmless.
     useMergeQueue.setState({ items: saved.map((i) => (i.stage === "syncing" || i.stage === "checks" ? { ...i, stage: "queued" } : i)) });

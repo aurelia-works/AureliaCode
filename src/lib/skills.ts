@@ -113,3 +113,11 @@ export function skillPrompt(skill: Skill, task: string): string {
 export function skillLabel(skill: Skill): string {
   return skill.name.replace(/^ds-/, "").replace(/-/g, " ");
 }
+
+/** The roots skills.json holds. An empty list is a choice (you removed them all) and stays empty. No file, or `roots`
+ * that isn't a list, gets the defaults; malformed entries are dropped. */
+export function savedRoots(saved: unknown): SkillRoot[] {
+  const roots = (saved as { roots?: unknown } | null)?.roots;
+  if (!Array.isArray(roots)) return DEFAULT_SKILL_ROOTS;
+  return roots.filter((r): r is SkillRoot => !!r && typeof r.path === "string" && typeof r.label === "string");
+}

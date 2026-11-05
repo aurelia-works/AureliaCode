@@ -7,6 +7,8 @@ import { ipc } from "../lib/ipc";
 import { isDue, nextFolder, overnight, type Overnight } from "../lib/nightly";
 import { useLayout } from "./layout";
 import { useUi } from "./ui";
+import { readSaved } from "../lib/savedState";
+import { warnUnreadable } from "./notifications";
 
 export interface RepoNight extends Overnight {
   folder: string;
@@ -27,7 +29,7 @@ export const useNightly = create<NightlyState>(() => ({ running: false, byRepo: 
 
 const save = () => {
   const { lastRun, byRepo, dismissed } = useNightly.getState();
-  void ipc.saveState("nightly", { lastRun, byRepo, dismissed }).catch(() => {});
+  if (canSave) void ipc.saveState("nightly", { lastRun, byRepo, dismissed }).catch(() => {});
 };
 
 /** At most this many repos a night, so one night can't run a dozen reviews. */
@@ -84,8 +86,16 @@ function tick() {
   if (prefs.nightlyReview && isDue(Date.now(), useNightly.getState().lastRun, prefs.nightlyHour)) void runNightly();
 }
 
+/** False when nightly.json couldn't be read: findings and dismissals there aren't replaced. */
+let canSave = true;
+
 export async function startNightly() {
-  const saved = await ipc.loadState<Partial<NightlyState>>("nightly").catch(() => null);
+  const r = await readSaved(() => ipc.loadState<Partial<NightlyState>>("nightly"));
+  if (!r.ok) {
+    canSave = false;
+    warnUnreadable("nightly.json", r.error);
+  }
+  const saved = r.ok ? r.value : null;
   if (saved) useNightly.setState({ lastRun: saved.lastRun, byRepo: saved.byRepo ?? {}, dismissed: saved.dismissed ?? [] });
   setInterval(tick, 10 * 60_000);
   setTimeout(tick, 60_000);

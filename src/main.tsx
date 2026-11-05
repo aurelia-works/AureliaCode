@@ -60,6 +60,8 @@ import "./styles/notices.css";
 import "./styles/settings.css";
 import "./styles/deep.css";
 import "./styles/skills.css";
+import { readSaved } from "./lib/savedState";
+import { warnUnreadable } from "./store/notifications";
 
 function applyTheme() {
   const cfg = useConfig.getState().config;
@@ -70,7 +72,9 @@ function applyTheme() {
   if (cfg) applyUiAppearance();
 }
 
-function persistLayout() {
+/** `canSave` is false when layout.json couldn't be read: quitting would otherwise replace every saved thread. */
+function persistLayout(canSave: boolean) {
+  if (!canSave) return;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const save = () => ipc.saveState("layout", serializeLayout()).catch(() => {});
   useLayout.subscribe((s, prev) => {
@@ -87,13 +91,15 @@ async function boot() {
   await Promise.all([loadUiState(), loadTasks(), loadRecents(), loadCustomAgents(), loadPrompts(), loadPlanner(), loadTeamRuns()]);
   // After tasks, so the first run on this build can migrate them into the work graph.
   await useWork.getState().load();
-  const saved = await ipc.loadState<SavedLayout>("layout").catch(() => null);
+  const layoutRead = await readSaved(() => ipc.loadState<SavedLayout>("layout"));
+  if (!layoutRead.ok) warnUnreadable("layout.json", layoutRead.error);
+  const saved = layoutRead.ok ? layoutRead.value : null;
   useLayout.getState().hydrate(saved);
   watchSettled();
   startNavHistory();
   await planResume(saved);
   startTeamRunWatch();
-  persistLayout();
+  persistLayout(layoutRead.ok);
   startThreadStore();
   // Debounced stores write one last time when the window goes away.
   const flush = () => {

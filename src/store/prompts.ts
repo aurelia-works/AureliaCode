@@ -7,8 +7,9 @@ import { templateFields } from "../lib/template";
 import { showPane } from "../lib/terminals";
 import { useConfig } from "./config";
 import { focusedPaneId, uid, useLayout } from "./layout";
-import { useNotices } from "./notifications";
+import { useNotices, warnUnreadable } from "./notifications";
 import { toast, useUi } from "./ui";
+import { readSaved } from "../lib/savedState";
 
 /** A prompt kept for reuse: inserted into a pane's composer, never sent on its own. */
 export interface SavedPrompt {
@@ -43,7 +44,9 @@ export const usePrompts = create<PromptsState>((set, get) => ({
 }));
 
 export async function loadPrompts() {
-  const saved = await ipc.loadState<{ saved: SavedPrompt[] }>("prompts").catch(() => null);
+  const r = await readSaved(() => ipc.loadState<{ saved: SavedPrompt[] }>("prompts"));
+  if (!r.ok) return warnUnreadable("prompts.json", r.error);
+  const saved = r.value;
   if (Array.isArray(saved?.saved)) usePrompts.setState({ saved: saved.saved });
   let timer: ReturnType<typeof setTimeout> | undefined;
   usePrompts.subscribe((s, prev) => {
