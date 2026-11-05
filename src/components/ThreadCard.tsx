@@ -1,4 +1,4 @@
-import { basename } from "../lib/format";
+import { basename, formatCost, formatTokens } from "../lib/format";
 import { useChat } from "../lib/chat";
 import type { DiffStat as DiffStatData } from "../lib/ipc";
 import { chatIcon } from "../lib/threadOrder";
@@ -7,6 +7,7 @@ import { useAgents } from "../store/agents";
 import { useGit } from "../store/git";
 import { useLayout } from "../store/layout";
 import { tasksForPane, useTasks } from "../store/tasks";
+import { useUi } from "../store/ui";
 import { since } from "./SessionExtras";
 import { StatusGlyph, visualOf, type Visual } from "./StatusGlyph";
 
@@ -41,6 +42,8 @@ export interface ThreadSummary {
   stat?: DiffStatData | null;
   /** Since the last state change, "3m"; undefined without a hook session. */
   age?: string;
+  /** "$0.84 · 412k tokens" so far, for chats; undefined when nothing was spent or the switch is off. */
+  cost?: string;
 }
 
 /** Everything a thread row or card says about a thread, from one place, so the grid, the board and the list agree. */
@@ -54,6 +57,9 @@ export function useThreadSummary(paneId: string, cwd?: string): ThreadSummary {
   const dir = agent?.cwd ?? cwd ?? paneCwd;
   const branch = useGit((s) => (dir ? s.info[dir]?.branch : undefined));
   const stat = useGit((s) => (dir ? s.stat[dir] : undefined));
+  const usd = useLayout((s) => s.panes[paneId]?.chatCost ?? 0);
+  const tokens = useLayout((s) => s.panes[paneId]?.chatTokens ?? 0);
+  const costOn = useUi((s) => s.prefs.threadCost);
 
   const v: Visual = agent ? visualOf(agent) : chatIcon(chat, approvals);
   const folder = basename(dir) || "this folder";
@@ -81,6 +87,7 @@ export function useThreadSummary(paneId: string, cwd?: string): ThreadSummary {
     // The stat is per folder: an unstarted thread sharing one would just repeat its neighbour's numbers.
     stat: v === "idle" ? undefined : stat,
     age: agent ? since(Date.now() - agent.updatedAt) : undefined,
+    cost: costOn && tokens > 0 ? `${formatCost(usd)} · ${formatTokens(tokens)} tokens` : undefined,
   };
 }
 
@@ -102,6 +109,7 @@ export function ThreadMeta({ t }: { t: ThreadSummary }) {
       <span>{t.folder}</span>
       {t.branch && <span className="mono tc-branch">{t.branch}</span>}
       <DiffStat stat={t.stat} />
+      {t.cost && <span className="num tc-cost" title="What this thread has spent so far">{t.cost}</span>}
     </p>
   );
 }

@@ -468,6 +468,78 @@ pub async fn git_create_pr(cwd: String, title: String, body: String, draft: bool
     tauri::async_runtime::spawn_blocking(move || create_pr(cwd, title, body, draft)).await.map_err(|e| e.to_string())?
 }
 
+/// What `gh pr view --json state,mergeCommit,baseRefName` says to revert: (merge sha, base branch).
+fn revert_plan(number: u64, json: &str) -> Result<(String, String), String> {
+    let v: serde_json::Value = serde_json::from_str(json).map_err(|e| format!("gh: {e}"))?;
+    if v["state"].as_str() != Some("MERGED") {
+        return Err(format!("PR #{number} isn't merged, so there is nothing to revert"));
+    }
+    let sha = v["mergeCommit"]["oid"].as_str().filter(|s| !s.is_empty()).ok_or(format!("gh didn't say which commit merged PR #{number}"))?;
+    let base = v["baseRefName"].as_str().filter(|s| !s.is_empty()).unwrap_or("main");
+    Ok((sha.to_string(), base.to_string()))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Revert {
+    pub path: String,
+    pub branch: String,
+    /// `git revert` stopped on conflicts; they're left in the worktree to resolve.
+    pub conflicts: bool,
+}
+
+/// Undo a merged PR fast (Theo Browne, 2026-11-04: "you need to be able to roll it back fast"):
+/// a worktree on `aurelia/revert-pr-<n>` from the PR's base with its merge commit reverted.
+/// Nothing is pushed; the thread opened there takes it from here.
+fn revert_pr(cwd: String, number: u64) -> Result<Revert, String> {
+    let dir = PathBuf::from(expand_path(&cwd));
+    let gh = crate::which::locate("gh").ok_or("GitHub CLI (gh) is not installed")?;
+    let out = Command::new(gh)
+        .current_dir(&dir)
+        .args(["pr", "view", &number.to_string(), "--json", "state,mergeCommit,baseRefName"])
+        .env("GH_PROMPT_DISABLED", "1")
+        .output()
+        .map_err(|e| format!("gh: {e}"))?;
+    if !out.status.success() {
+        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+    }
+    let (sha, base) = revert_plan(number, &String::from_utf8_lossy(&out.stdout))?;
+    let top = main_checkout(&dir)?;
+    let _ = git(&top, &["fetch", "-q", "origin", &base]);
+    // Know the merge commit before making anything, so a failure leaves no worktree or branch behind.
+    let commit = format!("{sha}^{{commit}}");
+    if !git(&top, &["cat-file", "-e", &commit])?.status.success() {
+        let _ = git(&top, &["fetch", "-q", "origin", &sha]);
+        if !git(&top, &["cat-file", "-e", &commit])?.status.success() {
+            return Err(format!("couldn't fetch {sha}, the commit that merged PR #{number}"));
+        }
+    }
+    let parents = git_ok(&top, &["rev-list", "--parents", "-n", "1", &sha])?.split_whitespace().count();
+    let root = worktrees_dir(&top).ok_or("could not place the worktree")?;
+    fs::create_dir_all(&root).map_err(|e| e.to_string())?;
+    let (branch, path) = (1..100)
+        .map(|n| if n == 1 { format!("revert-pr-{number}") } else { format!("revert-pr-{number}-{n}") })
+        .map(|name| (format!("aurelia/{name}"), root.join(&name)))
+        .find(|(b, p)| !p.exists() && git(&top, &["show-ref", "--verify", "--quiet", &format!("refs/heads/{b}")]).map(|o| !o.status.success()).unwrap_or(true))
+        .ok_or("could not pick a worktree name")?;
+    let path_str = path.to_string_lossy().into_owned();
+    git_ok(&top, &["worktree", "add", "-b", &branch, &path_str, &format!("origin/{base}")])?;
+    // A true merge commit needs a parent to revert against; a squash merge doesn't.
+    let mut args = vec!["revert", "--no-edit"];
+    if parents > 2 {
+        args.extend(["-m", "1"]);
+    }
+    args.push(&sha);
+    let conflicts = !git(&path, &args)?.status.success();
+    Ok(Revert { path: path_str, branch, conflicts })
+}
+
+/// Network-bound: keep it off the command thread.
+#[tauri::command]
+pub async fn git_revert_pr(cwd: String, number: u64) -> Result<Revert, String> {
+    tauri::async_runtime::spawn_blocking(move || revert_pr(cwd, number)).await.map_err(|e| e.to_string())?
+}
+
 /// A worktree's branch, dirty state and conflicts, without merging anything.
 #[tauri::command]
 pub fn git_worktree_status(path: String) -> Result<WorktreeStatus, String> {
@@ -518,6 +590,16 @@ pub fn git_merge_worktree(path: String) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn revert_needs_a_merged_pr_and_its_merge_commit() {
+        let ok = r#"{"state":"MERGED","mergeCommit":{"oid":"abc123"},"baseRefName":"main"}"#;
+        assert_eq!(revert_plan(16, ok).unwrap(), ("abc123".to_string(), "main".to_string()));
+        let open = r#"{"state":"OPEN","mergeCommit":null,"baseRefName":"main"}"#;
+        assert!(revert_plan(16, open).unwrap_err().contains("isn't merged"));
+        let no_sha = r#"{"state":"MERGED","mergeCommit":null,"baseRefName":"dev"}"#;
+        assert!(revert_plan(16, no_sha).is_err());
+    }
 
     fn repo() -> PathBuf {
         static N: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);

@@ -6,6 +6,9 @@ import { sendChat } from "../lib/chat";
 import { runGoalCheck, stopGoal } from "../store/goals";
 import { useLayout } from "../store/layout";
 import { useUi } from "../store/ui";
+import { diffGrowth, proofOf } from "../lib/proof";
+import { useGit } from "../store/git";
+import { markOf, noteBase, useReviews } from "../store/reviews";
 import type { Visual } from "./StatusGlyph";
 import { ThreadCardHead, ThreadMeta, useThreadSummary } from "./ThreadCard";
 
@@ -34,6 +37,14 @@ export function PaneBrief({ paneId, cwd }: { paneId: string; cwd?: string }) {
     return () => clearInterval(id);
   }, []);
   const v = t.v;
+  const prefs = useUi((s) => s.prefs);
+  const dir = useLayout((s) => s.panes[paneId]?.cwd) ?? cwd;
+  const root = useGit((s) => (dir ? s.info[dir]?.root : undefined));
+  const stat = useGit((s) => (dir ? s.stat[dir] : undefined));
+  const review = useReviews((s) => (root ? s.byRoot[root] : undefined));
+  const base = useReviews((s) => s.base[paneId]);
+  const proof = prefs.proofLine && (v === "done" || (v === "idle" && (goal || review))) ? proofOf({ bar: prefs.readyScore, goal, review: markOf(review), stat }) : null;
+  const grown = prefs.diffTripwire ? diffGrowth(base, stat) : null;
 
   return (
     <div className={`pane-brief ${v}`} role="status">
@@ -49,6 +60,17 @@ export function PaneBrief({ paneId, cwd }: { paneId: string; cwd?: string }) {
           ))}
         </ol>
       )}
+      {grown && (
+        <div className="pane-brief-trip" role="alert">
+          <span>
+            The diff grew {grown.factor}× since this thread started ({grown.from} → {grown.to} lines). Running in circles?
+          </span>
+          <button type="button" className="btn sm" onClick={() => noteBase(paneId, stat, true)}>
+            Keep going
+          </button>
+        </div>
+      )}
+      {proof && <p className={`pane-brief-proof${proof.ok ? " ok" : ""}`}>{proof.ok ? `Proof: ${proof.text}` : proof.text}</p>}
       {goal && !goal.ended && (
         <div className="pane-brief-goal">
           <span className="pane-brief-goal-text" title={goal.text}>

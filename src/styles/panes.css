@@ -3101,3 +3101,30 @@ textarea::placeholder {
 .pane.focused .pane-brief-feed {
   display: none;
 }
+
+/* Grid card: proof that a finished thread works, and the diff-growth tripwire (lib/proof.ts). */
+.pane-brief-proof {
+  margin: 0;
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+}
+.pane-brief-proof.ok {
+  color: var(--ok);
+}
+.pane-brief-trip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  background: var(--attn-soft);
+  border: 1px solid var(--attn-line);
+  font-size: var(--fs-meta);
+}
+.pane-brief-trip span {
+  flex: 1;
+  min-width: 0;
+}
+.tc-cost {
+  color: var(--text-faint);
+}

@@ -45,3 +45,12 @@ test("new-thread defaults and the fallback are kept as text; anything else is dr
   assert.equal(bad.newModel, "");
   assert.equal(bad.fallback, "");
 });
+
+test("review numbers are kept in range and the council model list stays a string", () => {
+  const p = normalizePrefs({ readyScore: 14, reviewRoundCap: -2, councilModels: "opencode-go/kimi-k2", followUp: "nonsense" });
+  assert.equal(p.readyScore, 10);
+  assert.equal(p.reviewRoundCap, 0);
+  assert.equal(p.councilModels, "opencode-go/kimi-k2");
+  assert.equal(p.followUp, DEFAULT_PREFS.followUp);
+  assert.equal(normalizePrefs({ readyScore: "9" }).readyScore, DEFAULT_PREFS.readyScore);
+});

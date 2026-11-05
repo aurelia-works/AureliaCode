@@ -9,6 +9,9 @@ import { copyText } from "../lib/copyText";
 import { prNumberRef, retitle } from "../lib/threadTools";
 import { approvalPanes, cleanTitle, pinPatch, settlePatch, shouldRecede, splitPinned, stepFocus } from "../lib/threadOrder";
 import { DiffStat } from "./ThreadCard";
+import { diffGrowth, isReady, proofOf } from "../lib/proof";
+import { revertMergedPr, scrapThread } from "../lib/redo";
+import { markOf, noteBase, useReviews } from "../store/reviews";
 import { showPane } from "../lib/terminals";
 import { useAgents } from "../store/agents";
 import { paneDir, useGit } from "../store/git";
@@ -214,6 +217,8 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
       {prefs.regenTitle && isChat && item("Retitle from latest message", () => retitleThread(paneId))}
       {prefs.prCopy && pr && item(`Copy PR link (${prNumberRef(pr.number)})`, () => copyText(pr.url, "PR link copied"))}
       {prefs.prCopy && pr && item("Copy PR number", () => copyText(prNumberRef(pr.number), `Copied ${prNumberRef(pr.number)}`))}
+      {prefs.revertAction && pr?.state === "MERGED" && item(`Revert PR ${prNumberRef(pr.number)}`, () => void revertMergedPr(paneId, pr))}
+      {prefs.scrapAction && item("Scrap and start over", () => scrapThread(paneId))}
       {!away && item("Snooze…", onSnooze)}
       {away ? item("Wake", () => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")) : item("Settle", () => patchThreads([paneId], settlePatch(), "Settled"))}
       {item("Close", () => closePaneSafely(paneId))}
@@ -268,6 +273,11 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   const prefs = useUi((s) => s.prefs);
   const renaming = useUi((s) => s.renameThread === paneId);
   const menuOpen = useUi((s) => s.threadMenu === paneId);
+  const base = useReviews((s) => s.base[paneId]);
+  useEffect(() => {
+    if (prefs.diffTripwire && v === "working") noteBase(paneId, stat);
+  }, [prefs.diffTripwire, v, stat]);
+  const grown = prefs.diffTripwire ? diffGrowth(base, stat) : null;
 
   return (
     <div
@@ -315,6 +325,11 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
           {pane?.goal && !pane.goal.ended && (
             <span className="th-goal num" title={`Goal: ${pane.goal.text} (round ${pane.goal.rounds + 1} of ${pane.goal.maxRounds})`}>
               Goal {pane.goal.rounds + 1}/{pane.goal.maxRounds}
+            </span>
+          )}
+          {grown && (
+            <span className="th-trip num" title={`The diff grew from ${grown.from} to ${grown.to} lines since this thread started. Running in circles? Open it to stop or keep going.`}>
+              {grown.factor}×
             </span>
           )}
           {pane?.babysit && (
@@ -440,7 +455,7 @@ function PhoneStatus() {
   );
 }
 
-type Group = { key: "pinned" | "needs" | "work" | "recent"; label: string; ids: string[] };
+type Group = { key: "pinned" | "needs" | "ready" | "work" | "recent"; label: string; ids: string[] };
 
 /** Every open pane as a thread, grouped by what it needs: you, time, or nothing. Snoozed and settled ones fold away below. */
 export function ProjectsSidebar() {
@@ -458,6 +473,9 @@ export function ProjectsSidebar() {
   const [bulkMenu, setBulkMenu] = useState(false);
   const [removed, setRemoved] = useState(0);
   const prefs = useUi((s) => s.prefs);
+  const reviews = useReviews((s) => s.byRoot);
+  const bases = useReviews((s) => s.base);
+  const stats = useGit((s) => s.stat);
   // Snoozes end and ages tick on the clock, so re-check once a minute.
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -501,15 +519,28 @@ export function ProjectsSidebar() {
   // A chat waiting on an approval needs you even without a hook session (a string, so streaming doesn't re-render the list).
   const asking = new Set(useChat((s) => approvalPanes(s.byPane).join("\n")).split("\n"));
   const st = (id: string) => (sessions[id] ? visualOf(sessions[id]) : asking.has(id) ? "needs_input" : undefined);
+  // A diff that more than doubled since the thread started needs a look, even while it works.
+  const tripped = (id: string) => prefs.diffTripwire && !!diffGrowth(bases[id], stats[dirOf(id)]);
+  // Ready: finished, with proof on the diff as it is now (Theo: the agent shouldn't bother you until it's ready to merge).
+  const ready = (id: string) => {
+    if (!prefs.readyGroup || freshChat(panes[id], 0)) return false;
+    const chatBusy = ["working", "waiting", "starting"].includes(chats[id]?.status ?? "");
+    const v = st(id) ?? (chatBusy ? "working" : "idle");
+    const proof = proofOf({ bar: prefs.readyScore, goal: panes[id]?.goal, review: markOf(reviews[git[dirOf(id)]?.root ?? ""]), stat: stats[dirOf(id)] });
+    return isReady(v, proof);
+  };
+  const needsIds = active.filter((id) => st(id) === "needs_input" || tripped(id));
+  const readyIds = active.filter((id) => !needsIds.includes(id) && ready(id));
   const groups: Group[] = [
     { key: "pinned", label: "Pinned", ids: pinnedIds },
-    { key: "needs", label: "Needs you", ids: active.filter((id) => st(id) === "needs_input") },
+    { key: "needs", label: "Needs you", ids: needsIds },
+    { key: "ready", label: "Ready", ids: readyIds },
     // A chat nobody has written in yet is a new thread (Recent), not work in progress.
-    { key: "work", label: "Working", ids: active.filter((id) => !freshChat(panes[id], 0) && (st(id) === "working" || st(id) === "starting" || (!sessions[id] && (panes[id]?.account || panes[id]?.mode === "chat")))) },
+    { key: "work", label: "Working", ids: active.filter((id) => !needsIds.includes(id) && !readyIds.includes(id) && !freshChat(panes[id], 0) && (st(id) === "working" || st(id) === "starting" || (!sessions[id] && (panes[id]?.account || panes[id]?.mode === "chat")))) },
     { key: "recent", label: "Recent", ids: [] },
   ];
   const grouped = new Set(groups.flatMap((g) => g.ids));
-  groups[3].ids = active.filter((id) => !grouped.has(id)).sort((a, b) => (sessions[b]?.updatedAt ?? 0) - (sessions[a]?.updatedAt ?? 0));
+  groups[groups.length - 1].ids = active.filter((id) => !grouped.has(id)).sort((a, b) => (sessions[b]?.updatedAt ?? 0) - (sessions[a]?.updatedAt ?? 0));
 
   const live = [...selected].filter((id) => panes[id]);
   const select = (id: string) => (e: MouseEvent) => {
