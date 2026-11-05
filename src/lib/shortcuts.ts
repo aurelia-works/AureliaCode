@@ -137,7 +137,8 @@ export function installShortcuts(): () => void {
     switch (e.code) {
       case "KeyZ":
         // Undo a close, settle or snooze while its toast is up; in a text field ⌘Z stays the field's own undo.
-        if (!shift && !alt && hasUndo() && !isTextField(document.activeElement)) action = () => void runUndo();
+        // Settings has its own ⌘Z while it's open (SettingsPage).
+        if (!shift && !alt && hasUndo() && !ui.settingsOpen && !isTextField(document.activeElement)) action = () => void runUndo();
         break;
       case "KeyT":
         if (shift && !alt) action = () => void reopenLastClosed();

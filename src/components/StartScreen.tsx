@@ -95,12 +95,12 @@ export function StartScreen({ paneId }: { paneId: string }) {
   };
   /** DeepSeek skills run through OpenCode in a fresh terminal pane, not through Claude. */
   const runSkill = async (skill: Skill, task: string) => {
-    if (!terms) return toast("Skills run through OpenCode in a terminal pane: turn on Legacy terminal panes in Settings → Diagnostics", true);
+    if (!terms) return toast("Skills run through OpenCode in a terminal pane: turn on Legacy terminal panes in Settings → About → Diagnostics", true);
     const variant = agentVariants(accounts).find((v) => v.id === "deepseek:opencode");
-    if (!variant) return toast("OpenCode isn't configured; add a DeepSeek agent in Settings → My agents", true);
+    if (!variant) return toast("OpenCode isn't configured; add a DeepSeek agent in Settings → Agents", true);
     if (!(await ipc.which("opencode").catch(() => false))) return toast("OpenCode isn't installed. Install it with: curl -fsSL https://opencode.ai/install | bash", true);
     const keys = await ipc.agentKeysPresent(["deepseek"]).catch(() => [] as string[]);
-    if (!keys.includes("deepseek")) return toast("DeepSeek needs an API key: Settings → Agent keys → DeepSeek", true);
+    if (!keys.includes("deepseek")) return toast("DeepSeek needs an API key: Settings → Accounts & providers → Agent keys", true);
     launchSkillAgent(variant, cwd || workspace, skillPrompt(skill, task));
     toast(`${skill.name} started in a new pane`);
   };

@@ -43,7 +43,7 @@ const RULES: [RegExp, PreviewView[]][] = [
   [/^src\/components\/settings\/ProvidersSection\.tsx$|^src\/lib\/providers\.ts$|^src\/store\/providers\.ts$/, ["settings&section=providers", "chat"]],
   [/^src\/components\/(BackgroundInbox|Notices)\.tsx$|^src\/lib\/inbox\.ts$|^src\/styles\/notices\.css$/, ["threads&inbox=1"]],
   [/^src\/components\/Wordmark\.tsx$|^src\/lib\/greeting\.ts$/, ["threads&greet=1"]],
-  [/^src\/components\/settings\//, ["settings"]],
+  [/^src\/components\/settings\/|^src\/lib\/settings(Index|Undo)\.ts$/, ["settings"]],
   [/^src\/components\/CommandPalette\.tsx$/, ["palette"]],
   [/^src\/components\/(FilesPanel|EditorPane|SearchPanel|ProblemsPanel)\.tsx$/, ["files"]],
   [/^src\/components\/(PaneView|LayoutView|PaneHeader|PaneDrag|GridPicker|BrowserPane)\.tsx$/, ["terminals"]],

@@ -54,45 +54,156 @@
   padding: var(--sp-4) var(--sp-6) var(--sp-5);
 }
 .settings-content > * {
-  max-width: 680px;
+  max-width: 720px;
+  margin-inline: auto;
 }
+
+/* B layout (Grok's mockup, 2026-11-05): a card per group, a row per setting, the control on the right. */
 .set-group {
   margin-bottom: var(--sp-3);
-  padding: var(--sp-4) var(--sp-4) var(--sp-3);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--surface);
+  padding: 0 16px 2px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  overflow: hidden;
 }
 .set-group h3 {
-  margin: 0 0 var(--sp-2);
-  font-size: var(--fs-title);
-  font-weight: 650;
-  letter-spacing: -0.01em;
+  margin: 0;
+  padding: 10px 16px 9px;
+  margin-inline: -16px;
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0;
 }
-.settings-content .field > span:first-child {
-  width: 130px;
+.set-group > h3 ~ h3 {
+  margin-top: 6px;
+  border-top: 1px solid var(--line);
 }
-.settings-content .field.check > span {
+.settings-content .set-group > .field {
+  justify-content: space-between;
+  min-height: 46px;
+  margin: 0;
+  padding: 8px 16px;
+  margin-inline: -16px;
+  border-top: 1px solid var(--line);
+}
+.settings-content .set-group > .field > span:first-child {
+  flex: 1 1 auto;
   width: auto;
+  min-width: 0;
+  color: var(--text);
+}
+.settings-content .set-group > .field > :is(input:not([type="checkbox"]), select, .field-row, textarea) {
+  flex: 0 1 300px;
+}
+.settings-content .set-group > .field > input[type="number"] {
+  flex: 0 0 96px;
+}
+.settings-content .set-group > .field.check {
+  flex-direction: row-reverse;
+  gap: 16px;
+}
+.settings-content .set-group > .field.check > span {
+  flex: 1;
+}
+.settings-content .set-group > .field + .hint,
+.settings-content .set-group > .field + .hint + .hint {
+  margin-top: -6px;
+  padding-bottom: 10px;
+}
+.settings-content .set-group > h3 + .hint {
+  margin-top: 0;
+  padding-bottom: 10px;
+}
+.settings-content .set-group > :last-child:not(.field, .hint) {
+  margin-bottom: 12px;
+}
+.settings-content .set-group > .hint:last-child {
+  padding-bottom: 12px;
+}
+
+/* Switches instead of tick boxes in Settings. */
+.settings-content .field.check > input[type="checkbox"] {
+  appearance: none;
+  flex: none;
+  position: relative;
+  width: 30px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: background var(--t-fast);
+}
+.settings-content .field.check > input[type="checkbox"]::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  transition: transform var(--t-fast);
+}
+.settings-content .field.check > input[type="checkbox"]:checked {
+  background: var(--accent);
+}
+.settings-content .field.check > input[type="checkbox"]:checked::after {
+  transform: translateX(12px);
+}
+.settings-content .field.check > input[type="checkbox"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.settings-content .field.check > input[type="checkbox"]:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 .settings-content .seg {
-  margin: 4px 0 6px;
+  margin: 4px 0 8px;
 }
-.settings-bar {
-  flex: none;
+.settings-content .set-group > .field .seg {
+  margin: 0;
+}
+
+/* Rarely used parts, folded under Advanced. */
+.set-fold {
+  margin-bottom: var(--sp-3);
+}
+.set-fold > summary {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px var(--sp-6);
-  border-top: 1px solid var(--border);
-  background: var(--chrome);
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--bg);
+  cursor: pointer;
+  list-style: none;
 }
-.settings-bar .msg {
-  flex: 1;
-  min-width: 0;
+.set-fold > summary::-webkit-details-marker {
+  display: none;
 }
-.settings-bar kbd {
-  margin-left: 4px;
+.set-fold > summary::before {
+  content: "›";
+  color: var(--text-dim);
+  transition: transform var(--t-fast);
+}
+.set-fold[open] > summary {
+  margin-bottom: var(--sp-3);
+}
+.set-fold[open] > summary::before {
+  transform: rotate(90deg);
+}
+.set-fold > summary .hint {
+  margin-left: auto;
+}
+.settings-status {
+  margin-right: 10px;
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
 }
 
 /* Theme palettes */
@@ -706,10 +817,6 @@
   }
   .settings-content {
     padding: 12px;
-  }
-  .settings-bar {
-    flex-wrap: wrap;
-    padding: 8px 12px;
   }
 }
 
