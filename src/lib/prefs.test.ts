@@ -69,3 +69,13 @@ test("the splash hides as soon as the app paints unless you ask it to stay, up t
   assert.equal(normalizePrefs({ splashMinMs: -5 }).splashMinMs, 0);
   assert.equal(normalizePrefs({ splashMinMs: "800" }).splashMinMs, 0, "not a number: the default");
 });
+
+test("new threads start at Medium effort; a file saved before that moves to Medium once", () => {
+  assert.equal(DEFAULT_PREFS.newEffort, "medium");
+  assert.equal(normalizePrefs(undefined).newEffort, "medium");
+  const old = normalizePrefs({ newEffort: "" });
+  assert.equal(old.newEffort, "medium", "the old default (follow Auto effort) becomes Medium");
+  assert.equal(old.effortMoved, true);
+  assert.equal(normalizePrefs({ newEffort: "high" }).newEffort, "high", "an effort you picked stays");
+  assert.equal(normalizePrefs({ newEffort: "", effortMoved: true }).newEffort, "", "Auto picked again after the move sticks");
+});

@@ -36,9 +36,11 @@ export interface ThreadPrefs {
   steerKey: boolean;
   /** What Enter does with a message while the agent runs: wait for the turn to end, or interrupt it and send now. */
   followUp: "queue" | "steer";
-  /** New threads' model and effort; "" follows the Auto effort settings. */
+  /** New threads' model and effort; "" follows the Auto effort settings. Effort starts at Medium; High is a pick you make. */
   newModel: string;
   newEffort: string;
+  /** Set once a file saved before Medium became the default has been moved to it, so Auto picked later sticks. */
+  effortMoved: boolean;
   /** Where a thread goes when its account hits its limit (lib/fallback.ts); "" for none. */
   fallback: string;
   /** `>` in the palette shows only actions. */
@@ -146,7 +148,8 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   steerKey: true,
   followUp: "queue",
   newModel: "",
-  newEffort: "",
+  newEffort: "medium",
+  effortMoved: true,
   fallback: "",
   paletteActions: true,
   prCopy: true,
@@ -228,6 +231,11 @@ export function normalizePrefs(raw: unknown): ThreadPrefs {
     } else if (typeof DEFAULT_PREFS[k] === "string") {
       if (typeof r[k] === "string") (out as unknown as Record<string, string>)[k] = r[k] as string;
     } else if (typeof r[k] === "boolean") (out as unknown as Record<string, boolean>)[k] = r[k] as boolean;
+  }
+  // Files from before 2026-11-05 saved "" (follow Auto effort) as the default; move them to Medium once.
+  if (r.effortMoved !== true) {
+    if (out.newEffort === "") out.newEffort = "medium";
+    out.effortMoved = true;
   }
   return out;
 }
