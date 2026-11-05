@@ -4,7 +4,7 @@ import { useLayout } from "../store/layout";
 import { dismissFinding, runNightly, useNightly } from "../store/nightly";
 import { useUi } from "../store/ui";
 
-/** What last night's review of old code found (store/nightly.ts): only important findings two reviewers agree on. */
+/** What last night's review of old code found (store/nightly.ts): important bugs and deletable code two reviewers agree on. */
 export function OvernightCard() {
   const on = useUi((s) => s.prefs.nightlyReview);
   const byRepo = useNightly((s) => s.byRepo);
@@ -16,9 +16,14 @@ export function OvernightCard() {
   );
   const errors = Object.entries(byRepo).filter(([, n]) => n.error);
   if (!rows.length && !errors.length && !running) return null;
-  const fix = (repo: string, where: string, text: string) => {
+  const fix = (repo: string, where: string, text: string, del: boolean) => {
     const id = useLayout.getState().newTab({ mode: "chat", cwd: repo });
-    queueFirstMessage(id, `The nightly review found this in existing code, and two reviewers agree: ${where} - ${text}\n\nCheck it's real first (write a failing test for it), then fix it.`);
+    queueFirstMessage(
+      id,
+      del
+        ? `The nightly review says this code can be deleted, and two reviewers agree: ${where} - ${text}\n\nSearch the repo for anything that still uses it first. If nothing does, delete it and run the tests.`
+        : `The nightly review found this in existing code, and two reviewers agree: ${where} - ${text}\n\nCheck it's real first (write a failing test for it), then fix it.`,
+    );
   };
   return (
     <section className="overnight" aria-label="Found overnight">
@@ -35,10 +40,13 @@ export function OvernightCard() {
                 <b className="mono">
                   {basename(repo)} · {where}
                 </b>
-                <span>{f.text}</span>
+                <span>
+                  {f.tag === "delete" && <span className="ov-tag">Could delete · </span>}
+                  {f.text}
+                </span>
               </span>
-              <button type="button" className="btn sm" onClick={() => fix(repo, where, f.text)}>
-                Fix in a thread
+              <button type="button" className="btn sm" onClick={() => fix(repo, where, f.text, f.tag === "delete")}>
+                {f.tag === "delete" ? "Delete in a thread" : "Fix in a thread"}
               </button>
               <button type="button" className="today-btn sm" onClick={() => dismissFinding(key)}>
                 Dismiss

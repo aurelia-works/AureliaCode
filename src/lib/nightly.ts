@@ -37,5 +37,5 @@ export interface Overnight {
 export function overnight(seats: CouncilSeat[]): Overnight {
   const ok = seats.filter((s) => !s.failed);
   const c = mergeCouncil(ok.map((s) => parseReport(s.text, s.model)));
-  return { reviewers: c.reviewers, score: c.score, findings: c.findings.filter((f) => f.verified && f.tag === "important") };
+  return { reviewers: c.reviewers, score: c.score, findings: c.findings.filter((f) => f.verified && (f.tag === "important" || f.tag === "delete")) };
 }

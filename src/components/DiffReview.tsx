@@ -17,6 +17,8 @@ import { toast, useUi } from "../store/ui";
 const explained = new Map<string, string>();
 
 /** The council's findings: verified ones first; one-reviewer guesses and nits fold away. */
+const TAG_LABEL: Record<Council["findings"][number]["tag"], string> = { important: "Important", delete: "Could delete", nit: "Nit", "pre-existing": "Pre-existing" };
+
 function CouncilView({ council, seats, onNote, onJump }: { council: Council; seats: { model: string; seconds: number; failed: boolean; score?: number }[]; onNote: (text: string) => void; onJump: (file: string) => void }) {
   const [more, setMore] = useState(false);
   const [nits, setNits] = useState(false);
@@ -25,7 +27,7 @@ function CouncilView({ council, seats, onNote, onJump }: { council: Council; sea
   const nitCount = council.findings.filter((f) => f.tag === "nit").length;
   const line = (f: Council["findings"][number], i: number) => (
     <li key={i} className={`council-finding ${f.tag}`}>
-      <span className={`council-tag ${f.tag}`}>{f.tag === "pre-existing" ? "Pre-existing" : f.tag === "nit" ? "Nit" : "Important"}</span>
+      <span className={`council-tag ${f.tag}`}>{TAG_LABEL[f.tag]}</span>
       {f.file && (
         <button type="button" className="link-btn mono" onClick={() => onJump(f.file!)} title={`Show ${f.file}`}>
           {basename(f.file)}
