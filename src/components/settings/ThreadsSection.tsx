@@ -38,18 +38,27 @@ export function PrefSwitches({ items }: { items: Switch[] }) {
   ));
 }
 
-/** Thread list, grid and review preferences. Each applies at once; no Save needed. */
-export function ThreadsSection() {
-  const prefs = useUi((s) => s.prefs);
-  // Typed freely, clamped to 2..30 when you leave the box.
-  const [secs, setSecs] = useState(String(prefs.undoSeconds));
-  useEffect(() => setSecs(String(prefs.undoSeconds)), [prefs.undoSeconds]);
-  const set = (patch: Partial<ThreadPrefs>) => useUi.getState().set({ prefs: { ...prefs, ...patch } });
+const setPrefs = (patch: Partial<ThreadPrefs>) => useUi.getState().set({ prefs: { ...useUi.getState().prefs, ...patch } });
+
+/** Appearance → thread list and grid view switches. */
+export function ThreadViewSection() {
   return (
     <section className="set-group">
-      <h3>Threads &amp; keys</h3>
-      <p className="hint">Undo, pins, ⇧⌘T, ⌘[ ⌘], drag between sections, stash, scratch threads and the rest are always on. Changes apply straight away.</p>
+      <h3>Threads &amp; grid</h3>
       <PrefSwitches items={SWITCHES} />
+    </section>
+  );
+}
+
+/** Advanced → the undo window, and what is always on. */
+export function UndoSection() {
+  const undoSeconds = useUi((s) => s.prefs.undoSeconds);
+  // Typed freely, clamped to 2..30 when you leave the box.
+  const [secs, setSecs] = useState(String(undoSeconds));
+  useEffect(() => setSecs(String(undoSeconds)), [undoSeconds]);
+  return (
+    <section className="set-group">
+      <h3>Undo &amp; always-on</h3>
       <label className="field">
         <span>Undo window (seconds)</span>
         <input
@@ -59,13 +68,23 @@ export function ThreadsSection() {
           value={secs}
           onChange={(e) => setSecs(e.target.value)}
           onBlur={() => {
-            const v = clampUndoSeconds(secs, prefs.undoSeconds);
-            set({ undoSeconds: v });
+            const v = clampUndoSeconds(secs, undoSeconds);
+            setPrefs({ undoSeconds: v });
             setSecs(String(v));
           }}
         />
       </label>
+      <p className="hint">How long a closed, settled or snoozed thread can be brought back. Undo, pins, ⇧⌘T, ⌘[ ⌘], drag between sections, stash, scratch threads and the rest are always on.</p>
+    </section>
+  );
+}
 
+/** Background → council review, ready score, round cap and the nightly review. */
+export function ReviewSection() {
+  const prefs = useUi((s) => s.prefs);
+  const set = setPrefs;
+  return (
+    <section className="set-group">
       <h3>Review &amp; ready</h3>
       <PrefSwitches items={REVIEW_SWITCHES} />
       <label className="field">

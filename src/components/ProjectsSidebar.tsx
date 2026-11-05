@@ -486,7 +486,7 @@ function PhoneStatus() {
   if (!clients) return null;
   const label = clients === 1 ? "Phone connected" : `${clients} phones connected`;
   return (
-    <button className="side-remote" title={`${label}: it can read and reply to threads (Settings → Remote)`} onClick={() => useUi.getState().set({ settingsOpen: true, settingsSection: "remote" })}>
+    <button className="side-remote" title={`${label}: it can read and reply to threads (Settings → Connections)`} onClick={() => useUi.getState().set({ settingsOpen: true, settingsSection: "remote" })}>
       <i />
       <PhoneIcon width={13} height={13} />
       {label}

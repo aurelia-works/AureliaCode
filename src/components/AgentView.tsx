@@ -170,7 +170,7 @@ function RunTeamDialog({ teams, onClose }: { teams: AgentTeam[]; onClose(): void
         </div>
         <div className="run-team-body">
           {teams.length === 0 ? (
-            <p className="hint">No saved teams yet. Make one in Settings → My agents.</p>
+            <p className="hint">No saved teams yet. Make one in Settings → Agents.</p>
           ) : (
             <>
               <label className="field">

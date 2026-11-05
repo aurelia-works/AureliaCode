@@ -59,7 +59,7 @@ export async function runTeam(team: AgentTeam, task: string, opts: RunTeamOption
   const saved = useCustomAgents.getState().agents;
   const agents = [...new Map(team.agentIds.flatMap((id) => saved.filter((a) => a.id === id)).map((a) => [a.id, a])).values()];
   if (!agents.length) {
-    toast(`${team.name} has no agents. Add some in Settings → My agents.`, true);
+    toast(`${team.name} has no agents. Add some in Settings → Agents.`, true);
     return undefined;
   }
 

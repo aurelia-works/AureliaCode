@@ -32,7 +32,7 @@ export function ChatSection({ draft, update }: SectionProps) {
             <option value="steer">stops the turn and sends now</option>
           </select>
         </label>
-        <p className="hint">The opposite action is one key away with {enterSends ? "⌘Enter" : "⇧⌘Enter"}. Turn the feature off under Threads &amp; keys.</p>
+        <p className="hint">The opposite action is one key away with {enterSends ? "⌘Enter" : "⇧⌘Enter"}.</p>
       </section>
 
       <section className="set-group">

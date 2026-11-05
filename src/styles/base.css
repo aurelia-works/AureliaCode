@@ -172,7 +172,6 @@ kbd {
 .field button,
 .modal-foot button,
 .review-send button,
-.settings-bar button,
 .acct-form-actions button,
 .diff-comment-actions button:not(.link-btn) {
   height: 28px;
@@ -189,7 +188,6 @@ kbd {
 .field button:hover:not(:disabled),
 .modal-foot button:hover:not(:disabled),
 .review-send button:hover:not(:disabled),
-.settings-bar button:hover:not(:disabled),
 .acct-form-actions button:hover:not(:disabled),
 .diff-comment-actions button:not(.link-btn):hover {
   background: var(--surface-2);

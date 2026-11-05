@@ -221,7 +221,7 @@ export function variantOf(agent: CustomAgent): AgentVariant | undefined {
 export async function prepareCustomAgent(agent: CustomAgent, base: string | undefined): Promise<{ opts: NewPaneOpts; command?: string } | undefined> {
   const variant = variantOf(agent);
   if (!variant || (variant.custom && !agent.command?.trim())) {
-    toast(`${agent.name}: its CLI or account no longer exists. Edit it in Settings → My agents.`, true);
+    toast(`${agent.name}: its CLI or account no longer exists. Edit it in Settings → Agents.`, true);
     return undefined;
   }
   const from = agent.folder ? expandPath(agent.folder) : base;
@@ -262,7 +262,7 @@ export async function launchCustomAgent(agent: CustomAgent, where: "split" | "ta
 export async function launchTeam(team: AgentTeam) {
   const members = team.agentIds.map(customAgentById).filter((a): a is CustomAgent => !!a);
   if (!members.length) {
-    toast(`${team.name} has no agents. Add some in Settings → My agents.`, true);
+    toast(`${team.name} has no agents. Add some in Settings → Agents.`, true);
     return;
   }
   const from = focusedPaneId();
