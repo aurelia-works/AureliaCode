@@ -12,6 +12,7 @@ import { RightPanel } from "./components/RightPanel";
 import { ThreadHeader } from "./components/ThreadHeader";
 import { TitleBar } from "./components/TitleBar";
 import { Toast } from "./components/Toast";
+import { WorkerSheet } from "./components/WorkerSheet";
 import { gridFits } from "./lib/gridFit";
 import { fitAllTerminals, focusTerminal } from "./lib/terminals";
 import { activeTab, useLayout } from "./store/layout";
@@ -200,6 +201,7 @@ export function App() {
       <NoticeStack />
       <Toast />
       <UndoToast />
+      <WorkerSheet />
       <PaneDragGhost />
     </div>
   );

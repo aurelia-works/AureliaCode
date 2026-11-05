@@ -1,0 +1,126 @@
+/* An agent's browser action, drawn as a card in the conversation. */
+
+.chat-browser {
+  margin: var(--sp-2) 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.chat-browser.running {
+  border-color: color-mix(in srgb, var(--work) 35%, var(--border));
+}
+
+.chat-browser.error {
+  border-color: color-mix(in srgb, var(--err) 35%, var(--border));
+}
+
+.chat-browser-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: var(--sp-2) var(--sp-3);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--fs-meta);
+}
+
+.chat-browser-logo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--text-dim);
+}
+
+.chat-browser-action {
+  flex: none;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.chat-browser-sum {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-browser.error .chat-browser-sum {
+  color: var(--err);
+}
+
+.chat-browser-host {
+  margin-left: auto;
+  flex: none;
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+}
+
+.chat-browser-note {
+  margin: var(--sp-2) var(--sp-3) 0;
+  padding: var(--sp-1) var(--sp-2);
+  border-left: 2px solid var(--attn-line);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+
+.chat-browser-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  margin: var(--sp-2) var(--sp-3) 0;
+  font-size: var(--fs-meta);
+}
+
+.chat-browser-snapshot {
+  max-height: 300px;
+  margin: var(--sp-2) var(--sp-3);
+  padding: var(--sp-2);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.chat-browser-shot {
+  margin: var(--sp-2) var(--sp-3);
+}
+
+.chat-browser-shot img {
+  display: block;
+  width: 100%;
+  max-height: 360px;
+  object-fit: contain;
+  object-position: top left;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+}
+
+.chat-browser-shot figcaption {
+  margin-top: var(--sp-1);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+}
+
+.chat-browser-error {
+  margin: var(--sp-2) var(--sp-3);
+  color: var(--err);
+  font-size: var(--fs-meta);
+}
+
+.chat-browser-foot {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--sp-1) var(--sp-3) var(--sp-2);
+}

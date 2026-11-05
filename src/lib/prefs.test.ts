@@ -67,12 +67,18 @@ test("the nightly review is off by default and its hour stays a whole hour of th
   assert.equal(normalizePrefs({ nightlyHour: "3" }).nightlyHour, 3, "not a number: the default");
 });
 
-test("the splash hides as soon as the app paints unless you ask it to stay, up to 3 s", () => {
+test("the splash hold is saved, clamped and 0 by default; the intro itself is in lib/splash", () => {
   assert.equal(normalizePrefs({}).splashMinMs, 0);
   assert.equal(normalizePrefs({ splashMinMs: 1600 }).splashMinMs, 1600);
   assert.equal(normalizePrefs({ splashMinMs: 9000 }).splashMinMs, 3000);
   assert.equal(normalizePrefs({ splashMinMs: -5 }).splashMinMs, 0);
   assert.equal(normalizePrefs({ splashMinMs: "800" }).splashMinMs, 0, "not a number: the default");
+});
+
+test("desktop computer use is off by default and stays a boolean", () => {
+  assert.equal(DEFAULT_PREFS.computerUse, false);
+  assert.equal(normalizePrefs({ computerUse: true }).computerUse, true);
+  assert.equal(normalizePrefs({ computerUse: "yes" }).computerUse, false);
 });
 
 test("new threads start at Medium effort; a file saved before that moves to Medium once", () => {

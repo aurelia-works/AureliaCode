@@ -833,3 +833,62 @@
   background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
 }
+
+/* Computer use: permission checks and a test screenshot. */
+.computer-status {
+  display: grid;
+  gap: var(--sp-1);
+  margin: var(--sp-2) 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-meta);
+}
+
+.computer-status li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  color: var(--text-dim);
+}
+
+.computer-dot {
+  width: 7px;
+  height: 7px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--err);
+}
+
+.computer-status li.ok .computer-dot {
+  background: var(--ok);
+}
+
+.computer-yes {
+  margin-left: auto;
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+}
+
+.computer-shot {
+  max-width: 640px;
+  margin: var(--sp-2) 0;
+}
+
+.computer-shot img {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+}
+
+.computer-shot figcaption {
+  margin-top: var(--sp-1);
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  overflow-wrap: anywhere;
+}
+
+.bad-text {
+  color: var(--err);
+}

@@ -3,6 +3,7 @@ mod browser;
 mod browser_agent;
 mod chat;
 mod checkpoints;
+mod computer;
 mod config;
 mod control;
 mod delegate;
@@ -220,6 +221,7 @@ pub fn run() {
             privacy::app_bundle_path,
             media::capture_screenshot,
             media::clipboard_image,
+            media::read_image,
             chat::chat_spawn,
             chat::chat_send,
             chat::read_attachment,
@@ -246,6 +248,10 @@ pub fn run() {
             browser::browser_eval,
             browser::browser_screenshot,
             browser_agent::browser_agent,
+            computer::computer_status,
+            computer::computer_screenshot,
+            computer::computer_action,
+            computer::computer_open_settings,
             pty::pty_spawn,
             pty::pty_write,
             pty::pty_write_binary,

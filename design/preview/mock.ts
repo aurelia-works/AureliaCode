@@ -944,6 +944,7 @@ if (view === "threads") {
   noteBase("p4", { files: 3, additions: 80, deletions: 12 }, true);
 }
 if (view === "start") useLayout.getState().activateTab("t3");
+if (view === "chatstart") useLayout.getState().activateTab("t4");
 if (view !== "terminals" && view !== "files" && view !== "threads") useNotices.getState().clear();
 if (view === "chat" && REPLAY) useLayout.getState().activateTab("t4");
 if (view === "chat" && !REPLAY) {
@@ -1007,6 +1008,30 @@ if (view === "chat" && !REPLAY) {
               { kind: "tool", id: id(), toolId: "d1", name: "mcp__aurelia__aurelia_delegate", input: { provider: "opencode", task: "Find why the right arrow types boxes in the composer and fix it, with a test.", mode: "work" }, partial: "", result: done, steps: 0 },
               { kind: "tool", id: id(), toolId: "d2", name: "mcp__aurelia__aurelia_delegate", input: { provider: "claude", model: "haiku", task: "Check whether Notes gets the same key code from Aurelia Voice's key tap.", wait: false }, partial: "", result: 'Started d2: Claude agent on "Check whether Notes gets the same key code". Check it with aurelia_delegation (status, wait or cancel) and id d2.', steps: 0 },
               { kind: "tool", id: id(), toolId: "d3", name: "mcp__aurelia__aurelia_delegate", input: { provider: "grok", task: "Review the Composer.tsx change for other named keys it might still type." }, partial: "", steps: 0 },
+            ],
+          },
+        },
+      },
+    });
+  }
+  if (params.get("browser") === "1") {
+    // The agent's browser loop: open, snapshot, click and screenshot, each as its own card.
+    const chat = useChat.getState().byPane.p10!;
+    useChat.setState({
+      byPane: {
+        p10: {
+          ...chat,
+          status: "working",
+          approvals: [],
+          queued: [],
+          transcript: {
+            ...chat.transcript,
+            items: [
+              { kind: "user", id: id(), text: "Open the settings preview and check the save button." },
+              { kind: "tool", id: id(), toolId: "b1", name: "mcp__aurelia__aurelia_browser", input: { action: "open", url: "http://localhost:1437/design/preview/?view=settings" }, partial: "", result: JSON.stringify({ pane: "p9", url: "http://localhost:1437/design/preview/?view=settings", title: "Settings · AureliaCode" }), steps: 0 },
+              { kind: "tool", id: id(), toolId: "b2", name: "mcp__aurelia__aurelia_browser", input: { action: "snapshot", selector: "main.settings-content" }, partial: "", result: "url: http://localhost:1437/design/preview/?view=settings\ntitle: Settings · AureliaCode\nviewport: 1100x760, scrolled 0/240\n\n- main \"Settings\" [ref=e1]\n  - heading \"General\" [level=2, ref=e2]\n  - button \"Choose…\" [ref=e3]\n  - checkbox \"Open files in AureliaCode\" [checked, ref=e4]\n  - button \"Save\" [ref=e5]", steps: 0 },
+              { kind: "tool", id: id(), toolId: "b3", name: "mcp__aurelia__aurelia_browser", input: { action: "act", kind: "click", ref: "e5" }, partial: "", result: JSON.stringify({ ok: true, kind: "click", target: "button#save [ref=e5]", note: "covered by div.toast at its centre; dispatched to the element anyway" }), steps: 0 },
+              { kind: "tool", id: id(), toolId: "b4", name: "mcp__aurelia__aurelia_browser", input: { action: "screenshot", ref: "e5" }, partial: "", result: JSON.stringify({ image: "/tmp/aurelia-preview-shot.png", width: 320, height: 88, target: "button#save [ref=e5]" }) + "\n[image]", steps: 0 },
             ],
           },
         },

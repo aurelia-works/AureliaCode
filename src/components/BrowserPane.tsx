@@ -74,9 +74,21 @@ export function BrowserPane({ paneId }: { paneId: string }) {
         const withShot = shot ? { ...pick, shot } : pick;
         window.dispatchEvent(new CustomEvent(BROWSER_PICK, { detail: { pane: paneId, pick: withShot, text: pickPrompt(withShot) } }));
       };
-      // x/y are offsets inside the webview; the Rust side adds the webview's window position.
-      if (r) ipc.browserScreenshot(paneId, 0, 0, r.w, r.h).then(send, () => send());
-      else send();
+      // The page's own WKWebView snapshot: no other window can cover it, so the evidence
+      // always shows the element that was picked. The old screen-rect capture stays as a
+      // fallback for a pane WebKit can't snapshot.
+      const fallback = () => {
+        if (!r) return send();
+        ipc.browserScreenshot(paneId, 0, 0, r.w, r.h).then(send, () => send());
+      };
+      ipc.browserAgent(paneId, "screenshot", {}).then(
+        (v) => {
+          const image = v && typeof v === "object" && typeof (v as { image?: unknown }).image === "string" ? (v as { image: string }).image : undefined;
+          if (image) send(image);
+          else fallback();
+        },
+        fallback,
+      );
     });
     return () => void un.then((f) => f());
   }, [paneId]);

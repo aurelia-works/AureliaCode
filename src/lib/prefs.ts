@@ -61,10 +61,12 @@ export interface ThreadPrefs {
   nightlyReview: boolean;
   /** Local hour (0-23) the nightly review runs after. */
   nightlyHour: number;
-  /** Shortest time the launch splash stays up, in ms (0: it fades as soon as the app paints). Not in Settings. */
+  /** Extra hold after the launch splash's ~0.9 s intro, in ms (0: fade as soon as the intro ends). Saved, not in Settings. */
   splashMinMs: number;
   /** Council score a thread needs to count as Ready. */
   readyScore: number;
+  /** Desktop computer use (screenshot, mouse, keyboard) is on. Off by default; it needs macOS permissions. */
+  computerUse: boolean;
   /** The Work board shows a project's human time per PR (approvals, comments, wait, reverts). */
   humanStats: boolean;
   /** "Add to merge queue" on threads with an open PR: rebase, checks, reviewer PASS, then squash-merge, one at a time. Off by default: it merges code. */
@@ -105,6 +107,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   nightlyHour: 3,
   splashMinMs: 0,
   readyScore: 8,
+  computerUse: false,
   humanStats: true,
   mergeQueue: false,
   greeting: true,

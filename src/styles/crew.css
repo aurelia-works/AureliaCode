@@ -1,0 +1,326 @@
+/* The crew: agents a lead chat delegated to, shown inside the thread sidebar. */
+
+.crew {
+  max-height: 38vh;
+  padding: var(--sp-2) var(--sp-2) var(--sp-3);
+  overflow: auto;
+  border-bottom: 1px solid var(--border);
+}
+
+.crew h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-1);
+  padding: 0 var(--sp-2);
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.crew h3 .n {
+  margin-left: auto;
+  color: var(--text-dim);
+}
+
+.crew-live {
+  color: var(--work);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.crew-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+}
+
+.crew-row {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  gap: var(--sp-2);
+  padding: var(--sp-1) var(--sp-2);
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.crew-row:hover,
+.crew-row:focus-visible {
+  background: var(--hover);
+}
+
+.crew-logo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--text-dim);
+}
+
+.crew-main {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.crew-title {
+  overflow: hidden;
+  font-size: var(--fs-body);
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-meta {
+  overflow: hidden;
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.crew-state {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+  white-space: nowrap;
+}
+
+.crew-state i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.crew-state.running,
+.crew-state.working,
+.crew-state.starting {
+  color: var(--work);
+}
+
+.crew-state.running i {
+  animation: crew-pulse 1.2s ease-in-out infinite;
+}
+
+.crew-state.done,
+.crew-state.idle {
+  color: var(--ok);
+}
+
+.crew-state.failed {
+  color: var(--err);
+}
+
+.crew-state.needs_input {
+  color: var(--attn);
+}
+
+.crew-row.failed .crew-title {
+  color: var(--text-dim);
+}
+
+@keyframes crew-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crew-state.running i {
+    animation: none;
+  }
+}
+
+/* A delegated run's detail sheet. */
+
+.worker-sheet {
+  display: flex;
+  width: min(680px, 92vw);
+  max-height: min(82vh, 760px);
+  flex-direction: column;
+}
+
+.worker-title {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.worker-logo {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  color: var(--text-dim);
+}
+
+.worker-sub {
+  margin: 2px 0 0;
+  color: var(--text-faint);
+  font-size: var(--fs-meta);
+}
+
+.worker-body {
+  overflow: auto;
+  padding: var(--sp-4);
+}
+
+.worker-task {
+  margin: 0 0 var(--sp-3);
+  color: var(--text);
+  font-size: var(--fs-title);
+  line-height: 1.5;
+}
+
+.worker-meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0 0 var(--sp-3);
+  font-size: var(--fs-meta);
+}
+
+.worker-meta dt {
+  color: var(--text-faint);
+}
+
+.worker-meta dd {
+  margin: 0;
+  color: var(--text-dim);
+}
+
+.worker-note,
+.worker-blocked {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--attn-line);
+  border-radius: var(--r-sm);
+  background: var(--attn-soft);
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
+
+.worker-blocked {
+  border-color: var(--border);
+  background: var(--surface-2);
+}
+
+.worker-files h3,
+.worker-report h3 {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.worker-files ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+  margin: 0 0 var(--sp-3);
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-meta);
+}
+
+.worker-report pre {
+  max-height: 34vh;
+  margin: 0;
+  padding: var(--sp-3);
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.worker-footnote {
+  margin: var(--sp-3) 0 0;
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+  line-height: 1.5;
+}
+
+.worker-footnote code {
+  font-family: var(--font-mono);
+  color: var(--text-dim);
+}
+
+/* The title bar says when agents may control the desktop. Clicking it opens the switch. */
+.computer-on {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  border-color: color-mix(in srgb, var(--attn) 45%, var(--border));
+  color: var(--attn);
+  font-size: var(--fs-label);
+}
+
+.computer-on:hover {
+  background: var(--attn-soft);
+}
+
+.worker-log h3 {
+  margin: 0 0 var(--sp-1);
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.worker-log ol {
+  display: grid;
+  gap: var(--sp-1);
+  margin: 0 0 var(--sp-3);
+  padding: 0;
+  list-style: none;
+  font-size: var(--fs-meta);
+}
+
+.worker-log li {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: var(--sp-2);
+  color: var(--text-dim);
+}
+
+.worker-log li.done .worker-log-text {
+  color: var(--ok);
+}
+
+.worker-log li.failed .worker-log-text {
+  color: var(--err);
+}
+
+.worker-log-time {
+  color: var(--text-faint);
+  font-size: var(--fs-label);
+  line-height: 1.5;
+}

@@ -34,6 +34,8 @@ import { toast, useUi } from "../store/ui";
 import { useConfig } from "../store/config";
 import { AgentLogo } from "./AgentLogos";
 import { delegationTool, parseDelegation } from "../lib/delegation";
+import { browserTool } from "../lib/browserTool";
+import { BrowserCard } from "./BrowserCard";
 import { isVisualTool, parseVisual, type VisualReply } from "../lib/visualReply";
 import { VisualReplyCard } from "./VisualReply";
 import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, CollapseIcon, ExpandIcon, FileIcon, GaugeIcon, GlobeIcon, MoreIcon, PenIcon, PlusIcon, SearchIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
@@ -54,7 +56,8 @@ type Tool = Extract<ChatItem, { kind: "tool" }>;
 export function ChatPane({ paneId }: { paneId: string }) {
   const session = useChat((s) => s.byPane[paneId]);
   const cwd = useLayout((s) => s.panes[paneId]?.cwd);
-  const fresh = useLayout((s) => freshChat(s.panes[paneId], 0));
+  const items = session?.transcript.items ?? [];
+  const fresh = useLayout((s) => freshChat(s.panes[paneId], items.length));
   const logRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   // Scrolled up from the latest: shows the jump-back button.
@@ -65,7 +68,6 @@ export function ChatPane({ paneId }: { paneId: string }) {
     if (pane) ensureChat(pane);
   }, [paneId]);
 
-  const items = session?.transcript.items ?? [];
   const segs = useMemo(() => segments(items), [items]);
   // A message you send brings the view back down to it.
   const sentCount = items.filter((i) => i.kind === "user").length;
@@ -595,7 +597,7 @@ const WorkBlock = memo(function WorkBlock({ seg, live, waiting, cwd, paneId }: {
           </button>
         )
       )}
-      {(live || open) && seg.activity.length > 0 && <Activity items={seg.activity} cwd={cwd} />}
+      {(live || open) && seg.activity.length > 0 && <Activity items={seg.activity} cwd={cwd} paneId={paneId} />}
       {visuals.map(({ id, v }) => (
         <VisualReplyCard key={id} visual={v} paneId={paneId} />
       ))}
@@ -622,13 +624,14 @@ const WorkBlock = memo(function WorkBlock({ seg, live, waiting, cwd, paneId }: {
 });
 
 /** A turn's activity in order: tool calls run together into one folded line, notes between them dimmed. */
-function Activity({ items, cwd }: { items: ChatItem[]; cwd?: string }) {
+function Activity({ items, cwd, paneId }: { items: ChatItem[]; cwd?: string; paneId: string }) {
   const groups: (ChatItem | Tool[])[] = [];
   for (const i of items) {
     const prev = groups.at(-1);
-    // A delegated agent gets a card of its own, never folded in with other tool calls.
-    const own = i.kind === "tool" && !!delegationTool(i.name);
-    if (i.kind === "tool" && !own && Array.isArray(prev) && !delegationTool(prev[0].name)) prev.push(i);
+    // A delegated or browser agent gets a card of its own, never folded in with other tool calls.
+    const own = i.kind === "tool" && !!(delegationTool(i.name) || browserTool(i.name));
+    const prevOwn = Array.isArray(prev) && !!(delegationTool(prev[0].name) || browserTool(prev[0].name));
+    if (i.kind === "tool" && !own && Array.isArray(prev) && !prevOwn) prev.push(i);
     else groups.push(i.kind === "tool" ? [i] : i);
   }
   return (
@@ -637,6 +640,8 @@ function Activity({ items, cwd }: { items: ChatItem[]; cwd?: string }) {
         Array.isArray(g) ? (
           delegationTool(g[0].name) ? (
             <DelegationCard key={g[0].id} item={g[0]} cwd={cwd} />
+          ) : browserTool(g[0].name) ? (
+            <BrowserCard key={g[0].id} name={g[0].name} input={g[0].input} result={g[0].result} isError={g[0].isError} paneId={paneId} />
           ) : (
             <ToolGroup key={g[0].id} tools={g} cwd={cwd} />
           )
@@ -1667,17 +1672,6 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             />
           )}
           <ContextRing paneId={paneId} />
-          {busy && (
-            <button
-              type="button"
-              className="opt tog"
-              aria-pressed={prefs.followUp === "steer"}
-              title={`While Claude works, Enter ${prefs.followUp === "steer" ? "stops the turn and sends now" : "queues for after the turn"}. ⌘Enter does the other. Click to switch.`}
-              onClick={() => useUi.getState().set({ prefs: { ...prefs, followUp: prefs.followUp === "steer" ? "queue" : "steer" } })}
-            >
-              {prefs.followUp === "steer" ? "Enter steers" : "Enter queues"}
-            </button>
-          )}
           {busy && empty ? (
             <button type="button" className="chat-send stop" onClick={() => interruptChat(paneId)} title="Stop this turn (Esc or ⌘.)" aria-label="Stop">
               <StopIcon />

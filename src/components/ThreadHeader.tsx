@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { basename } from "../lib/format";
 import { isOpenCode, useChat } from "../lib/chat";
 import { chatIcon } from "../lib/threadOrder";
@@ -8,8 +9,10 @@ import { paneDir, useGit } from "../store/git";
 import { paneIds, useLayout } from "../store/layout";
 import { usePrs } from "../store/prs";
 import { useUi } from "../store/ui";
+import { crewRuns } from "../lib/crew";
+import { familyOf } from "../lib/threadFamily";
 import { usePaneAgent } from "./AgentChip";
-import { BottomPanelIcon, BranchIcon, GridIcon, PrIcon, RightPanelIcon, WorktreeIcon } from "./Icons";
+import { BranchIcon, GridIcon, PrIcon, SparkIcon, RightPanelIcon, WorktreeIcon } from "./Icons";
 import { AccountSwitch } from "./AccountSwitch";
 import { ModeChip, PaneMenu } from "./PaneHeader";
 import { ChatUsageChip } from "./UsageChip";
@@ -49,6 +52,9 @@ export function ThreadHeader() {
   const chatStatus = useChat((s) => (paneId ? s.byPane[paneId]?.status : undefined));
   const approvals = useChat((s) => (paneId ? (s.byPane[paneId]?.approvals.length ?? 0) : 0));
   const custom = usePaneAgent(paneId ?? "");
+  const chatItems = useChat((s) => (paneId ? s.byPane[paneId]?.transcript.items : undefined));
+  const crew = useMemo(() => crewRuns(chatItems ?? []).length, [chatItems]);
+  const kids = useLayout((s) => (paneId ? familyOf(s.panes, paneId).children.length : 0));
   const ui = useUi.getState();
 
   const tools = (
@@ -56,18 +62,6 @@ export function ThreadHeader() {
       <button className="ib labelled" title="Grid: every thread of this tab at once" aria-pressed={!single || full} onClick={() => ui.set(full ? { mode: "terminals" } : { single: !single })}>
         <GridIcon />
         <span>Grid</span>
-      </button>
-      <button
-        className="ib labelled"
-        title="Open a shell below this thread (⇧⌘D)"
-        onClick={() => {
-          if (!paneId) return;
-          useLayout.getState().splitPane(paneId, "column", { cwd: dir });
-          ui.set({ single: false });
-        }}
-      >
-        <BottomPanelIcon />
-        <span>Shell</span>
       </button>
       <button
         className="ib labelled"
@@ -135,7 +129,7 @@ export function ThreadHeader() {
   const chat = pane?.mode === "chat";
   // PaneView drops the pane header for these, so its tools live here.
   const bare = (chat || !!pane?.launcher) && tabRoot?.type !== "split";
-  const name = title ?? (pane?.launcher || freshChat(pane, 0) ? "New thread" : pane?.browser ? "Browser" : pane?.editor ? basename(pane.editor.path) : custom?.name ?? (isOpenCode(pane) ? "OpenCode" : pane?.account || agent ? "Claude" : "Terminal"));
+  const name = title ?? (pane?.launcher || freshChat(pane, chatItems?.length ?? 0) ? "New thread" : pane?.browser ? "Browser" : pane?.editor ? basename(pane.editor.path) : custom?.name ?? (isOpenCode(pane) ? "OpenCode" : pane?.account || agent ? "Claude" : "Terminal"));
   const prTone = pr && (pr.state === "MERGED" ? "merged" : pr.conflicts || pr.checks === "fail" ? "bad" : pr.checks === "pass" ? "ok" : "");
   const prWhat = pr && (pr.state !== "OPEN" ? pr.state.toLowerCase() : pr.conflicts ? "conflicts" : pr.checks === "none" ? (pr.draft ? "draft" : "open") : `checks ${pr.checks}`);
 
@@ -148,6 +142,12 @@ export function ThreadHeader() {
         <span>/</span>
         <h1 title={name}>{name}</h1>
       </div>
+      {crew + kids > 0 && (
+        <button className="chip crew-chip" title="Agents this thread delegated to: open the crew in the sidebar" onClick={() => ui.set({ nav: "projects" })}>
+          <SparkIcon width={13} height={13} />
+          {crew + kids} crew
+        </button>
+      )}
       {chat && account && paneId && headerMode && <AccountSwitch paneId={paneId} account={account} />}
       {git && headerMode && (
         <span className={`chip${git.worktree ? " wt" : ""}`} title={`${git.detached ? "Detached HEAD" : "Branch"} ${git.branch}${git.worktree ? `\nWorktree: ${git.root}` : ""}`}>

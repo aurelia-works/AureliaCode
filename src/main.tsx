@@ -24,6 +24,7 @@ import { startNightly } from "./store/nightly";
 import { startRemote } from "./lib/remote";
 import { planResume } from "./lib/resume";
 import { installShortcuts, selectAll } from "./lib/shortcuts";
+import { splashDelay } from "./lib/splash";
 import { applyAppearance } from "./lib/terminals";
 import { applyUiAppearance } from "./lib/uiAppearance";
 import { onSystemThemeChange, resolveDark } from "./lib/theme";
@@ -54,6 +55,8 @@ import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/chrome.css";
 import "./styles/panes.css";
+import "./styles/crew.css";
+import "./styles/browser.css";
 import "./styles/board.css";
 import "./styles/agentview.css";
 import "./styles/overlays.css";
@@ -208,15 +211,22 @@ async function checkFullDiskAccess() {
   });
 }
 
-/** Fades out the load-in splash from index.html once the first frame is up, after the shortest show time you set. */
+/** Fades out the load-in splash from index.html once the first frame is up, after its intro and the hold you set. */
 function hideSplash() {
   const splash = document.getElementById("splash");
+  // Preview harness pages have no inline splash, but their boot marks still need `splash`.
+  if (!splash) {
+    mark("splash");
+    return;
+  }
   const start = (window as { __splashStart?: number }).__splashStart ?? 0;
-  const wait = Math.max(0, useUi.getState().prefs.splashMinMs - (performance.now() - start));
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const wait = splashDelay(useUi.getState().prefs.splashMinMs, performance.now() - start, reduced);
   setTimeout(() => {
     mark("splash");
-    if (!splash) return;
-    requestAnimationFrame(() => splash.classList.add("out"));
+    // Two frames: the class change lands after the first app frame is on screen, never
+    // in the same paint that replaces the splash.
+    requestAnimationFrame(() => requestAnimationFrame(() => splash.classList.add("out")));
     setTimeout(() => splash.remove(), 700);
   }, wait);
 }

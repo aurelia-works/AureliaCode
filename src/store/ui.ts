@@ -50,6 +50,8 @@ interface UiState {
   /** Thread being renamed in the list (F2), and thread whose menu is open (right-click, ⇧F10). */
   renameThread: string | null;
   threadMenu: string | null;
+  /** A delegated run opened from the crew list: the lead pane and the run's key in its transcript. */
+  workerOpen: { paneId: string; key: string } | null;
   /** Composer drafts set aside with ⌘S (lib/stash.ts). */
   stash: string[];
   roadmapProject: string | null;
@@ -104,6 +106,7 @@ export const useUi = create<UiState>((set) => ({
   prefs: DEFAULT_PREFS,
   renameThread: null,
   threadMenu: null,
+  workerOpen: null,
   stash: [],
   roadmapProject: null,
   paletteOpen: false,

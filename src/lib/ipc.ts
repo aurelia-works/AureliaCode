@@ -540,6 +540,13 @@ export const ipc = {
   browserEval: (pane: string, script: string) => invoke<void>("browser_eval", { pane, script }),
   /** Captures the visible page area and returns the PNG path. */
   browserScreenshot: (pane: string, x: number, y: number, w: number, h: number) => invoke<string>("browser_screenshot", { pane, x, y, w, h }),
+  /** The agent browser's actions (src-tauri/src/browser_agent.rs): snapshot, act, wait, resize, inspect, screenshot. */
+  browserAgent: (pane: string, action: string, args?: Record<string, unknown>) => invoke<unknown>("browser_agent", { pane, action, args: args ?? null }),
+  /** Desktop computer use (src-tauri/src/computer.rs). Only called when the pref is on. */
+  computerStatus: () => invoke<{ platform: string; accessibility: boolean; screenRecording: boolean; secureInput: boolean; screen: { w: number; h: number } | null }>("computer_status"),
+  computerScreenshot: () => invoke<{ image: string; width: number; height: number }>("computer_screenshot"),
+  computerAction: (action: string, args: Record<string, unknown>) => invoke<Record<string, unknown>>("computer_action", { action, args }),
+  computerOpenSettings: (kind: "accessibility" | "screen") => invoke<void>("computer_open_settings", { kind }),
   browserClose: (pane: string) => invoke<void>("browser_close", { pane }),
   discordSet: (presence: { clientId: string; details: string; state?: string; startedAt?: number } | null) =>
     invoke<void>("discord_set", { presence }),
@@ -566,6 +573,8 @@ export const ipc = {
   appBundlePath: () => invoke<string | null>("app_bundle_path"),
   captureScreenshot: () => invoke<ChatImage | null>("capture_screenshot"),
   clipboardImage: () => invoke<ChatImage | null>("clipboard_image"),
+  /** A screenshot the app wrote, as a data URL (restricted to the app and temp folders). */
+  readImage: (path: string) => invoke<{ mediaType: string; data: string }>("read_image", { path }),
   openFullDiskAccessSettings: () => invoke<void>("open_full_disk_access_settings"),
 
   gitLastCommit: (cwd: string) => invoke<number | null>("git_last_commit", { cwd }),

@@ -13,7 +13,9 @@ diagram, a report, a mockup) in a browser pane next to you. aurelia_task_add, au
 keep the shared task list for a team run: one task per slice, status todo, doing or done, attached to the worker's pane. \
 aurelia_team_status shows recent team runs with their lead, workers, models, panes and merged report; aurelia_team_finish closes one with the lead's merged report. \
 aurelia_browser drives the browser pane beside you: open a url, snapshot the page (elements with refs), act on a ref, wait, \
-resize the viewport, inspect an element's box and styles, and screenshot the page alone.";
+resize the viewport, inspect an element's box and styles, and screenshot the page alone. aurelia_computer controls the desktop \
+itself (screen points, mouse, keyboard) and is only for native apps; use aurelia_browser for web pages. It is off unless the \
+human enables Computer use in Settings, and every action is logged.";
 
 pub fn tools() -> Vec<Value> {
     vec![
@@ -185,6 +187,28 @@ screenshot: PNG of the page alone (no windows on top), or of one `ref`; returned
                 "required": ["action"]
             }
         }),
+        json!({
+            "name": "aurelia_computer",
+            "title": "Control the desktop",
+            "description": "Full desktop computer use: screenshots, mouse and keyboard for any macOS app. This is NOT the browser pane; use aurelia_browser for web pages and their DOM. Off unless Settings → Advanced & Labs → Computer use is on, and blocked while macOS Accessibility, Screen Recording or secure input stops it. Loop: screenshot → act → look at the returned screenshot and verify. Coordinates are screen points. Quit and force-quit keys are blocked. Every action is logged.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "action": { "type": "string", "enum": ["status", "screenshot", "move", "click", "doubleClick", "rightClick", "type", "key", "scroll"] },
+                    "x": { "type": "number", "description": "Screen x in points, for move/click/scroll" },
+                    "y": { "type": "number", "description": "Screen y in points, for move/click/scroll" },
+                    "text": { "type": "string", "description": "Text to type; at most 4000 characters" },
+                    "key": { "type": "string", "description": "Key name: a letter, digit, Return, Tab, Escape, Delete, arrow, Home, End, PageUp, PageDown" },
+                    "modifiers": { "type": "array", "items": { "type": "string", "enum": ["Shift", "Control", "Alt", "Meta"] } },
+                    "clickCount": { "type": "integer", "minimum": 1, "maximum": 3 },
+                    "dx": { "type": "number" },
+                    "dy": { "type": "number" },
+                    "verify": { "type": "boolean", "description": "Take a screenshot after the action (default true)" }
+                },
+                "required": ["action"]
+            },
+            "annotations": { "readOnlyHint": false, "destructiveHint": true, "openWorldHint": true }
+        }),
     ]
 }
 
@@ -211,7 +235,11 @@ pub fn content(result: &Value) -> Value {
         other => serde_json::to_string_pretty(other).unwrap_or_default(),
     };
     let mut blocks = vec![json!({ "type": "text", "text": text })];
-    if let Some(path) = result.get("image").and_then(|p| p.as_str()) {
+    let image = result
+        .get("image")
+        .and_then(|p| p.as_str())
+        .or_else(|| result.get("screen").and_then(|s| s.get("image")).and_then(|p| p.as_str()));
+    if let Some(path) = image {
         match std::fs::read(path) {
             Ok(bytes) => {
                 use base64::Engine;
@@ -242,6 +270,16 @@ mod tests {
     }
 
     #[test]
+    fn computer_tool_is_described_as_desktop_control_not_the_browser() {
+        let tool = tools().into_iter().find(|t| t["name"] == "aurelia_computer").expect("aurelia_computer");
+        let actions: Vec<&str> = tool["inputSchema"]["properties"]["action"]["enum"].as_array().unwrap().iter().map(|v| v.as_str().unwrap()).collect();
+        assert_eq!(actions, ["status", "screenshot", "move", "click", "doubleClick", "rightClick", "type", "key", "scroll"]);
+        assert_eq!(tool["inputSchema"]["required"], json!(["action"]));
+        assert!(tool["description"].as_str().unwrap().contains("NOT the browser pane"));
+        assert!(handles("aurelia_computer"));
+    }
+
+    #[test]
     fn screenshots_reach_the_agent_as_images() {
         let path = std::env::temp_dir().join(format!("aurelia-shot-{}.png", std::process::id()));
         std::fs::write(&path, b"\x89PNG fake").unwrap();
@@ -252,6 +290,9 @@ mod tests {
         assert_eq!(blocks[1]["type"], "image");
         assert_eq!(blocks[1]["mimeType"], "image/png");
         assert_eq!(blocks[1]["data"], "iVBORyBmYWtl");
+        // Computer use returns its screenshot inside `screen`.
+        let nested = content(&json!({ "action": "click", "screen": { "image": path.to_string_lossy(), "width": 10, "height": 5 } }));
+        assert_eq!(nested["content"][1]["type"], "image");
         let _ = std::fs::remove_file(&path);
         // A snapshot is its text alone, not JSON.
         assert_eq!(content(&json!({ "text": "url: x" }))["content"][0]["text"], "url: x");
