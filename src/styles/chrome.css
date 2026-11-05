@@ -46,14 +46,10 @@
   font-weight: 650;
   letter-spacing: -0.015em;
 }
-.brand-name span {
-  color: var(--text-faint);
-  font-weight: 500;
-}
 
 /* The wordmark (Wordmark.tsx): Instrument Serif italic. On the hour each letter blurs out a beat
    after the one before it while the greeting's letters blur in, and the box eases to the new width. */
-.wm {
+.brand-name.wm {
   position: relative;
   display: inline-block;
   height: 24px;

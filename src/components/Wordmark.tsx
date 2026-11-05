@@ -24,7 +24,6 @@ function Letters({ text, dimFrom }: { text: string; dimFrom?: number }) {
  */
 export function Wordmark() {
   const on = useUi((s) => s.prefs.greeting);
-  const holdS = useUi((s) => s.prefs.greetingHoldS);
   const name = useUi((s) => s.prefs.greetingName);
   const playAt = useUi((s) => s.greetingPlayAt);
   const [greeting, setGreeting] = useState<string | null>(null);
@@ -61,10 +60,15 @@ export function Wordmark() {
   useEffect(() => () => clearTimeout(hold.current), []);
 
   // The box eases between the two words' widths instead of jumping.
-  useLayoutEffect(() => {
-    const el = greeting ? greetRef.current : brandRef.current;
+  const measure = () => {
+    const el = greetingRef.current ? greetRef.current : brandRef.current;
     if (el) setWidth(el.scrollWidth);
-  }, [greeting, name, holdS]);
+  };
+  const greetingRef = useRef(greeting);
+  greetingRef.current = greeting;
+  useLayoutEffect(measure, [greeting, name]);
+  // The first measure can run on the fallback font; measure again once Instrument Serif is in.
+  useEffect(() => void document.fonts?.ready.then(measure), []);
 
   return (
     <span className="brand-name wm" data-show={greeting ? "greeting" : "brand"} style={{ width }} aria-label={greeting ?? "AureliaCode"} data-tauri-drag-region>
