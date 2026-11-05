@@ -380,11 +380,9 @@ export function DiffReview() {
             {risk.level === "low" ? "Low risk" : risk.level === "medium" ? "Medium risk" : "High risk"}
           </span>
         )}
-        {(
-          <button className="btn" onClick={runExplain} disabled={!files.length || explain === "running"} title="What is changing, why, and where the risk is. A DeepSeek read; no Claude limits.">
-            {explain === "running" ? "Explaining…" : "Explain"}
-          </button>
-        )}
+        <button className="btn" onClick={runExplain} disabled={!files.length || explain === "running"} title="What is changing, why, and where the risk is. A DeepSeek read; no Claude limits.">
+          {explain === "running" ? "Explaining…" : "Explain"}
+        </button>
         {prefs.council && (
           <button
             className="btn"
