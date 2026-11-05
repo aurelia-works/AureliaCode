@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { OLD_SECTIONS, PARTS, SECTION_DEFS, resolveSectionId, searchSections, sectionOfPart } from "./settingsIndex.ts";
+import { OLD_SECTIONS, PARTS, SECTION_DEFS, resolveSectionId, searchSections } from "./settingsIndex.ts";
 import { UndoStack, changedKeys } from "./settingsUndo.ts";
 
 test("27 old pages fold into 10 sections, each part once", () => {
@@ -33,7 +33,6 @@ test("old page ids open the section that holds them", () => {
   assert.equal(resolveSectionId("nope"), "general", "unknown falls back to the first");
   assert.equal(resolveSectionId(null), "general");
   for (const old of OLD_SECTIONS) assert.ok(SECTION_DEFS.some((s) => s.id === resolveSectionId(old.id)), old.id);
-  assert.equal(sectionOfPart("review"), "background");
 });
 
 test("undo steps back one change at a time, newest first", () => {

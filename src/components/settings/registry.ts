@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import type { Config } from "../../lib/ipc";
-import { PARTS, SECTION_DEFS, sectionText, type PartId, type SectionDef } from "../../lib/settingsIndex";
+import { PARTS, SECTION_DEFS, type PartId } from "../../lib/settingsIndex";
 import { AboutSection } from "./AboutSection";
 import { AccountsSection } from "./AccountsSection";
 import { AgentsSection } from "./AgentsSection";
@@ -35,11 +35,6 @@ export interface SectionProps {
   update(fn: (c: Config) => void): void;
   /** Status line in the page header. */
   notify(msg: string): void;
-}
-
-export interface SettingsSection extends SectionDef {
-  /** Lowercase text the settings search matches. */
-  text: string;
 }
 
 /** Each part of a section is one of the old pages' components. Adding a page = a part in settingsIndex.ts plus a row here. */
@@ -77,4 +72,4 @@ export const PART_COMPONENTS: Record<PartId, ComponentType<SectionProps>> = {
 
 export const partLabel = (p: PartId) => PARTS[p].label;
 
-export const SECTIONS: SettingsSection[] = SECTION_DEFS.map((s) => ({ ...s, text: sectionText(s) }));
+export const SECTIONS = SECTION_DEFS;

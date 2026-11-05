@@ -101,7 +101,7 @@ export const OLD_SECTIONS: { id: string; label: string; keywords: string; to: st
 const partText = (p: PartId) => `${PARTS[p].label} ${PARTS[p].keywords}`;
 
 /** What the search box matches for a section: its name, its parts' names and keywords, and the old pages it took in. */
-export function sectionText(s: SectionDef): string {
+function sectionText(s: SectionDef): string {
   const old = OLD_SECTIONS.filter((o) => o.to.includes(s.id)).map((o) => o.label);
   return [s.label, ...s.parts.map(partText), ...(s.folded ?? []).map(partText), ...old].join(" ").toLowerCase();
 }
@@ -115,10 +115,6 @@ export function searchSections(query: string): SectionDef[] {
 export function foldMatches(s: SectionDef, query: string): boolean {
   const q = query.trim().toLowerCase();
   return !!q && (s.folded ?? []).some((p) => partText(p).toLowerCase().includes(q));
-}
-
-export function sectionOfPart(part: PartId): string {
-  return SECTION_DEFS.find((s) => s.parts.includes(part) || s.folded?.includes(part))!.id;
 }
 
 /** A section id from a link: new ids pass through, an old page's id opens the section that holds it. */

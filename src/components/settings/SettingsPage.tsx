@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
 import { ipc, type Config } from "../../lib/ipc";
 import type { ThreadPrefs } from "../../lib/prefs";
-import { foldMatches, resolveSectionId } from "../../lib/settingsIndex";
+import { foldMatches, resolveSectionId, searchSections } from "../../lib/settingsIndex";
 import { UndoStack, changedKeys } from "../../lib/settingsUndo";
 import { applyAppearance } from "../../lib/terminals";
 import { useConfig } from "../../store/config";
@@ -23,8 +23,6 @@ function isTextBox(el: EventTarget | null) {
   if (el instanceof HTMLElement && el.isContentEditable) return true;
   return el instanceof HTMLInputElement && !["checkbox", "radio", "range", "button", "color"].includes(el.type);
 }
-
-const search = (q: string) => (q ? SECTIONS.filter((s) => s.text.includes(q)) : SECTIONS);
 
 /**
  * Every row applies at once (config is written half a second after the last edit) and ⌘Z steps
@@ -167,7 +165,7 @@ export function SettingsPage() {
   }, [open, query]);
 
   const q = query.trim().toLowerCase();
-  const shown = search(q);
+  const shown = searchSections(q);
 
   if (!open || !draft) return null;
   const section = SECTIONS.find((s) => s.id === sectionId) ?? SECTIONS[0];
@@ -188,7 +186,7 @@ export function SettingsPage() {
               const next = e.target.value;
               setQuery(next);
               const needle = next.trim().toLowerCase();
-              const match = needle && search(needle)[0];
+              const match = needle && searchSections(needle)[0];
               if (match) setSectionId(match.id);
             }}
             onKeyDown={(e) => e.key === "Escape" && setQuery("")}
