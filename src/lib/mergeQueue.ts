@@ -33,6 +33,8 @@ export const DONE: Stage[] = ["merged", "bounced"];
 
 /** Right after a push GitHub may not have started any checks yet; "none" only counts as green after this long. */
 export const NONE_GRACE_MS = 90_000;
+/** Checks still pending this long after the push send it back, so one stuck run can't hold up the queue. */
+export const CHECKS_TIMEOUT_MS = 60 * 60_000;
 
 export function enqueue(q: QueueItem[], paneId: string, pr: number, at: number): QueueItem[] {
   const existing = q.find((i) => i.paneId === paneId && !DONE.includes(i.stage));
@@ -63,6 +65,7 @@ export function advance(i: QueueItem, ev: QueueEvent): QueueItem {
       if (ev.checks === "fail") return bounce(i, `Checks failed${ev.failing?.length ? `: ${ev.failing.join(", ")}` : ""}`);
       if (ev.checks === "pass") return { ...i, stage: "verdict" };
       if (ev.checks === "none" && (ev.sinceSyncMs ?? Infinity) >= NONE_GRACE_MS) return { ...i, stage: "verdict" };
+      if (ev.checks === "pending" && (ev.sinceSyncMs ?? 0) >= CHECKS_TIMEOUT_MS) return bounce(i, `Checks still running after ${CHECKS_TIMEOUT_MS / 60_000} minutes`);
       return i;
     case "verdict":
       if (ev.type !== "verdict") return i;

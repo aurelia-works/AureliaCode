@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { active, advance, enqueue, NONE_GRACE_MS, verdictFor, type QueueItem } from "./mergeQueue.ts";
+import { active, advance, CHECKS_TIMEOUT_MS, enqueue, NONE_GRACE_MS, verdictFor, type QueueItem } from "./mergeQueue.ts";
 
 const item = (paneId: string, stage: QueueItem["stage"] = "queued"): QueueItem => ({ paneId, pr: 1, stage, at: 0 });
 
@@ -68,4 +68,12 @@ test("right after a push, 'no checks' isn't green yet: CI may not have started",
   assert.equal(advance(i, { type: "checks", checks: "none", sinceSyncMs: 10_000 }).stage, "checks");
   assert.equal(advance(i, { type: "checks", checks: "none", sinceSyncMs: NONE_GRACE_MS }).stage, "verdict");
   assert.equal(advance(i, { type: "checks", checks: "pass", sinceSyncMs: 1_000 }).stage, "verdict", "a real pass needs no wait");
+});
+
+test("checks stuck pending for an hour send it back instead of blocking the queue", () => {
+  const i = { ...item("a", "checks"), sha: "abc1234" };
+  assert.equal(advance(i, { type: "checks", checks: "pending", sinceSyncMs: 10 * 60_000 }).stage, "checks");
+  const out = advance(i, { type: "checks", checks: "pending", sinceSyncMs: CHECKS_TIMEOUT_MS });
+  assert.equal(out.stage, "bounced");
+  assert.match(out.reason!, /still running after/);
 });

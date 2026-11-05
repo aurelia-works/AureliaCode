@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { useChat } from "../lib/chat";
 import { ipc } from "../lib/ipc";
-import { active, advance, DONE, enqueue, verdictFor, type QueueEvent, type QueueItem } from "../lib/mergeQueue";
+import { active, advance, enqueue, verdictFor, type QueueEvent, type QueueItem } from "../lib/mergeQueue";
 import { prNumberRef } from "../lib/threadTools";
 import { useAgents } from "./agents";
 import { paneDir } from "./git";
@@ -80,6 +80,8 @@ async function step(item: QueueItem, dir: string): Promise<QueueEvent | null> {
       return { type: "verdict", verdict: verdictFor(c.comments ?? [], item.sha ?? c.headRefOid) };
     }
     case "merging":
+      // Removed while the verdict was being read: don't merge.
+      if (!queueItemOf(useMergeQueue.getState().items, item.paneId)) return null;
       await ipc.prMerge(dir, item.sha!);
       return { type: "merged" };
   }
@@ -107,7 +109,6 @@ export async function tick() {
       if (next.stage === "merged") toast(`Merged ${prNumberRef(item.pr)} from the queue`);
       if (next.stage === "bounced")
         alertUser({ kind: "info", paneId: item.paneId, title: `${prNumberRef(item.pr)} left the merge queue`, body: next.reason ?? "" });
-      if (DONE.includes(next.stage)) continue;
     }
   } finally {
     running = false;

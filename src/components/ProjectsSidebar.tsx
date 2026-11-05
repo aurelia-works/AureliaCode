@@ -223,7 +223,7 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
       {prefs.prCopy && pr && item("Copy PR number", () => copyText(prNumberRef(pr.number), `Copied ${prNumberRef(pr.number)}`))}
       {prefs.revertAction && pr?.state === "MERGED" && item(`Revert PR ${prNumberRef(pr.number)}`, () => void revertMergedPr(paneId, pr))}
       {prefs.mergeQueue && pr?.state === "OPEN" && (!queued || queued === "bounced" || queued === "merged") && item(`Add ${prNumberRef(pr.number)} to merge queue`, () => addToQueue(paneId))}
-      {prefs.mergeQueue && queued && item("Remove from merge queue", () => removeFromQueue(paneId))}
+      {prefs.mergeQueue && queued && queued !== "merging" && item("Remove from merge queue", () => removeFromQueue(paneId))}
       {prefs.scrapAction && item("Scrap and start over", () => scrapThread(paneId))}
       {!away && item("Snooze…", onSnooze)}
       {away ? item("Wake", () => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")) : item("Settle", () => patchThreads([paneId], settlePatch(), "Settled"))}

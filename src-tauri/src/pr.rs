@@ -142,8 +142,12 @@ pub(crate) fn sync_branch(dir: &Path, base: &str, push: bool) -> Result<Synced, 
         return Err("The worktree has uncommitted changes".into());
     }
     git_in(dir, &["fetch", "-q", "origin", base])?;
-    if git_in(dir, &["rebase", "-q", &format!("origin/{base}")]).is_err() {
+    if let Err(e) = git_in(dir, &["rebase", "-q", &format!("origin/{base}")]) {
         let _ = git_in(dir, &["rebase", "--abort"]);
+        // Only a real conflict is "conflicts"; anything else (a ref lock, a hook) is reported as it is.
+        if !e.to_lowercase().contains("conflict") {
+            return Err(e);
+        }
         return Ok(Synced { sha: git_in(dir, &["rev-parse", "HEAD"])?, conflict: true });
     }
     if push {
