@@ -114,12 +114,13 @@ const SCREENS: Record<string, string> = {
   p8: claudeScreen(dev("web"), [`${col(90, ">")} ${dim("Try \"refactor the router\"")}`]),
 };
 
-const PANES: Record<string, { cwd: string; account?: string; agent?: string; launcher?: boolean; mode?: "chat" }> = {
+const PANES: Record<string, { cwd: string; account?: string; agent?: string; launcher?: boolean; mode?: "chat"; openedBy?: string }> = {
   p1: { cwd: dev("api-server"), account: "claude" },
   p2: { cwd: dev("web"), account: "claude-b" },
   p3: { cwd: dev("docs"), account: "work" },
-  p4: { cwd: dev("payments"), account: "claude" },
-  p5: { cwd: dev("infra"), account: "claude-b" },
+  // The web thread started these two (aurelia_open_pane), so the grid shows the family both ways.
+  p4: { cwd: dev("payments"), account: "claude", openedBy: "p2" },
+  p5: { cwd: dev("infra"), account: "claude-b", openedBy: "p2" },
   p6: { cwd: dev("api-server"), agent: "codex:oss" },
   p7: { cwd: dev("web") },
   p8: { cwd: dev("web"), account: "work" },

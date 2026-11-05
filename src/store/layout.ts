@@ -69,6 +69,8 @@ export interface PaneMeta {
   prSeenFeedback?: number;
   /** When this thread next finishes a turn, send `text` to the thread in pane `paneId` (once). */
   then?: { paneId: string; text: string };
+  /** The pane whose agent opened this one (`aurelia_open_pane`); lib/threadFamily.ts links them. */
+  openedBy?: string;
 }
 
 export interface EditorTarget {
@@ -103,6 +105,8 @@ export interface NewPaneOpts {
   chatModel?: string;
   /** With mode "chat": "opencode" runs an OpenCode chat instead of Claude. */
   provider?: string;
+  /** The pane whose agent asked for this one. */
+  openedBy?: string;
 }
 
 interface LayoutState {
@@ -184,6 +188,7 @@ function makePane(opts?: NewPaneOpts): PaneMeta {
     mode: opts?.mode === "chat" ? "chat" : undefined,
     chatModel: opts?.chatModel,
     provider: opts?.mode === "chat" ? opts.provider : undefined,
+    openedBy: opts?.openedBy,
   });
 }
 

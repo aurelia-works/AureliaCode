@@ -232,7 +232,7 @@ function openPane(from: string, params: Record<string, unknown>): string {
   if (!prompt) throw new Error("prompt is required");
   // `view` from the MCP tool; unset follows the agent picker's "Open as chat".
   const chat = params.mode === "chat" || params.view === "chat" || (params.view !== "terminal" && params.mode !== "terminal" && useUi.getState().claudeAsChat);
-  const opts = { account: account || undefined, cwd, mode: chat ? ("chat" as const) : undefined };
+  const opts = { account: account || undefined, cwd, mode: chat ? ("chat" as const) : undefined, openedBy: caller ? from : undefined };
   const id = caller ? layout.splitPane(from, "row", opts) : layout.newTab(opts);
   if (chat) queueFirstMessage(id, prompt);
   else queueInit(id, `claude ${shellQuote(prompt)}`);
