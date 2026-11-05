@@ -222,10 +222,25 @@ pub async fn computer_action(app: tauri::AppHandle, action: String, args: Option
 fn action_blocking(app: &tauri::AppHandle, action: String, args: Option<Value>) -> Result<Value, String> {
     #[cfg(target_os = "macos")]
     {
-        let args = args.unwrap_or(Value::Null);
+        let mut args = args.unwrap_or(Value::Null);
+        // A scroll without a point lands under the pointer: guard that point, not none.
+        if action == "scroll" && (args["x"].as_f64().is_none() || args["y"].as_f64().is_none()) {
+            if let (Ok((x, y)), Some(obj)) = (current_mouse(), args.as_object_mut()) {
+                obj.insert("x".into(), json!(x));
+                obj.insert("y".into(), json!(y));
+            } else if let Ok((x, y)) = current_mouse() {
+                args = json!({ "x": x, "y": y });
+            }
+        }
         let (frames, focused) = own_windows(app);
-        guard_self(&action, &args, &frames, focused)?;
-        let result = perform(&action, &args)?;
+        // Refused and failed attempts are logged too, never only the ones that ran.
+        let result = match guard_self(&action, &args, &frames, focused).and_then(|_| perform(&action, &args)) {
+            Ok(r) => r,
+            Err(e) => {
+                audit(json!({ "at": now_ms(), "action": action, "summary": summary(&action, &args), "refused": e }));
+                return Err(e);
+            }
+        };
         let mut out = json!({ "ok": true, "action": action, "at": now_ms(), "result": result });
         if args["verify"].as_bool().unwrap_or(true) {
             // The screenshot is the evidence, but a failed capture must not undo an action
@@ -496,7 +511,11 @@ fn blocked_key(key: &str, mods: &[String]) -> Option<&'static str> {
     let ctrl = has("control") || has("ctrl");
     let alt = has("alt") || has("option");
     let shift = has("shift");
-    let k = key.to_ascii_lowercase();
+    // Same names keycode() accepts: "esc" is Escape too.
+    let k = match key.to_ascii_lowercase().as_str() {
+        "esc" => "escape".to_string(),
+        other => other.to_string(),
+    };
     // Most specific first: every one of these also matches plain Cmd+Q.
     if cmd && shift && k == "q" {
         return Some("Cmd+Shift+Q logs out and is blocked for computer use");
@@ -561,6 +580,7 @@ mod tests {
         assert!(blocked_key("q", &["cmd".into()]).is_some());
         assert!(blocked_key("q", &["Shift".into()]).is_none());
         assert!(blocked_key("Escape", &["Meta".into(), "Alt".into()]).is_some());
+        assert!(blocked_key("esc", &["Meta".into(), "Alt".into()]).is_some(), "keycode() accepts esc too");
         assert!(blocked_key("a", &["Meta".into()]).is_none());
     }
 

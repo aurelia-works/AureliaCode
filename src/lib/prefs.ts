@@ -61,7 +61,7 @@ export interface ThreadPrefs {
   nightlyReview: boolean;
   /** Local hour (0-23) the nightly review runs after. */
   nightlyHour: number;
-  /** Extra hold after the launch splash's ~0.9 s intro, in ms (0: fade as soon as the intro ends). Saved, not in Settings. */
+  /** Shortest time the launch splash stays up, counted from launch, in ms; never less than its 0.9 s intro (lib/splash.ts). Saved, not in Settings. */
   splashMinMs: number;
   /** Council score a thread needs to count as Ready. */
   readyScore: number;
