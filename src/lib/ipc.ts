@@ -186,6 +186,21 @@ export interface ReviewResult {
   failed: boolean;
 }
 
+/** One council reviewer's raw report (review.rs `council_review`); src/lib/council.ts parses it. */
+export interface CouncilSeat {
+  model: string;
+  text: string;
+  failed: boolean;
+  seconds: number;
+}
+
+/** A merged PR reverted in a new worktree (git.rs `git_revert_pr`). */
+export interface Revert {
+  path: string;
+  branch: string;
+  conflicts: boolean;
+}
+
 export interface Usage {
   fiveHour: number | null;
   sevenDay: number | null;
@@ -572,6 +587,9 @@ export const ipc = {
   chooseEffort: (account: string | null, prompt: string, useJudge: boolean) =>
     invoke<EffortPick>("choose_effort", { account, prompt, useJudge }),
   reviewChanges: (cwd: string) => invoke<ReviewResult>("review_changes", { cwd }),
+  councilReview: (cwd: string, models: string[]) => invoke<CouncilSeat[]>("council_review", { cwd, models }),
+  explainChanges: (cwd: string) => invoke<string>("explain_changes", { cwd }),
+  gitRevertPr: (cwd: string, number: number) => invoke<Revert>("git_revert_pr", { cwd, number }),
   chooseModel: (account: string | null, prompt: string) =>
     invoke<{ model: "haiku" | "sonnet" | "opus"; source: "rules" | "judge"; why: string }>("choose_model", { account, prompt }),
   resumableSession: (account: string, cwd: string, prefer: string | null) =>

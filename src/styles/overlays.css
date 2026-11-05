@@ -697,6 +697,100 @@
   -webkit-user-select: text;
 }
 
+/* Council review (lib/council.ts): verified findings first, tagged by severity. */
+.council-list {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+.council-finding {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 12px;
+  font-size: var(--fs-meta);
+  line-height: 1.45;
+}
+.council-text {
+  flex: 1;
+  min-width: 0;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.council-by {
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.council-tag {
+  flex: none;
+  padding: 0 6px;
+  border-radius: var(--r-xs);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text-dim);
+}
+.council-tag.important {
+  background: var(--err-soft);
+  color: var(--err);
+}
+.council-list.unverified .council-text {
+  color: var(--text-dim);
+}
+.council-folds {
+  display: flex;
+  gap: 14px;
+  margin: 0;
+  padding: 0 12px 8px;
+}
+.council-folds:empty {
+  display: none;
+}
+.review-verdict.council header b {
+  text-transform: none;
+}
+
+/* Risk from what the change touches (lib/changeRisk.ts). */
+.risk-badge {
+  align-self: center;
+  padding: 2px 8px;
+  border-radius: var(--r-xs);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.risk-badge.medium {
+  background: var(--attn-soft);
+  color: var(--warn);
+}
+.risk-badge.high {
+  background: var(--err-soft);
+  color: var(--err);
+}
+
+/* "Explain": what, why, where the risk is. */
+.review-explain {
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+}
+.review-explain header {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.review-explain-text {
+  padding: 10px 12px;
+  white-space: pre-wrap;
+  font-size: var(--fs-body);
+  line-height: 1.55;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
 .review-foot {
   flex: none;
   display: flex;

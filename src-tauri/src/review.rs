@@ -95,7 +95,7 @@ pub async fn review_changes(cwd: String) -> Result<ReviewResult, String> {
         if d.truncated || d.diff.len() > MAX_REVIEW_DIFF {
             context.push_str("\n\nThe diff was cut short; read the changed files for the rest.");
         }
-        let run = subagents::run_read_only(TASK.into(), Some(context), vec![diff_path.to_string_lossy().into_owned()], &d.root);
+        let run = subagents::run_read_only(TASK.into(), Some(context), vec![diff_path.to_string_lossy().into_owned()], &d.root, None);
         let _ = fs::remove_file(&diff_path);
         let run = run?;
         Ok(ReviewResult {
@@ -106,6 +106,92 @@ pub async fn review_changes(cwd: String) -> Result<ReviewResult, String> {
             seconds: started.elapsed().as_secs_f64(),
             failed: run.failed,
         })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// The council (Theo Browne, 2026-11-04): each reviewer reads the diff on its own, scores it and
+/// tags what it finds, so src/lib/council.ts can keep the findings two of them agree on.
+const COUNCIL_TASK: &str = "Review the uncommitted change in the attached diff (`git diff HEAD` plus new files) as one \
+member of a review council; other reviewers read it separately. Read files in the repository when you need context, and \
+judge it against the scorers in Context. List each real problem on its own line as \
+`- [important] path/to/file.ext:LINE - what is wrong`, using [important] for bugs and risks this change introduces, [nit] \
+for small things, and [pre-existing] for problems that were there before this change. Use the file path from the diff and \
+the line in the new file. No praise, no style nits unless a scorer asks. Then score the change: 1 means throw it away, \
+10 means there is no reason not to merge it. End with exactly two lines: `SCORE: n/10` and `VERDICT: ship`, `VERDICT: fix` \
+or `VERDICT: block`.";
+
+const EXPLAIN_TASK: &str = "Explain the uncommitted change in the attached diff to the person about to merge it. Read files \
+in the repository when you need context. Write three short sections with these exact headings: `What is changing`, `Why`, \
+`Where is the risk` (what could break and what to check by hand). Plain words, no code blocks, under 200 words in all.";
+
+#[derive(Debug, Serialize)]
+pub struct CouncilSeat {
+    pub model: String,
+    pub text: String,
+    pub failed: bool,
+    pub seconds: f64,
+}
+
+/// The diff in a temp file plus the scorer context, for one or more read-only runs.
+fn prepare(cwd: String) -> Result<(git::Diff, String, std::path::PathBuf), String> {
+    let d = git::git_diff(cwd)?;
+    if d.diff.trim().is_empty() {
+        return Err("No uncommitted changes to review.".into());
+    }
+    let (_, rubric) = scorers(Path::new(&d.root));
+    let mut context = format!("Scorers:\n\n{rubric}");
+    if d.truncated || d.diff.len() > MAX_REVIEW_DIFF {
+        context.push_str("\n\nThe diff was cut short; read the changed files for the rest.");
+    }
+    let path = temp_diff(&d.diff)?;
+    Ok((d, context, path))
+}
+
+/// Up to 3 reviewers at once, one per model ("" is the subagent model). Never spends Claude limits.
+#[tauri::command]
+pub async fn council_review(cwd: String, models: Vec<String>) -> Result<Vec<CouncilSeat>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (d, context, diff_path) = prepare(cwd)?;
+        let models: Vec<String> = if models.is_empty() { vec![String::new(), String::new()] } else { models.into_iter().take(3).collect() };
+        let file = diff_path.to_string_lossy().into_owned();
+        let seats = std::thread::scope(|scope| {
+            let runs: Vec<_> = models
+                .iter()
+                .map(|m| {
+                    let (context, file, root) = (context.clone(), file.clone(), d.root.clone());
+                    scope.spawn(move || {
+                        let started = Instant::now();
+                        let model = Some(m.as_str()).filter(|m| !m.trim().is_empty());
+                        match subagents::run_read_only(COUNCIL_TASK.into(), Some(context), vec![file], &root, model) {
+                            Ok(r) => CouncilSeat { model: r.model, text: r.report, failed: r.failed, seconds: started.elapsed().as_secs_f64() },
+                            Err(e) => CouncilSeat { model: m.clone(), text: e, failed: true, seconds: started.elapsed().as_secs_f64() },
+                        }
+                    })
+                })
+                .collect();
+            runs.into_iter().map(|h| h.join().unwrap_or(CouncilSeat { model: String::new(), text: "reviewer crashed".into(), failed: true, seconds: 0.0 })).collect::<Vec<_>>()
+        });
+        let _ = fs::remove_file(&diff_path);
+        Ok(seats)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+/// What is changing, why, and where the risk is, in plain words.
+#[tauri::command]
+pub async fn explain_changes(cwd: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (d, _, diff_path) = prepare(cwd)?;
+        let run = subagents::run_read_only(EXPLAIN_TASK.into(), None, vec![diff_path.to_string_lossy().into_owned()], &d.root, None);
+        let _ = fs::remove_file(&diff_path);
+        let run = run?;
+        if run.failed {
+            return Err(run.rendered);
+        }
+        Ok(run.report)
     })
     .await
     .map_err(|e| e.to_string())?

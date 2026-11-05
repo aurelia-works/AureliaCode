@@ -87,6 +87,30 @@ export interface ThreadPrefs {
   startScreen: boolean;
   /** Full Disk Access toast opens the drag-into-Settings sheet; off: it only opens System Settings. */
   permissionDrag: boolean;
+  /** Review page: several reviewers score the diff and only findings two agree on lead (lib/council.ts). */
+  council: boolean;
+  /** OpenCode model ids for the council, comma-separated; "" runs the subagent model twice. */
+  councilModels: string;
+  /** Review rounds on one diff before the page asks you to stop (0: no cap). */
+  reviewRoundCap: number;
+  /** Council score a thread needs to count as Ready. */
+  readyScore: number;
+  /** Low / Medium / High from what the change touches, on the review page. */
+  riskBadge: boolean;
+  /** "Explain" on the review page: what is changing, why, where the risk is. */
+  explainDiff: boolean;
+  /** A Ready group in the thread list: finished threads with proof (a passing check or council). */
+  readyGroup: boolean;
+  /** Grid cards say what proves a finished thread works, or that nothing does yet. */
+  proofLine: boolean;
+  /** A thread whose diff more than doubles since it started moves to Needs you. */
+  diffTripwire: boolean;
+  /** "Revert PR" on a thread whose PR is merged. */
+  revertAction: boolean;
+  /** "Scrap and start over" in the thread menu. */
+  scrapAction: boolean;
+  /** Grid cards show what the thread has cost so far. */
+  threadCost: boolean;
   alerts: AlertPrefs;
 }
 
@@ -129,6 +153,18 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   legacyTerminals: false,
   startScreen: false,
   permissionDrag: true,
+  council: true,
+  councilModels: "",
+  reviewRoundCap: 3,
+  readyScore: 8,
+  riskBadge: true,
+  explainDiff: true,
+  readyGroup: true,
+  proofLine: true,
+  diffTripwire: true,
+  revertAction: true,
+  scrapAction: true,
+  threadCost: true,
   alerts: DEFAULT_ALERTS,
 };
 
@@ -153,8 +189,11 @@ export function normalizePrefs(raw: unknown): ThreadPrefs {
       out.alerts = Object.fromEntries((Object.keys(DEFAULT_ALERTS) as (keyof AlertPrefs)[]).map((n) => [n, typeof a[n] === "boolean" ? a[n] : true])) as unknown as AlertPrefs;
     } else if (k === "followUp") {
       if (r[k] === "steer" || r[k] === "queue") out.followUp = r[k] as "steer" | "queue";
-    } else if (k === "newModel" || k === "newEffort" || k === "fallback") {
-      if (typeof r[k] === "string") out[k] = r[k] as string;
+    } else if (k === "reviewRoundCap" || k === "readyScore") {
+      const n = r[k];
+      if (typeof n === "number" && Number.isFinite(n)) out[k] = Math.min(k === "readyScore" ? 10 : 20, Math.max(0, n));
+    } else if (typeof DEFAULT_PREFS[k] === "string") {
+      if (typeof r[k] === "string") (out as unknown as Record<string, string>)[k] = r[k] as string;
     } else if (typeof r[k] === "boolean") (out as unknown as Record<string, boolean>)[k] = r[k] as boolean;
   }
   return out;

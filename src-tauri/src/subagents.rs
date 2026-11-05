@@ -658,12 +658,17 @@ pub(crate) struct AgentRun {
     pub model: String,
 }
 
-/// Runs one read-only agent on `task` in `cwd`, with `context` and attached `files`.
-pub(crate) fn run_read_only(task: String, context: Option<String>, files: Vec<String>, cwd: &str) -> Result<AgentRun, String> {
+/// Runs one read-only agent on `task` in `cwd`, with `context` and attached `files`, on the
+/// subagent model or `model` when given (never an Opus model).
+pub(crate) fn run_read_only(task: String, context: Option<String>, files: Vec<String>, cwd: &str, model: Option<&str>) -> Result<AgentRun, String> {
     let (bin, cfg) = usable().ok_or("opencode isn't installed, or the subagent model is unset or an Opus model (Settings → Subagents)")?;
     let job = Job { tasks: vec![task], context, mode: Mode::Read, files, effort: None, session: None };
     let limit = Duration::from_secs(cfg.timeout_minutes.max(1) * 60);
-    let model = cfg.model.trim().to_string();
+    let model = match model.map(str::trim).filter(|m| !m.is_empty()) {
+        Some(m) if m.to_ascii_lowercase().contains("opus") => return Err(format!("{m} is an Opus model; reviewers are cheap models only")),
+        Some(m) => m.to_string(),
+        None => cfg.model.trim().to_string(),
+    };
     let o = run_job(command(&bin, &model, &job, cwd), Kind::OpenCode, cwd, limit, "app", &Running::default(), |_, _| {})?;
     let (rendered, failed) = render(&o, "DeepSeek", &model, Mode::Read);
     Ok(AgentRun { report: o.report.text, rendered, failed, model })

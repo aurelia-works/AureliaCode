@@ -2,7 +2,22 @@ import { useEffect, useState } from "react";
 import { clampUndoSeconds, UNDO_SECONDS, type ThreadPrefs } from "../../lib/prefs";
 import { useUi } from "../../store/ui";
 
-const SWITCHES: { key: Exclude<keyof ThreadPrefs, "undoSeconds" | "followUp" | "newModel" | "newEffort" | "fallback">; label: string; hint?: string }[] = [
+type Switch = { key: Exclude<keyof ThreadPrefs, "undoSeconds" | "followUp" | "newModel" | "newEffort" | "fallback" | "councilModels" | "reviewRoundCap" | "readyScore">; label: string; hint?: string };
+
+/** From Theo Browne's 2026-11-04 stream: review councils, proof before done, and cheap ways out. */
+const REVIEW_SWITCHES: Switch[] = [
+  { key: "council", label: "Council review", hint: "Review page: two or three cheap reviewers score the diff; findings a second one confirms lead" },
+  { key: "riskBadge", label: "Risk badge on the review page", hint: "Low / Medium / High from what the change touches" },
+  { key: "explainDiff", label: "Explain button", hint: "What is changing, why, where the risk is" },
+  { key: "readyGroup", label: "Ready group in the thread list", hint: "Finished threads with a passing check or council score" },
+  { key: "proofLine", label: "Proof line on grid cards" },
+  { key: "diffTripwire", label: "Diff-growth tripwire", hint: "A thread whose diff more than doubles moves to Needs you" },
+  { key: "revertAction", label: "Revert a merged PR from the thread menu" },
+  { key: "scrapAction", label: "Scrap and start over in the thread menu" },
+  { key: "threadCost", label: "Thread cost on grid cards" },
+];
+
+const SWITCHES: Switch[] = [
   { key: "undo", label: "Undo after close, settle and snooze", hint: "A toast with Undo, and ⌘Z while it shows" },
   { key: "reopen", label: "Reopen closed thread (⇧⌘T)" },
   { key: "middleClick", label: "Middle-click a thread to close it" },
@@ -70,6 +85,37 @@ export function ThreadsSection() {
           }}
         />
       </label>
+
+      <h3>Review &amp; ready</h3>
+      {REVIEW_SWITCHES.map((s) => (
+        <label key={s.key} className="field check">
+          <input type="checkbox" checked={prefs[s.key] as boolean} onChange={(e) => set({ [s.key]: e.target.checked })} />
+          <span>
+            {s.label}
+            {s.hint && <span className="hint inline"> · {s.hint}</span>}
+          </span>
+        </label>
+      ))}
+      <label className="field">
+        <span>Council models</span>
+        <input
+          type="text"
+          defaultValue={prefs.councilModels}
+          placeholder="Blank: the subagent model, twice"
+          aria-label="Council models, comma-separated OpenCode model ids"
+          onBlur={(e) => set({ councilModels: e.target.value.trim() })}
+        />
+      </label>
+      <p className="hint">Up to three OpenCode model ids, comma-separated (for example <code>opencode-go/deepseek-v4.1-flash, opencode-go/kimi-k2</code>). Opus is refused. Reviews never use Claude limits.</p>
+      <label className="field">
+        <span>Ready at council score</span>
+        <input type="number" min={0} max={10} step={0.5} value={prefs.readyScore} onChange={(e) => e.target.value !== "" && set({ readyScore: Math.min(10, Math.max(0, Number(e.target.value))) })} />
+      </label>
+      <label className="field">
+        <span>Review rounds before the cap</span>
+        <input type="number" min={0} max={20} value={prefs.reviewRoundCap} onChange={(e) => e.target.value !== "" && set({ reviewRoundCap: Math.min(20, Math.max(0, Math.round(Number(e.target.value)))) })} />
+      </label>
+      <p className="hint">0 means no cap. Past the cap the review page says so and suggests stopping or scrapping instead of another round.</p>
     </section>
   );
 }

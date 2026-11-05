@@ -270,7 +270,7 @@ const inAnHour = (h: number) => new Date(Date.now() + h * 3600_000).toISOString(
 const DIFFSTAT: Record<string, { files: number; additions: number; deletions: number }> = {
   web: { files: 3, additions: 42, deletions: 7 },
   "api-server": { files: 2, additions: 18, deletions: 4 },
-  payments: { files: 5, additions: 120, deletions: 31 },
+  payments: { files: 9, additions: 340, deletions: 61 },
   infra: { files: 1, additions: 6, deletions: 0 },
   docs: { files: 2, additions: 64, deletions: 12 },
 };
@@ -531,6 +531,13 @@ mockIPC(
         const name = String(args.cwd).split("/").pop()!;
         return BRANCH[name] ? { root: args.cwd, branch: BRANCH[name], detached: false, worktree: name === "payments", repo: args.cwd } : null;
       }
+      case "council_review":
+        return [
+          { model: "opencode-go/deepseek-v4.1-flash", text: "Correctness: FAIL - focus can escape the nav\n- [important] src/components/ChatPane.tsx:41 - Escape closes the picker but focus is lost to <body>\n- [nit] src/lib/gitDialog.ts:12 - `msg` could be named `summary`\n- [pre-existing] src/lib/new-helper.ts:3 - this helper never handled an empty list\nSCORE: 7/10\nVERDICT: fix", failed: false, seconds: 74 },
+          { model: "opencode-go/kimi-k2", text: "- [important] src/components/ChatPane.tsx:43 - after Escape the focused element is removed, so keyboard users lose their place\n- [important] src/lib/gitDialog.ts:30 - the commit message isn't trimmed before the empty check\nSCORE: 8/10\nVERDICT: fix", failed: false, seconds: 81 },
+        ];
+      case "explain_changes":
+        return "What is changing\nThe chat picker gets keyboard handling (Escape closes it) and the commit dialog gains a summary helper.\n\nWhy\nKeyboard users couldn't leave the picker without the mouse.\n\nWhere is the risk\nFocus after Escape: check it returns to the composer. The new helper is untested on an empty change list.";
       case "git_diffstat":
         return DIFFSTAT[String(args.cwd).split("/").pop()!] ?? { files: 0, additions: 0, deletions: 0 };
       case "make_scratch":
@@ -736,7 +743,25 @@ useLayout.getState().updatePane("p2", {
 });
 if (view === "board") useUi.setState({ mode: "agents" });
 if (view === "work") useUi.setState({ mode: "work" });
-if (view === "review") useUi.setState({ reviewOpen: true });
+if (view === "review") {
+  // A council has already run on this diff, and Explain is open, so the shot shows both.
+  const { mergeCouncil, parseReport } = await import("../../src/lib/council.ts");
+  const { saveCouncil } = await import("../../src/store/reviews.ts");
+  const reports = [parseReport("Correctness: FAIL - focus can escape the nav\n- [important] src/components/ChatPane.tsx:41 - Escape closes the picker but focus is lost to <body>\n- [nit] src/lib/gitDialog.ts:12 - `msg` could be named `summary`\n- [pre-existing] src/lib/new-helper.ts:3 - this helper never handled an empty list\nSCORE: 7/10\nVERDICT: fix", "deepseek#0"), parseReport("- [important] src/components/ChatPane.tsx:43 - after Escape the focused element is removed, so keyboard users lose their place\n- [important] src/lib/gitDialog.ts:30 - the commit message isn't trimmed before the empty check\nSCORE: 8/10\nVERDICT: fix", "kimi#1")];
+  saveCouncil(dev("web"), {
+    council: mergeCouncil(reports),
+    seats: [{ model: "opencode-go/deepseek-v4.1-flash", seconds: 74, failed: false, score: 7 }, { model: "opencode-go/kimi-k2", seconds: 81, failed: false, score: 8 }],
+    at: Date.now(),
+    stat: DIFFSTAT.web,
+  });
+  useUi.setState({ reviewOpen: true });
+  const clickExplain = (tries: number) => {
+    const b = [...document.querySelectorAll<HTMLButtonElement>(".review-page .page-head button")].find((x) => x.textContent === "Explain");
+    if (b && !b.disabled) b.click();
+    else if (tries > 0) setTimeout(() => clickExplain(tries - 1), 200);
+  };
+  clickExplain(20);
+}
 if (view === "weekly") useUi.setState({ weeklyOpen: true });
 if (view === "roadmap") useUi.setState({ roadmapOpen: true, roadmapProject: params.get("project") });
 if (view === "settings") useUi.setState({ settingsOpen: true, settingsSection: params.get("section") });
@@ -749,6 +774,12 @@ if (view === "threads") {
   useLayout.getState().updatePane("p4", { babysit: true, babysitWakes: 2 });
   useLayout.getState().updatePane("p3", { settled: true });
   useLayout.getState().updatePane("p7", { snoozedUntil: Date.now() + 3_600_000 });
+  // p8 finished with a passing check (Ready); p4's diff has grown 4× since it started (tripwire).
+  useLayout.getState().updatePane("p8", {
+    goal: { text: "Webhook retries pass", check: "npm test -- webhooks", maxRounds: 6, startedAt: Date.now() - 50 * 60_000, deadline: Date.now() + 3600_000, rounds: 2, last: { met: true, code: 0, at: Date.now() - 30 * 60_000, tail: "12 passing" }, ended: { at: Date.now() - 30 * 60_000, why: "met" } },
+  });
+  const { noteBase } = await import("../../src/store/reviews.ts");
+  noteBase("p4", { files: 3, additions: 80, deletions: 12 }, true);
 }
 if (view === "start") useLayout.getState().activateTab("t3");
 if (view !== "terminals" && view !== "files" && view !== "threads") useNotices.getState().clear();
