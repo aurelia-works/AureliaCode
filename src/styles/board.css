@@ -747,3 +747,8 @@ section.ht {
   font-weight: 500;
   color: var(--text-dim);
 }
+/* Nightly review: deletable code (OvernightCard). */
+.ov-tag {
+  color: var(--text-dim);
+  font-weight: 600;
+}

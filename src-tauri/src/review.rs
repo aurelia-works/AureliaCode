@@ -188,7 +188,9 @@ const AUDIT_TASK: &str = "Review the existing code in the attached files as one 
 reviewers read them separately. Nothing here is a new change: look for real bugs that are already there (wrong results, \
 crashes, races, swallowed errors, security holes, dead code that hides a bug). Read other files in the repository when you \
 need context. List each real problem on its own line as `- [important] path/to/file.ext:LINE - what is wrong`, using \
-[important] for bugs and risks and [nit] for small things. Use the path from the repository root. Only list what you can \
+[important] for bugs and risks and [nit] for small things. Also list code that can be deleted outright (an export, function, \
+file or branch nothing uses) as `- [delete] path/to/file.ext:LINE - what it is and why nothing uses it`, only after searching \
+the repository for callers. Use the path from the repository root. Only list what you can \
 point at in the code; no style comments, no praise. Then score the folder's health: 1 means it is broken, 10 means you found \
 nothing worth fixing. End with exactly two lines: `SCORE: n/10` and `VERDICT: ship`, `VERDICT: fix` or `VERDICT: block`.";
 

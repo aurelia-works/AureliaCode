@@ -6,7 +6,8 @@
  * runs under `node --test`.
  */
 
-export type Tag = "important" | "nit" | "pre-existing";
+/** `delete`: code nobody uses that can go (the nightly review asks for it; a PR review never does). */
+export type Tag = "important" | "nit" | "pre-existing" | "delete";
 export type Verdict = "ship" | "fix" | "block";
 
 export interface Finding {
@@ -37,7 +38,7 @@ export interface Council {
   findings: (Finding & { verified: boolean })[];
 }
 
-const FINDING = /^\s*[-*]\s*\[(important|nit|pre-existing)\]\s*(?:`?([\w./@-]+\.[\w]+)(?::(\d+))?`?\s*[-—–:]+\s*)?(.+)$/i;
+const FINDING = /^\s*[-*]\s*\[(important|nit|pre-existing|delete)\]\s*(?:`?([\w./@-]+\.[\w]+)(?::(\d+))?`?\s*[-—–:]+\s*)?(.+)$/i;
 
 export function parseReport(text: string, reviewer: string): ReviewerReport {
   const findings: Finding[] = [];
@@ -64,7 +65,7 @@ export function parseReport(text: string, reviewer: string): ReviewerReport {
 }
 
 const SAME_PLACE_LINES = 3;
-const TAG_ORDER: Tag[] = ["important", "nit", "pre-existing"];
+const TAG_ORDER: Tag[] = ["important", "delete", "nit", "pre-existing"];
 const VERDICT_ORDER: Verdict[] = ["ship", "fix", "block"];
 
 const samePlace = (a: Finding, b: Finding) =>

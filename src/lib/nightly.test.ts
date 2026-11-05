@@ -36,3 +36,17 @@ test("failed reviewers don't count", () => {
   assert.equal(out.reviewers, 0);
   assert.deepEqual(out.findings, []);
 });
+
+test("code two reviewers agree can be deleted is kept, tagged delete", () => {
+  const a = "- [delete] src/old.ts:1 - exportedHelper has no callers\n- [delete] src/x.ts:9 - only I think so\nSCORE: 8/10\nVERDICT: ship";
+  const b = "- [delete] src/old.ts:2 - unused export exportedHelper\nSCORE: 8/10\nVERDICT: ship";
+  const out = overnight([{ model: "m1", text: a, failed: false, seconds: 1 }, { model: "m2", text: b, failed: false, seconds: 1 }]);
+  assert.deepEqual(out.findings.map((f) => [f.tag, f.file, f.line]), [["delete", "src/old.ts", 1]]);
+});
+
+test("a place one reviewer calls a bug and another calls deletable is a bug", () => {
+  const a = "- [delete] src/a.ts:10 - unused branch\nSCORE: 7/10";
+  const b = "- [important] src/a.ts:10 - this branch swallows the error\nSCORE: 6/10";
+  const out = overnight([{ model: "m1", text: a, failed: false, seconds: 1 }, { model: "m2", text: b, failed: false, seconds: 1 }]);
+  assert.deepEqual(out.findings.map((f) => f.tag), ["important"]);
+});

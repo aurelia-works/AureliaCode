@@ -876,7 +876,10 @@ if (params.get("overnight") === "1") {
         folder: "src/refunds", at: Date.now() - 5 * 3_600_000, reviewers: 2, score: 6.5,
         findings: [{ tag: "important", file: "src/refunds/retry.ts", line: 48, text: "The retry loop never resets `attempt`, so a second refund on the same order fails at once.", by: ["deepseek", "kimi"] }],
       },
-      [dev("api-server")]: { folder: "src/auth", at: Date.now() - 5 * 3_600_000, reviewers: 2, score: 9, findings: [] },
+      [dev("api-server")]: {
+        folder: "src/auth", at: Date.now() - 5 * 3_600_000, reviewers: 2, score: 9,
+        findings: [{ tag: "delete", file: "src/auth/legacyToken.ts", line: 1, text: "`signLegacyToken` has no callers since the session rewrite; the whole file can go.", by: ["deepseek", "kimi"] }],
+      },
     },
   });
 }
