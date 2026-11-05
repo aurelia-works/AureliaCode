@@ -85,5 +85,6 @@ async function sweep() {
 }
 
 export function startDevServerWatch() {
+  void sweep();
   setInterval(() => void sweep(), POLL_MS);
 }

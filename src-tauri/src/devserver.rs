@@ -212,6 +212,24 @@ mod tests {
         assert!(plan_for(&Value::Null, &[], 1).is_none());
     }
 
+    /// This repo's own `npm run dev` (Vite) comes up on the port it was given and serves the app.
+    /// Run with `cargo test devserver -- --ignored`.
+    #[test]
+    #[ignore]
+    fn this_repos_vite_runs_on_its_own_port() {
+        let repo = Path::new(env!("CARGO_MANIFEST_DIR")).parent().unwrap().to_str().unwrap().to_string();
+        let info = start("live-pane", &repo).unwrap();
+        assert!(info.command.starts_with("npm run dev -- --port"), "{}", info.command);
+        let up = (0..300).any(|_| {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::net::TcpStream::connect(("127.0.0.1", info.port)).is_ok()
+        });
+        let log = dev_server_log("live-pane".into());
+        dev_server_stop("live-pane".into());
+        assert!(up, "vite never listened on {}: {log:?}", info.port);
+        assert!(log.iter().any(|l| l.contains(&info.port.to_string())), "vite's own output should name port {}: {log:?}", info.port);
+    }
+
     /// Starts a real server on a free port through npm and stops its whole process group. The script forks the server
     /// under a shell (like `concurrently` does), so killing only npm and its direct child would leave it running.
     #[test]
