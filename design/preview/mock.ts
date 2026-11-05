@@ -677,6 +677,10 @@ mockIPC(
         return [];
       case "has_api_key":
         return false;
+      case "audit_folders":
+        return { root: args.cwd, folders: ["src", "src/refunds"] };
+      case "council_audit":
+        return [{ model: "a", text: "SCORE: 9/10\nVERDICT: ship", failed: false, seconds: 1 }, { model: "b", text: "SCORE: 9/10\nVERDICT: ship", failed: false, seconds: 1 }];
       case "chat_history":
         if (REPLAY) return [];
         // The scripted chat (view=chat) is the whole story: never load or spawn over it.
@@ -811,6 +815,21 @@ if (view === "weekly") useUi.setState({ weeklyOpen: true });
 if (view === "roadmap") useUi.setState({ roadmapOpen: true, roadmapProject: params.get("project") });
 if (view === "settings") useUi.setState({ settingsOpen: true, settingsSection: params.get("section") });
 if (params.get("nav") === "right") useUi.setState((s) => ({ prefs: { ...s.prefs, navRight: true } }));
+if (params.get("overnight") === "1") {
+  // view=board&overnight=1: the morning after a nightly review (store/nightly.ts) found one agreed bug.
+  useUi.setState((s) => ({ prefs: { ...s.prefs, nightlyReview: true } }));
+  const { useNightly } = await import("../../src/store/nightly.ts");
+  useNightly.setState({
+    lastRun: Date.now() - 5 * 3_600_000,
+    byRepo: {
+      [dev("payments")]: {
+        folder: "src/refunds", at: Date.now() - 5 * 3_600_000, reviewers: 2, score: 6.5,
+        findings: [{ tag: "important", file: "src/refunds/retry.ts", line: 48, text: "The retry loop never resets `attempt`, so a second refund on the same order fails at once.", by: ["deepseek", "kimi"] }],
+      },
+      [dev("api-server")]: { folder: "src/auth", at: Date.now() - 5 * 3_600_000, reviewers: 2, score: 9, findings: [] },
+    },
+  });
+}
 if (view === "palette") useUi.setState({ paletteOpen: true });
 if (view === "permissions") useUi.setState({ permissionsOpen: true });
 if (view === "files") useUi.setState({ nav: "files" });

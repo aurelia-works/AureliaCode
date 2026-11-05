@@ -54,3 +54,10 @@ test("review numbers are kept in range and the council model list stays a string
   assert.equal(p.followUp, DEFAULT_PREFS.followUp);
   assert.equal(normalizePrefs({ readyScore: "9" }).readyScore, DEFAULT_PREFS.readyScore);
 });
+
+test("the nightly review is off by default and its hour stays a whole hour of the day", () => {
+  assert.equal(normalizePrefs({}).nightlyReview, false);
+  assert.equal(normalizePrefs({ nightlyHour: 30 }).nightlyHour, 23);
+  assert.equal(normalizePrefs({ nightlyHour: 4.6 }).nightlyHour, 5);
+  assert.equal(normalizePrefs({ nightlyHour: "3" }).nightlyHour, 3, "not a number: the default");
+});

@@ -19,6 +19,7 @@ import { startOutbox } from "./lib/outbox";
 import { startChains } from "./lib/chain";
 import { startPulse } from "./lib/pulse";
 import { startRoutines } from "./lib/routines";
+import { startNightly } from "./store/nightly";
 import { startRemote } from "./lib/remote";
 import { planResume } from "./lib/resume";
 import { installShortcuts, selectAll } from "./lib/shortcuts";
@@ -135,6 +136,7 @@ async function boot() {
   startPulse();
   startDispatchWatch();
   startRoutines().catch(() => {});
+  startNightly().catch(() => {});
   startControl().catch(() => {});
   startDiscord();
   checkFullDiskAccess();

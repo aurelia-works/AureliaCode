@@ -309,6 +309,8 @@ pub fn run() {
             effort::choose_model,
             review::review_changes,
             review::council_review,
+            review::council_audit,
+            review::audit_folders,
             review::explain_changes,
             ide::read_text_file,
             ide::write_text_file,

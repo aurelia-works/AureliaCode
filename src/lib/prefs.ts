@@ -93,6 +93,10 @@ export interface ThreadPrefs {
   councilModels: string;
   /** Review rounds on one diff before the page asks you to stop (0: no cap). */
   reviewRoundCap: number;
+  /** Once a night while the app is open, the council reviews one folder of each open repo's existing code. */
+  nightlyReview: boolean;
+  /** Local hour (0-23) the nightly review runs after. */
+  nightlyHour: number;
   /** Council score a thread needs to count as Ready. */
   readyScore: number;
   /** Low / Medium / High from what the change touches, on the review page. */
@@ -162,6 +166,8 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   council: true,
   councilModels: "",
   reviewRoundCap: 3,
+  nightlyReview: false,
+  nightlyHour: 3,
   readyScore: 8,
   riskBadge: true,
   explainDiff: true,
@@ -198,6 +204,9 @@ export function normalizePrefs(raw: unknown): ThreadPrefs {
       out.alerts = Object.fromEntries((Object.keys(DEFAULT_ALERTS) as (keyof AlertPrefs)[]).map((n) => [n, typeof a[n] === "boolean" ? a[n] : true])) as unknown as AlertPrefs;
     } else if (k === "followUp") {
       if (r[k] === "steer" || r[k] === "queue") out.followUp = r[k] as "steer" | "queue";
+    } else if (k === "nightlyHour") {
+      const n = r[k];
+      if (typeof n === "number" && Number.isFinite(n)) out[k] = Math.min(23, Math.max(0, Math.round(n)));
     } else if (k === "reviewRoundCap" || k === "readyScore") {
       const n = r[k];
       if (typeof n === "number" && Number.isFinite(n)) out[k] = Math.min(k === "readyScore" ? 10 : 20, Math.max(0, n));
