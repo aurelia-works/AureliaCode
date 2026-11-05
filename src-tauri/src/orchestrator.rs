@@ -69,7 +69,7 @@ pub fn tools() -> Vec<Value> {
         json!({
             "name": "aurelia_show_html",
             "title": "Show an HTML page",
-            "description": "Show the user a self-contained HTML page (inline CSS and JS, up to 2 MB) in a browser pane beside you: a diagram, report, table or mockup.",
+            "description": "Show the user a self-contained HTML page (inline CSS and JS, up to 2 MB): a diagram, chart, report, table or mockup. In a chat it appears as a card in the thread, in the app's theme (CSS variables such as --bg, --surface, --text, --text-dim, --accent, --ok, --err, --font-ui are set; use them so it follows light and dark); in a terminal it opens in a browser pane beside you. Scripts run, sandboxed away from the app.",
             "inputSchema": {
                 "type": "object",
                 "properties": {

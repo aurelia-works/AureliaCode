@@ -6,7 +6,8 @@
 //!
 //! Visual replies (`aurelia_show_html`) are written under the app folder and served from a
 //! loopback-only HTTP server behind a random token, because the browser pane only loads
-//! http(s) and the page must not reach the app's own webview.
+//! http(s) and the page must not reach the app's own webview. A chat pane draws the page as a
+//! card from the tool call instead (components/VisualReply.tsx); a terminal pane gets a browser pane.
 
 use serde_json::{json, Value};
 use std::collections::HashMap;
@@ -92,14 +93,11 @@ fn handle(app: &AppHandle, stream: UnixStream) {
 }
 
 fn answer(app: &AppHandle, req: Value) -> Value {
-    let mut method = req["method"].as_str().unwrap_or("").to_string();
+    let method = req["method"].as_str().unwrap_or("").to_string();
     let mut params = req["params"].clone();
     if method == "show_html" {
-        match save_render(&params) {
-            Ok(url) => {
-                method = "open_url".into();
-                params = json!({ "url": url, "title": params["title"] });
-            }
+        match show_html_params(&params) {
+            Ok(p) => params = p,
             Err(e) => return json!({ "error": e }),
         }
     }
@@ -121,6 +119,13 @@ pub fn control_reply(id: u64, reply: Value) {
     if let Some(tx) = PENDING.lock().unwrap().remove(&id) {
         let _ = tx.send(reply);
     }
+}
+
+/// A visual reply saved and turned into what the frontend needs: the served url and the title.
+/// The page itself stays out of the event; a chat reads it from the tool call (lib/visualReply.ts).
+fn show_html_params(params: &Value) -> Result<Value, String> {
+    let url = save_render(params)?;
+    Ok(json!({ "url": url, "title": params["title"] }))
 }
 
 fn save_render(params: &Value) -> Result<String, String> {
@@ -216,5 +221,16 @@ mod tests {
         assert!(get(&format!("http://127.0.0.1:{port}/wrongtoken/{name}")).starts_with("HTTP/1.1 404"));
         assert!(get(&url.replace(name, "../config.json")).starts_with("HTTP/1.1 404"));
         let _ = std::fs::remove_file(renders_dir().join(name));
+    }
+
+    #[test]
+    fn show_html_reaches_the_frontend_as_a_url_without_the_page() {
+        start_renders();
+        let params = show_html_params(&json!({ "html": "<p>big page</p>", "title": "Sizes" })).unwrap();
+        assert_eq!(params["title"], "Sizes");
+        assert!(params.get("html").is_none(), "the page stays out of the IPC event: {params}");
+        let url = params["url"].as_str().unwrap();
+        assert!(url.starts_with("http://127.0.0.1:") && url.ends_with(".html"), "{url}");
+        let _ = std::fs::remove_file(renders_dir().join(url.rsplit('/').next().unwrap()));
     }
 }

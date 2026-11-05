@@ -34,6 +34,8 @@ import { toast, useUi } from "../store/ui";
 import { useConfig } from "../store/config";
 import { AgentLogo } from "./AgentLogos";
 import { delegationTool, parseDelegation } from "../lib/delegation";
+import { isVisualTool, parseVisual, type VisualReply } from "../lib/visualReply";
+import { VisualReplyCard } from "./VisualReply";
 import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, CollapseIcon, ExpandIcon, FileIcon, GaugeIcon, GlobeIcon, MoreIcon, PenIcon, PlusIcon, SearchIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
 
 const MAX_ROWS = 12;
@@ -573,6 +575,14 @@ const WorkBlock = memo(function WorkBlock({ seg, live, waiting, cwd, paneId }: {
   const steps = seg.activity.filter((i) => i.kind === "tool").length;
   const stats = useMemo(() => fileStats(seg.activity), [seg.activity]);
   const files = live ? [] : Object.keys(stats);
+  // Pages the agent showed sit above its written reply, outside the folded work.
+  const visuals = useMemo(
+    () => seg.activity.flatMap((i): { id: string; v: VisualReply }[] => {
+      const v = i.kind === "tool" && isVisualTool(i.name) ? parseVisual(i.input, i.result) : null;
+      return v ? [{ id: i.id, v }] : [];
+    }),
+    [seg.activity],
+  );
   return (
     <section className="chat-work">
       {live ? (
@@ -586,6 +596,9 @@ const WorkBlock = memo(function WorkBlock({ seg, live, waiting, cwd, paneId }: {
         )
       )}
       {(live || open) && seg.activity.length > 0 && <Activity items={seg.activity} cwd={cwd} />}
+      {visuals.map(({ id, v }) => (
+        <VisualReplyCard key={id} visual={v} paneId={paneId} />
+      ))}
       {seg.answer.map((a) => (
         <Markdown key={a.id} text={a.text} streaming={!a.done} />
       ))}

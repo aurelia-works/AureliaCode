@@ -1012,6 +1012,48 @@ if (view === "chat" && !REPLAY) {
     });
   }
 }
+if (view === "chat" && params.get("visual") === "1") {
+  // A visual reply: the agent showed a page with aurelia_show_html and the chat draws it as a card.
+  const { useChat } = await import("../../src/lib/chat.ts");
+  const chat = useChat.getState().byPane.p10!;
+  const page = `<!doctype html><html><head><style>
+h2{margin:0 0 4px;font-size:15px}p{margin:0 0 12px;color:var(--text-dim)}
+.row{display:grid;grid-template-columns:120px 1fr 64px;gap:10px;align-items:center;margin:6px 0;font-size:12.5px}
+.bar{height:14px;border-radius:4px;background:var(--accent);transform-origin:left;animation:grow .6s ease-out both}
+.bar.up{background:var(--err)}.bar.down{background:var(--ok)}
+.num{text-align:right;font-family:var(--font-mono);color:var(--text-dim)}
+@keyframes grow{from{transform:scaleX(0)}}
+@media (prefers-reduced-motion:reduce){.bar{animation:none}}
+</style></head><body>
+<h2>Bundle size by chunk</h2><p>main vs this branch, gzipped. <a href="https://vite.dev/guide/build">How Vite splits chunks</a></p>
+<div class="row"><span>index</span><div class="bar" style="width:92%"></div><span class="num">184 kB</span></div>
+<div class="row"><span>ChatPane</span><div class="bar up" style="width:61%"></div><span class="num">122 kB</span></div>
+<div class="row"><span>settings</span><div class="bar down" style="width:34%"></div><span class="num">68 kB</span></div>
+<div class="row"><span>markdown</span><div class="bar" style="width:22%"></div><span class="num">44 kB</span></div>
+<div class="row"><span>xterm</span><div class="bar" style="width:48%"></div><span class="num">96 kB</span></div>
+<script>document.querySelectorAll(".row").forEach(function(r){r.title=r.textContent.trim()})</script>
+</body></html>`;
+  useChat.setState({
+    byPane: {
+      p10: {
+        ...chat,
+        status: "idle",
+        approvals: [],
+        queued: [],
+        transcript: {
+          ...chat.transcript,
+          items: [
+            { kind: "user", id: "v0", text: "Show me which chunks grew on this branch, as a chart.", at: Date.now() - 90_000 },
+            { kind: "tool", id: "v1", toolId: "vb", name: "Bash", input: { command: "npm run build -- --report" }, partial: "", result: "built in 4.1s", steps: 0 },
+            { kind: "tool", id: "v2", toolId: "vs", name: "mcp__aurelia__aurelia_show_html", input: { title: "Bundle size by chunk", html: page }, partial: "", result: JSON.stringify({ url: "http://127.0.0.1:51234/0123456789abcdef/fedcba9876543210.html", shown: "in the chat, as a card above your reply" }), steps: 0 },
+            { kind: "text", id: "v3", text: "ChatPane grew by 9 kB, all from the new card styles; settings shrank after the duplicate sections went. Nothing else moved more than 1 kB.", done: true, final: true, at: Date.now() - 60_000 },
+            { kind: "turn", id: "v4", outcome: "completed", files: [], ms: 31_000, at: Date.now() - 60_000 },
+          ],
+        },
+      },
+    },
+  });
+}
 if (view === "commit") {
   const { createElement } = await import("react");
   const { createRoot } = await import("react-dom/client");
