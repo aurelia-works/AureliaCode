@@ -285,6 +285,10 @@ async function answer(req: Request): Promise<unknown> {
       return { pane: openPane(req.from, p) };
     case "open_url":
       return { pane: openInBrowserPane(useLayout.getState().panes[req.from] ? req.from : undefined, str(p.url)), url: str(p.url) };
+    case "show_html":
+      // A chat draws the page as a card from its own tool call; a terminal gets a browser pane.
+      if (useLayout.getState().panes[req.from]?.mode === "chat") return { url: str(p.url), shown: "in the chat, as a card above your reply" };
+      return { pane: openInBrowserPane(useLayout.getState().panes[req.from] ? req.from : undefined, str(p.url)), url: str(p.url) };
     case "task_add":
       return { task: await taskAdd(req.from, p) };
     case "task_list":
