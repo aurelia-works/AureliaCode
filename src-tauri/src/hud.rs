@@ -77,9 +77,3 @@ pub fn focus_main(app: AppHandle) {
         let _ = w.set_focus();
     }
 }
-
-pub fn close(app: &AppHandle) {
-    if let Some(hud) = app.get_webview_window("hud") {
-        let _ = hud.destroy();
-    }
-}

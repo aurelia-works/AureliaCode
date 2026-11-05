@@ -195,7 +195,7 @@ pub struct TerminalConfig {
     pub webgl_pane_limit: u32,
     pub shell: String,
     /// Panes' shells live in the terminal host (ptyhost.rs) and keep running while the
-    /// app quits, restarts or updates; off = they die with the app.
+    /// app quits, restarts or updates; off (the default) = they end with the app.
     pub keep_alive: bool,
 }
 
@@ -209,7 +209,7 @@ impl Default for TerminalConfig {
             option_as_meta: true,
             webgl_pane_limit: 12,
             shell: String::new(),
-            keep_alive: true,
+            keep_alive: false,
         }
     }
 }

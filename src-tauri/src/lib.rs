@@ -38,6 +38,7 @@ mod review;
 mod store;
 mod subagents;
 mod suggest;
+mod lifecycle;
 mod tray;
 mod transcript;
 mod usage;
@@ -333,8 +334,7 @@ pub fn run() {
         }
         if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::CloseRequested { api, .. }, .. } = &event {
             if label == "main" {
-                let cfg = config::load();
-                if cfg.remote.enabled && cfg.remote.keep_running {
+                if lifecycle::on_close(&config::load()) == lifecycle::OnClose::Hide {
                     // Hide, don't quit: the agents and the phone remote stay up.
                     api.prevent_close();
                     if let Some(window) = handle.get_window("main") {
@@ -350,7 +350,8 @@ pub fn run() {
         }
         if let RunEvent::WindowEvent { label, event: tauri::WindowEvent::Destroyed, .. } = &event {
             if label == "main" {
-                hud::close(handle);
+                // Closing the window quits, like T3 Code: the popover and HUD go too, so the app exits.
+                lifecycle::close_companions(handle);
             }
         }
         #[cfg(target_os = "macos")]
