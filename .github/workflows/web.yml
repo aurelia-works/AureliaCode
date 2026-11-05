@@ -31,3 +31,48 @@ jobs:
         run: npm test
       - name: Web build
         run: npx vite build
+
+  # Posts (and on later pushes edits) one PR comment comparing gzip bundle sizes with the base branch,
+  # so whoever babysits the PR, person or agent, sees a size jump (Theo, 2026-11-04 01:31).
+  size:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    env:
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Build this PR
+        run: |
+          npm ci --no-audit --no-fund
+          npx vite build
+          node scripts/bundle-size.mjs measure dist "$RUNNER_TEMP/head.json"
+      - name: Build the base
+        run: |
+          git worktree add "$RUNNER_TEMP/base" "origin/${{ github.base_ref }}"
+          cd "$RUNNER_TEMP/base"
+          npm ci --no-audit --no-fund
+          npx vite build
+          node "$GITHUB_WORKSPACE/scripts/bundle-size.mjs" measure dist "$RUNNER_TEMP/base.json"
+      - name: Post the table
+        run: |
+          set -o pipefail
+          node scripts/bundle-size.mjs compare "$RUNNER_TEMP/base.json" "$RUNNER_TEMP/head.json" > "$RUNNER_TEMP/size.md"
+          cat "$RUNNER_TEMP/size.md" >> "$GITHUB_STEP_SUMMARY"
+          repo="${{ github.repository }}"; pr="${{ github.event.pull_request.number }}"
+          id=$(gh api "repos/$repo/issues/$pr/comments" --paginate -q '.[] | select(.body | startswith("<!-- bundle-size -->")) | .id' | head -1)
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$repo/issues/comments/$id" -F body=@"$RUNNER_TEMP/size.md" >/dev/null
+          else
+            gh pr comment "$pr" -R "$repo" --body-file "$RUNNER_TEMP/size.md"
+          fi
