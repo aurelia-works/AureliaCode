@@ -108,7 +108,10 @@ function teams(input: InboxInput): InboxItem[] {
   }));
 }
 
-/** Everything in the background, what needs you first, then what's running, failed and done; newest first in each. */
+/**
+ * Everything in the background, what needs you first, then what's running, failed and done; newest first in each.
+ * Rows with no time (`at: 0`, PR babysits: a pane doesn't record when it started) keep their order at the end of their group.
+ */
 export function inboxItems(input: InboxInput): InboxItem[] {
   return [...delegations(input), ...routines(input), ...nightly(input), ...babysits(input), ...teams(input)].sort((a, b) => RANK[a.state] - RANK[b.state] || b.at - a.at);
 }
