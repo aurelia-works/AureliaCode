@@ -87,17 +87,29 @@ fn procs() -> &'static Mutex<HashMap<String, Proc>> {
 }
 
 /// Stops the whole process group: `npm run dev` forks the real server, which a plain kill would orphan.
+/// A server that ignores SIGTERM for 3 s gets SIGKILL, so a stop never hangs the lock.
 fn stop(p: &mut Proc) {
-    if p.child.try_wait().ok().flatten().is_none() {
-        unsafe {
-            libc::killpg(p.child.id() as i32, libc::SIGTERM);
-        }
-        let _ = p.child.wait();
+    if p.child.try_wait().ok().flatten().is_some() {
+        return;
     }
+    let group = p.child.id() as i32;
+    unsafe {
+        libc::killpg(group, libc::SIGTERM);
+    }
+    for _ in 0..30 {
+        if p.child.try_wait().ok().flatten().is_some() {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+    unsafe {
+        libc::killpg(group, libc::SIGKILL);
+    }
+    let _ = p.child.wait();
 }
 
 fn lockfiles(dir: &Path) -> Vec<&'static str> {
-    ["pnpm-lock.yaml", "yarn.lock", "bun.lockb", "bun.lock", "package-lock.json"].into_iter().filter(|f| dir.join(f).exists()).collect()
+    ["pnpm-lock.yaml", "yarn.lock", "bun.lockb", "bun.lock"].into_iter().filter(|f| dir.join(f).exists()).collect()
 }
 
 pub fn start(pane: &str, cwd: &str) -> Result<DevInfo, String> {

@@ -239,7 +239,6 @@ export interface DiffStat {
   deletions: number;
 }
 
-/** The pull request for a branch (src-tauri/src/pr.rs). */
 /** A thread's dev server (src-tauri/src/devserver.rs). */
 export interface DevInfo {
   pane: string;
@@ -250,6 +249,7 @@ export interface DevInfo {
   running: boolean;
 }
 
+/** The pull request for a branch (src-tauri/src/pr.rs). */
 export interface PrInfo {
   number: number;
   url: string;

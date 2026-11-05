@@ -228,7 +228,7 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
       {prefs.mergeQueue && queued && queued !== "merging" && item("Remove from merge queue", () => removeFromQueue(paneId))}
       {prefs.devServer && !dev && item("Start dev server", () => void startDevServer(paneId))}
       {prefs.devServer && dev && item(`Open dev server :${dev}`, () => openDevServer(paneId))}
-      {prefs.devServer && dev && item("Stop dev server", () => void stopDevServer(paneId))}
+      {dev && item("Stop dev server", () => void stopDevServer(paneId))}
       {prefs.scrapAction && item("Scrap and start over", () => scrapThread(paneId))}
       {!away && item("Snooze…", onSnooze)}
       {away ? item("Wake", () => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")) : item("Settle", () => patchThreads([paneId], settlePatch(), "Settled"))}

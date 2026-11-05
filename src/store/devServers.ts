@@ -71,17 +71,26 @@ async function sweep() {
   const live = await ipc.devServerList().catch(() => null);
   if (!live) return;
   const panes = useLayout.getState().panes;
-  const next: Record<string, DevInfo> = {};
+  const gone: string[] = [];
+  const running: DevInfo[] = [];
   for (const d of live) {
     if (!panes[d.pane]) {
+      gone.push(d.pane);
       void ipc.devServerStop(d.pane).catch(() => {});
     } else if (!d.running) {
+      gone.push(d.pane);
       const log = await ipc.devServerLog(d.pane).catch(() => [] as string[]);
       void ipc.devServerStop(d.pane).catch(() => {});
       toast(`The dev server on :${d.port} stopped. Last output:\n${tail(log)}`, true);
-    } else next[d.pane] = d;
+    } else running.push(d);
   }
-  useDevServers.setState({ byPane: next });
+  // Merge, don't replace: a server started while the list was being read isn't in it yet.
+  useDevServers.setState((s) => {
+    const byPane = { ...s.byPane };
+    for (const id of gone) delete byPane[id];
+    for (const d of running) if (byPane[d.pane]?.port === d.port || !byPane[d.pane]) byPane[d.pane] = d;
+    return { byPane };
+  });
 }
 
 export function startDevServerWatch() {
