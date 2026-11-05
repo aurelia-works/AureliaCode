@@ -432,14 +432,18 @@ async fn share_ask(State(ctx): State<Shared>, ConnectInfo(addr): ConnectInfo<Soc
     (status, guest_headers(), msg).into_response()
 }
 
-/// The base URLs share links use (the same ways in as pairing), or None while the server is off. Slow: runs the
+/// The base URLs share links use (the same ways in as pairing). Refuses while the server is off, and when no other
+/// device could reach it: a loopback link would look fine here and never open for a guest. Slow: runs the
 /// tailscale CLI.
-pub fn share_bases() -> Option<Vec<String>> {
-    let port = running_port()?;
+pub fn share_bases() -> Result<Vec<String>, String> {
+    let port = running_port().ok_or("Turn on Remote in Settings first: share links use its server")?;
     let cfg = crate::config::load().remote;
     let ts = crate::tailscale::info();
     let out: Vec<String> = bases(&cfg, port, &ts, serving()).into_iter().map(|l| l.url).collect();
-    Some(if out.is_empty() { vec![format!("http://127.0.0.1:{port}")] } else { out })
+    if out.is_empty() {
+        return Err("No one else can reach this Mac yet: connect Tailscale, or allow the local network in Settings → Remote".into());
+    }
+    Ok(out)
 }
 
 /// The guest's page: the conversation, read only, and a box whose messages wait for approval. Text is set with

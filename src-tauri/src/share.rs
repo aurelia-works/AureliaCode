@@ -144,7 +144,7 @@ pub struct Shared {
 
 #[tauri::command]
 pub async fn share_create(pane: String) -> Result<ShareLink, String> {
-    let bases = tauri::async_runtime::spawn_blocking(crate::remote::share_bases).await.map_err(|e| e.to_string())?.ok_or("Turn on Remote in Settings first: share links use its server")?;
+    let bases = tauri::async_runtime::spawn_blocking(crate::remote::share_bases).await.map_err(|e| e.to_string())??;
     let token = crate::pairing::random_hex(24);
     let now = now();
     SHARES.lock().unwrap().create(&pane, token.clone(), now);
