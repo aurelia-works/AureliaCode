@@ -10,6 +10,8 @@ import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 const params = new URLSearchParams(location.search);
 const theme = (params.get("theme") ?? "dark") as "dark" | "light";
 const view = params.get("view") ?? "terminals";
+/** `view=chat&replay=<name>`: a fresh chat whose replies come from design/replays/<name>.jsonl (lib/replay.ts), no tokens. */
+const REPLAY = params.get("replay");
 const HOME = "/Users/you";
 const dev = (p: string) => `${HOME}/dev/${p}`;
 
@@ -334,11 +336,13 @@ index 1111111..2222222 100644
 
 type Channel = { id: number };
 let channelIndex = new Map<number, number>();
-function feed(ch: Channel, text: string) {
+function emit(ch: Channel, message: unknown) {
   const index = channelIndex.get(ch.id) ?? 0;
   channelIndex.set(ch.id, index + 1);
-  const bytes = new TextEncoder().encode(text);
-  (window as any).__TAURI_INTERNALS__.runCallback(ch.id, { index, message: bytes.buffer });
+  (window as any).__TAURI_INTERNALS__.runCallback(ch.id, { index, message });
+}
+function feed(ch: Channel, text: string) {
+  emit(ch, new TextEncoder().encode(text).buffer);
 }
 
 /** A stand-in for Claude Code's input line and /effort picker, enough to exercise lib/inlineEffort. */
@@ -431,6 +435,30 @@ const plannerMock = {  version: 1,
   habitCompletions: [-1, -2, -3].map((d, i) => { const x = new Date(Date.now() + d * 86400000); return { id: `hc${i}`, habitId: "h1", date: `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, "0")}-${String(x.getDate()).padStart(2, "0")}`, createdAt: "" }; }),
   switches: {},
 };
+
+// Replay: each sent message plays the recording's next turn through the chat's real channel.
+const { parseReplay, turnEvents } = await import("../../src/lib/replay.ts");
+const replayTurns = REPLAY
+  ? await (async () => {
+      const res = await fetch(`/design/replays/${REPLAY}.jsonl`);
+      if (!res.ok) throw new Error(`no replay ${REPLAY}`);
+      return parseReplay(await res.text());
+    })()
+  : [];
+const replayCh = new Map<string, Channel>();
+const replayAt = new Map<string, number>();
+async function playReplay(paneId: string) {
+  const ch = replayCh.get(paneId);
+  const n = replayAt.get(paneId) ?? 0;
+  replayAt.set(paneId, n + 1);
+  const turn = replayTurns[n];
+  if (!ch) return;
+  const events = turn ? turnEvents(turn) : [{ type: "turnEnd", outcome: "failed", error: "the replay has no more turns" }, { type: "status", status: "idle" }];
+  for (const ev of events) {
+    await sleep(Number(params.get("replayMs") ?? 60));
+    emit(ch, ev);
+  }
+}
 
 mockWindows("main");
 mockIPC(
@@ -639,10 +667,15 @@ mockIPC(
       case "has_api_key":
         return false;
       case "chat_history":
+        if (REPLAY) return [];
         // The scripted chat (view=chat) is the whole story: never load or spawn over it.
         return new Promise(() => {});
       case "chat_spawn":
+        if (REPLAY) replayCh.set(args.paneId, args.onEvent);
         return {};
+      case "chat_send":
+        if (REPLAY) void playReplay(args.paneId);
+        return null;
       case "chat_commands":
         return { commands: [] };
       case "transcript_usage":
@@ -784,7 +817,8 @@ if (view === "threads") {
 }
 if (view === "start") useLayout.getState().activateTab("t3");
 if (view !== "terminals" && view !== "files" && view !== "threads") useNotices.getState().clear();
-if (view === "chat") {
+if (view === "chat" && REPLAY) useLayout.getState().activateTab("t4");
+if (view === "chat" && !REPLAY) {
   // A chat mid-turn, waiting on an approval, with one message queued behind it.
   const { useChat } = await import("../../src/lib/chat.ts");
   useLayout.getState().activateTab("t4");

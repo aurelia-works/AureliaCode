@@ -32,6 +32,23 @@ jobs:
       - name: Web build
         run: npx vite build
 
+  # A full chat flow in the preview harness, replayed from design/replays/ so it spends no tokens
+  # (Theo, 2026-11-04 02:00). scripts/e2e.mjs fails on any request that leaves the runner.
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Replay e2e
+        run: npm run e2e
+
   # Posts (and on later pushes edits) one PR comment comparing gzip bundle sizes with the base branch,
   # so whoever babysits the PR, person or agent, sees a size jump (Theo, 2026-11-04 01:31).
   size:
