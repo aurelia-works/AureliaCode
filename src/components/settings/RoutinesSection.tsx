@@ -26,7 +26,7 @@ export function RoutinesSection({ draft, update, notify }: SectionProps) {
     <section className="set-group">
       <h3>Routines</h3>
       <p className="hint">
-        A routine opens a Claude pane with its prompt on a schedule, while AureliaSpace is running. A daily run missed by
+        A routine opens a Claude pane with its prompt on a schedule, while AureliaCode is running. A daily run missed by
         more than two hours waits for the next day, and a run is skipped while the last one is still working.
       </p>
       {list.map((r) => (

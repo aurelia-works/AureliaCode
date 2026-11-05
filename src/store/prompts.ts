@@ -93,7 +93,7 @@ function draftHere(text: string) {
  */
 function openPromptLink(raw: string) {
   const link = parsePromptLink(raw);
-  if (!link) return toast("That AureliaSpace link isn't a prompt link", true);
+  if (!link) return toast("That AureliaCode link isn't a prompt link", true);
   const accounts = useConfig.getState().config?.accounts.map((a) => a.name) ?? [];
   const account = link.account && accounts.includes(link.account) ? link.account : undefined;
   if (link.account && !account) toast(`No account named ${link.account}: using the default`, true);

@@ -24,7 +24,7 @@ const RULES: [RegExp, PreviewView[]][] = [
   [/^src\/remote\/|^src\/lib\/(remote|aureliaBot)\.ts$|^remote\.html$|^design\/preview\/remote/, ["remote", "remote&pane=chat", "remote&sheet=new"]],
   [/^src\/styles\/board\.css$/, ["board"]],
   [/^src\/styles\/agentview\.css$/, ["agentview"]],
-  [/^src\/styles\/|^src\/App\.tsx$|^src\/main\.tsx$|^src\/components\/(Icons|TitleBar|StatusBar|UndoToast|Notices)\.tsx$|^src\/lib\/(theme|uiAppearance|palettes)\.ts$|^index\.html$|^design\/preview\//, CORE_VIEWS],
+  [/^src\/styles\/|^src\/App\.tsx$|^src\/main\.tsx$|^src\/components\/(Icons|TitleBar|UndoToast|Notices)\.tsx$|^src\/lib\/(theme|uiAppearance|palettes)\.ts$|^index\.html$|^design\/preview\//, CORE_VIEWS],
   [/^src-tauri\/src\/opencode_chat\.rs$/, ["chat&opencode=1"]],
   [/^src\/lib\/delegation\.ts$/, ["chat&delegate=1"]],
   [/^src\/components\/VisualReply\.tsx$|^src\/lib\/visualReply\.ts$/, ["chat&visual=1"]],

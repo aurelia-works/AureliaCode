@@ -757,8 +757,7 @@ function ToolLine({ item, cwd }: { item: Tool; cwd?: string }) {
   const running = item.result === undefined;
   const summary = toolSummary(item.name, item.input, cwd);
   const state = running ? "running" : item.isError ? "error" : "ok";
-  const promptsOn = useUi((s) => s.prefs.agentPrompts);
-  const told = promptsOn ? agentPrompt(item.name, item.input) : null;
+  const told = agentPrompt(item.name, item.input);
   return (
     <div className={`chat-tool ${state}`}>
       <button type="button" className="chat-tool-line" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
@@ -1422,7 +1421,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
     const body = [t, refs].filter(Boolean).join(t && refs ? "\n\n" : "");
     if (!body && !images.length && !documents.length) return;
     // Steer: stop the running turn and send once it has ended, so the new message is a normal turn.
-    const steer = prefs.steerKey && followUpAction(busy, prefs.followUp, opposite) === "steer";
+    const steer = followUpAction(busy, prefs.followUp, opposite) === "steer";
     setText("");
     writeAtts(() => []);
     setHist(null);
@@ -1476,10 +1475,9 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
           : (models.find((m) => m.value === model)?.label ?? model);
   const effortLabel =
     effort === "auto" ? `Auto${auto?.effort?.pick ? ` · ${cap(auto.effort.pick)}` : ""}` : effort === "default" ? "Effort" : (EFFORTS.find((e) => e.value === effort)?.label ?? effort);
-  const level = EFFORTS.findIndex((e) => e.value === (effort === "auto" ? auto?.effort?.pick : effort)) - 1;
   const m = MODES[mode] ?? MODES.default;
-  const fold = prefs.composerFold && narrowBar;
-  const merged = prefs.mergeModelEffort && !oc;
+  const fold = narrowBar;
+  const merged = !oc;
   const providerValue = chatProviderId(providerAccount, pane?.provider);
   const pickProvider = (v: string) => {
     if (v === providerValue) return;
@@ -1510,10 +1508,10 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             const el = ref.current!;
             const edge = e.key === "ArrowUp" ? !el.value.slice(0, el.selectionStart).includes("\n") : !el.value.slice(el.selectionEnd).includes("\n");
             if ((edge && (hist || !text)) && recall(e.key === "ArrowUp" ? -1 : 1)) e.preventDefault();
-          } else if (e.key === "Enter" && e.metaKey && e.altKey && prefs.background && e.target === ref.current) {
+          } else if (e.key === "Enter" && e.metaKey && e.altKey && e.target === ref.current) {
             e.preventDefault();
             sendBackground();
-          } else if (e.key.toLowerCase() === "s" && e.metaKey && !e.altKey && !e.shiftKey && prefs.stash && e.target === ref.current) {
+          } else if (e.key.toLowerCase() === "s" && e.metaKey && !e.altKey && !e.shiftKey && e.target === ref.current) {
             e.preventDefault();
             stashKey();
           } else if (e.key === "." && e.metaKey && busy) {
@@ -1658,16 +1656,6 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             icon={model === "auto" ? <SparkIcon className="chat-auto-icon" /> : agentIcon}
             groups={merged ? [{ heading: "Effort: how hard Claude thinks", value: effort, options: EFFORTS, onPick: (v) => setChatOptions(paneId, { effort: v }) }] : undefined}
           />
-          {!oc && !merged && (
-            <Picker
-              label={effortLabel}
-              title={effort === "auto" && auto?.effort ? `Auto effort: ${auto.effort.why}` : "Effort for the next message: how hard Claude thinks"}
-              value={effort}
-              options={EFFORTS}
-              onPick={(v) => setChatOptions(paneId, { effort: v })}
-              icon={<GaugeIcon level={Math.max(0, level)} />}
-            />
-          )}
           {!fold && styles && styles.length > 1 && (
             <Picker
               label={style === "default" ? "" : style}
@@ -1679,7 +1667,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             />
           )}
           <ContextRing paneId={paneId} />
-          {busy && prefs.steerKey && (
+          {busy && (
             <button
               type="button"
               className="opt tog"
@@ -1695,7 +1683,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
               <StopIcon />
             </button>
           ) : (
-            <button type="button" className="chat-send" onClick={() => send()} disabled={empty} title={busy ? (prefs.steerKey && prefs.followUp === "steer" ? `Stop this turn and send now (${sendKey})` : `Queue for after this turn (${sendKey})`) : `Send (${sendKey})`} aria-label="Send">
+            <button type="button" className="chat-send" onClick={() => send()} disabled={empty} title={busy ? (prefs.followUp === "steer" ? `Stop this turn and send now (${sendKey})` : `Queue for after this turn (${sendKey})`) : `Send (${sendKey})`} aria-label="Send">
               <ArrowUpIcon />
             </button>
           )}

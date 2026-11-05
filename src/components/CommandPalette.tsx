@@ -172,14 +172,14 @@ function actionItems(): Item[] {
     { id: "theme-system", group: "Actions", label: "Theme: follow system", run: () => setTheme("system") },
     usePlanner.getState().data.switches.roadmap && { id: "roadmap", group: "Actions", label: "Roadmap", hint: "now / next / later / shipped per project", run: () => ui.set({ roadmapOpen: true }) },
     usePlanner.getState().data.switches.review && { id: "weekly", group: "Actions", label: "Weekly review", hint: "what the week added up to", run: () => ui.set({ weeklyOpen: true }) },
-    useUi.getState().prefs.prCopy && !!pane && !!panePrOf(pane) && { id: "pr-link", group: "Actions", label: "Copy PR link", hint: `PR ${prNumberRef(panePrOf(pane)!.number)}`, run: () => copyText(panePrOf(pane)!.url, "PR link copied") },
-    useUi.getState().prefs.prCopy && !!pane && !!panePrOf(pane) && { id: "pr-number", group: "Actions", label: "Copy PR number", hint: prNumberRef(panePrOf(pane)!.number), run: () => copyText(prNumberRef(panePrOf(pane)!.number), `Copied ${prNumberRef(panePrOf(pane)!.number)}`) },
-    useUi.getState().prefs.regenTitle && !!pane && layout.panes[pane]?.mode === "chat" && { id: "retitle", group: "Actions", label: "Retitle this thread from its latest message", run: () => retitleThread(pane) },
-    useUi.getState().prefs.backForward && { id: "nav-back", group: "Actions", label: "Back to the previous thread", keys: "⌘[", run: () => void navigate(-1) },
-    useUi.getState().prefs.backForward && { id: "nav-forward", group: "Actions", label: "Forward to the next thread", keys: "⌘]", run: () => void navigate(1) },
-    useUi.getState().prefs.promptLinks && !!pane && { id: "prompt-link", group: "Actions", label: "Copy prompt link for this thread", hint: "reopens its first message as a draft", run: () => copyPromptLink(pane) },
-    useUi.getState().prefs.noProject && { id: "scratch", group: "Actions", label: "New thread without a project", keys: "⌥⌘N", hint: "its own scratch folder", run: () => void newScratchTab().catch((e) => toast(String(e), true)) },
-    useUi.getState().prefs.reopen && { id: "reopen", group: "Actions", label: "Reopen closed thread", keys: "⇧⌘T", run: () => void reopenLastClosed() },
+    !!pane && !!panePrOf(pane) && { id: "pr-link", group: "Actions", label: "Copy PR link", hint: `PR ${prNumberRef(panePrOf(pane)!.number)}`, run: () => copyText(panePrOf(pane)!.url, "PR link copied") },
+    !!pane && !!panePrOf(pane) && { id: "pr-number", group: "Actions", label: "Copy PR number", hint: prNumberRef(panePrOf(pane)!.number), run: () => copyText(prNumberRef(panePrOf(pane)!.number), `Copied ${prNumberRef(panePrOf(pane)!.number)}`) },
+    !!pane && layout.panes[pane]?.mode === "chat" && { id: "retitle", group: "Actions", label: "Retitle this thread from its latest message", run: () => retitleThread(pane) },
+    { id: "nav-back", group: "Actions", label: "Back to the previous thread", keys: "⌘[", run: () => void navigate(-1) },
+    { id: "nav-forward", group: "Actions", label: "Forward to the next thread", keys: "⌘]", run: () => void navigate(1) },
+    !!pane && { id: "prompt-link", group: "Actions", label: "Copy prompt link for this thread", hint: "reopens its first message as a draft", run: () => copyPromptLink(pane) },
+    { id: "scratch", group: "Actions", label: "New thread without a project", keys: "⌥⌘N", hint: "its own scratch folder", run: () => void newScratchTab().catch((e) => toast(String(e), true)) },
+    { id: "reopen", group: "Actions", label: "Reopen closed thread", keys: "⇧⌘T", run: () => void reopenLastClosed() },
     { id: "capture", group: "Actions", label: "Capture…", hint: "a goal for today or a task on a project", run: () => ui.set({ captureOpen: true }) },
     { id: "settings", group: "Actions", label: "Settings", keys: "⌘,", run: () => ui.set({ settingsOpen: true }) },
     ...useCustomAgents.getState().agents.map((a) => ({
@@ -204,7 +204,6 @@ function actionItems(): Item[] {
 /** ⌘P: one box to reach any pane (by folder, account, state) or run any action. */
 export function CommandPalette() {
   const open = useUi((s) => s.paletteOpen);
-  const prefs = useUi((s) => s.prefs);
   const [q, setQ] = useState("");
   const [index, setIndex] = useState(0);
   const listRef = useRef<HTMLDivElement>(null);
@@ -219,12 +218,12 @@ export function CommandPalette() {
 
   const results = useMemo(() => {
     // ">" at the start: actions only, no panes.
-    const { actionsOnly, text } = prefs.paletteActions ? paletteQuery(q) : { actionsOnly: false, text: q.trim() };
+    const { actionsOnly, text } = paletteQuery(q);
     const pool = actionsOnly ? all.filter((it) => it.group === "Actions") : all;
     const scored = pool.map((it) => ({ it, s: score(`${it.label} ${it.hint ?? ""}`, text) })).filter((x) => x.s !== null);
     if (text) scored.sort((a, b) => a.s! - b.s!);
     return scored.map((x) => x.it).slice(0, 60);
-  }, [all, q, prefs.paletteActions]);
+  }, [all, q]);
 
   useEffect(() => {
     listRef.current?.querySelector(`[data-index="${index}"]`)?.scrollIntoView({ block: "nearest" });
@@ -259,7 +258,7 @@ export function CommandPalette() {
               setQ(e.target.value);
               setIndex(0);
             }}
-            placeholder={prefs.paletteActions ? "Jump to a pane or run an action… (> for actions only)" : "Jump to a pane or run an action…"}
+            placeholder="Jump to a pane or run an action… (> for actions only)"
             spellCheck={false}
             role="combobox"
             aria-expanded

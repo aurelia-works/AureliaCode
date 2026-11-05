@@ -8,7 +8,6 @@ import { useAgents } from "../store/agents";
 import { useGit } from "../store/git";
 import { useLayout } from "../store/layout";
 import { tasksForPane, useTasks } from "../store/tasks";
-import { useUi } from "../store/ui";
 import { since } from "./SessionExtras";
 import { StatusGlyph, visualOf, type Visual } from "./StatusGlyph";
 
@@ -63,11 +62,9 @@ export function useThreadSummary(paneId: string, cwd?: string): ThreadSummary {
   const stat = useGit((s) => (dir ? s.stat[dir] : undefined));
   const usd = useLayout((s) => s.panes[paneId]?.chatCost ?? 0);
   const tokens = useLayout((s) => s.panes[paneId]?.chatTokens ?? 0);
-  const costOn = useUi((s) => s.prefs.threadCost);
-  const familyOn = useUi((s) => s.prefs.threadFamily);
   // Primitives only, so the selectors don't hand back a fresh object every render.
-  const parent = useLayout((s) => (familyOn ? familyOf(s.panes, paneId).parent : undefined));
-  const children = useLayout((s) => (familyOn ? familyOf(s.panes, paneId).children.length : 0));
+  const parent = useLayout((s) => familyOf(s.panes, paneId).parent);
+  const children = useLayout((s) => familyOf(s.panes, paneId).children.length);
   const parentTitle = useLayout((s) => (parent ? s.panes[parent]?.title : undefined));
   const parentTask = useTasks((s) => (parent ? tasksForPane(s.projects, parent)[0]?.title : undefined));
 
@@ -97,7 +94,7 @@ export function useThreadSummary(paneId: string, cwd?: string): ThreadSummary {
     // The stat is per folder: an unstarted thread sharing one would just repeat its neighbour's numbers.
     stat: v === "idle" ? undefined : stat,
     age: agent ? since(Date.now() - agent.updatedAt) : undefined,
-    cost: costOn && tokens > 0 ? `${formatCost(usd)} · ${formatTokens(tokens)} tokens` : undefined,
+    cost: tokens > 0 ? `${formatCost(usd)} · ${formatTokens(tokens)} tokens` : undefined,
     parent: parent ? { id: parent, title: parentTitle ?? parentTask ?? "another thread" } : undefined,
     children: children || undefined,
   };

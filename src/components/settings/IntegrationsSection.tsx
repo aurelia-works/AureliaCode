@@ -9,7 +9,7 @@ export function IntegrationsSection({ draft, update }: SectionProps) {
       <h3>Discord</h3>
       <label className="field check">
         <input type="checkbox" checked={d.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
-        <span>Show "Playing AureliaSpace" on my Discord profile</span>
+        <span>Show that I'm coding on my Discord profile</span>
       </label>
       <label className="field check">
         <input type="checkbox" checked={d.hideProject} onChange={(e) => set({ hideProject: e.target.checked })} />

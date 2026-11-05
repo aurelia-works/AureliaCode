@@ -220,20 +220,20 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
   };
   return (
     <div ref={ref} className="snooze-menu thread-menu" role="menu" aria-label="Thread actions" onKeyDown={move}>
-      {prefs.pin && !away && item(pinned ? "Unpin" : "Pin", () => patchThreads([paneId], pinPatch(!pinned, Date.now()), pinned ? "Unpinned" : "Pinned"))}
+      {!away && item(pinned ? "Unpin" : "Pin", () => patchThreads([paneId], pinPatch(!pinned, Date.now()), pinned ? "Unpinned" : "Pinned"))}
       {item("Rename", () => useUi.getState().set({ renameThread: paneId }), "F2")}
-      {prefs.regenTitle && isChat && item("Retitle from latest message", () => retitleThread(paneId))}
-      {prefs.prCopy && pr && item(`Copy PR link (${prNumberRef(pr.number)})`, () => copyText(pr.url, "PR link copied"))}
-      {prefs.prCopy && pr && item("Copy PR number", () => copyText(prNumberRef(pr.number), `Copied ${prNumberRef(pr.number)}`))}
-      {prefs.revertAction && pr?.state === "MERGED" && item(`Revert PR ${prNumberRef(pr.number)}`, () => void revertMergedPr(paneId, pr))}
+      {isChat && item("Retitle from latest message", () => retitleThread(paneId))}
+      {pr && item(`Copy PR link (${prNumberRef(pr.number)})`, () => copyText(pr.url, "PR link copied"))}
+      {pr && item("Copy PR number", () => copyText(prNumberRef(pr.number), `Copied ${prNumberRef(pr.number)}`))}
+      {pr?.state === "MERGED" && item(`Revert PR ${prNumberRef(pr.number)}`, () => void revertMergedPr(paneId, pr))}
       {prefs.mergeQueue && pr?.state === "OPEN" && (!queued || queued === "bounced" || queued === "merged") && item(`Add ${prNumberRef(pr.number)} to merge queue`, () => addToQueue(paneId))}
       {prefs.mergeQueue && queued && queued !== "merging" && item("Remove from merge queue", () => removeFromQueue(paneId))}
-      {prefs.devServer && !dev && item("Start dev server", () => void startDevServer(paneId))}
-      {prefs.devServer && dev && item(`Open dev server :${dev}`, () => openDevServer(paneId))}
+      {!dev && item("Start dev server", () => void startDevServer(paneId))}
+      {dev && item(`Open dev server :${dev}`, () => openDevServer(paneId))}
       {dev && item("Stop dev server", () => void stopDevServer(paneId))}
-      {prefs.shareLink && isChat && !shared && item("Share read-only link", () => void shareThread(paneId))}
+      {isChat && !shared && item("Share read-only link", () => void shareThread(paneId))}
       {shared && item("Stop sharing", () => void stopSharing(paneId))}
-      {prefs.scrapAction && item("Scrap and start over", () => scrapThread(paneId))}
+      {item("Scrap and start over", () => scrapThread(paneId))}
       {!away && item("Snooze…", onSnooze)}
       {away ? item("Wake", () => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")) : item("Settle", () => patchThreads([paneId], settlePatch(), "Settled"))}
       {item("Close", () => closePaneSafely(paneId))}
@@ -290,16 +290,16 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   const menuOpen = useUi((s) => s.threadMenu === paneId);
   const base = useReviews((s) => s.base[paneId]);
   useEffect(() => {
-    if (prefs.diffTripwire && v === "working") noteBase(paneId, stat);
-  }, [prefs.diffTripwire, v, stat]);
-  const grown = prefs.diffTripwire ? diffGrowth(base, stat) : null;
+    if (v === "working") noteBase(paneId, stat);
+  }, [v, stat]);
+  const grown = diffGrowth(base, stat);
   const sharedUntil = useShares((s) => s.byPane[paneId]);
   const queue = useMergeQueue((s) => (prefs.mergeQueue ? queueItemOf(s.items, paneId) : undefined));
-  const devPort = useDevServers((s) => (prefs.devServer ? s.byPane[paneId]?.port : undefined));
+  const devPort = useDevServers((s) => s.byPane[paneId]?.port);
 
   return (
     <div
-      className={`nav-thread${focused ? " on" : ""}${away ? " away" : ""}${selected ? " selected" : ""}${prefs.recedeWorking && shouldRecede({ v, focused, selected }) ? " recede" : ""}${dnd?.dragging ? " dragging" : ""}`}
+      className={`nav-thread${focused ? " on" : ""}${away ? " away" : ""}${selected ? " selected" : ""}${shouldRecede({ v, focused, selected }) ? " recede" : ""}${dnd?.dragging ? " dragging" : ""}`}
       data-thread={paneId}
       draggable={!!dnd && !renaming && !menu && !menuOpen}
       onDragStart={(e) => {
@@ -326,9 +326,9 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
         className={`th-row${v ? ` ${v}` : ""}`}
         onClick={(e) => onSelect(e) || showPane(paneId)}
         // Middle-click closes the thread (the same safe close as the Close button); mousedown is cancelled so the OS doesn't start autoscroll.
-        onMouseDown={(e) => e.button === 1 && prefs.middleClick && e.preventDefault()}
+        onMouseDown={(e) => e.button === 1 && e.preventDefault()}
         onAuxClick={(e) => {
-          if (e.button !== 1 || !prefs.middleClick) return;
+          if (e.button !== 1) return;
           e.preventDefault();
           closePaneSafely(paneId);
         }}
@@ -339,7 +339,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
         <span className="th-t">
           <Lead v={v} pane={pane} running={!!running} />
           <span className="th-title" title={label}>{label}</span>
-          {prefs.pin && pane?.pinned !== undefined && <span className="th-pin" title="Pinned" aria-label="Pinned"><PinIcon width={12} height={12} /></span>}
+          {pane?.pinned !== undefined && <span className="th-pin" title="Pinned" aria-label="Pinned"><PinIcon width={12} height={12} /></span>}
           {pane?.goal && !pane.goal.ended && (
             <span className="th-goal num" title={`Goal: ${pane.goal.text} (round ${pane.goal.rounds + 1} of ${pane.goal.maxRounds})`}>
               Goal {pane.goal.rounds + 1}/{pane.goal.maxRounds}
@@ -387,7 +387,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
               <span className="th-br">{git.branch}</span>
             </>
           )}
-          {prefs.rowDiffStat && (git?.worktree || (v && v !== "idle")) && <DiffStat stat={stat} files={false} />}
+          {(git?.worktree || (v && v !== "idle")) && <DiffStat stat={stat} files={false} />}
           {pr && <PrBadge pr={pr} attention={attention} onOpen={() => update(paneId, { prSeenFeedback: pr.feedback })} />}
           {when && <time>{when}</time>}
         </span>
@@ -409,11 +409,9 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
           </>
         ) : (
           <>
-            {prefs.pin && (
-              <button className="nav-act" title={pane?.pinned !== undefined ? "Unpin" : "Pin above the other threads"} onClick={() => patchThreads([paneId], pinPatch(pane?.pinned === undefined, Date.now()), pane?.pinned === undefined ? "Pinned" : "Unpinned")} aria-label={pane?.pinned !== undefined ? "Unpin" : "Pin"}>
-                <PinIcon width={12} height={12} />
-              </button>
-            )}
+            <button className="nav-act" title={pane?.pinned !== undefined ? "Unpin" : "Pin above the other threads"} onClick={() => patchThreads([paneId], pinPatch(pane?.pinned === undefined, Date.now()), pane?.pinned === undefined ? "Pinned" : "Unpinned")} aria-label={pane?.pinned !== undefined ? "Unpin" : "Pin"}>
+              <PinIcon width={12} height={12} />
+            </button>
             <button className="nav-act" title="Snooze: out of the way until a time you pick, or until it needs you" onClick={() => setMenu(!menu)} aria-label="Snooze">
               <TimerIcon width={12} height={12} />
             </button>
@@ -563,15 +561,15 @@ export function ProjectsSidebar() {
   const snoozedIds = visible.filter((id) => snoozed(id) && !panes[id]?.settled);
   const settledIds = visible.filter((id) => panes[id]?.settled);
   const activeAll = visible.filter((id) => !snoozed(id) && !panes[id]?.settled);
-  const { pinned: pinnedIds, rest: active } = prefs.pin ? splitPinned(activeAll, panes) : { pinned: [] as string[], rest: activeAll };
+  const { pinned: pinnedIds, rest: active } = splitPinned(activeAll, panes);
   // A chat waiting on an approval needs you even without a hook session (a string, so streaming doesn't re-render the list).
   const asking = new Set(useChat((s) => approvalPanes(s.byPane).join("\n")).split("\n"));
   const st = (id: string) => (sessions[id] ? visualOf(sessions[id]) : asking.has(id) ? "needs_input" : undefined);
   // A diff that more than doubled since the thread started needs a look, even while it works.
-  const tripped = (id: string) => prefs.diffTripwire && !!diffGrowth(bases[id], stats[dirOf(id)]);
+  const tripped = (id: string) => !!diffGrowth(bases[id], stats[dirOf(id)]);
   // Ready: finished, with proof on the diff as it is now (Theo: the agent shouldn't bother you until it's ready to merge).
   const ready = (id: string) => {
-    if (!prefs.readyGroup || freshChat(panes[id], 0)) return false;
+    if (freshChat(panes[id], 0)) return false;
     const chatBusy = ["working", "waiting", "starting"].includes(chats[id]?.status ?? "");
     const v = st(id) ?? (chatBusy ? "working" : "idle");
     const proof = proofOf({ bar: prefs.readyScore, goal: panes[id]?.goal, review: markOf(reviews[git[dirOf(id)]?.root ?? ""]), stat: stats[dirOf(id)] });
@@ -629,7 +627,7 @@ export function ProjectsSidebar() {
     if (plan) patchThreads([drag.id], plan.patch, plan.verb);
   };
   const zoneProps = (to: Zone) =>
-    prefs.dragSections && drag
+    drag
       ? {
           onDragOver: (e: React.DragEvent) => {
             if (!planFor(to) && !(to === "pinned" && zoneId(drag.id) === "pinned")) return;
@@ -655,7 +653,7 @@ export function ProjectsSidebar() {
       now={now}
       onSelect={select(id)}
       dnd={
-        prefs.dragSections && !filter.trim()
+        !filter.trim()
           ? { start: () => setDrag({ id, over: null }), end: () => setDrag(null), drop: () => finishDrop(zoneId(id), id), dragging: drag?.id === id }
           : undefined
       }
@@ -738,7 +736,7 @@ export function ProjectsSidebar() {
         {...zoneProps("active")}
         onKeyDown={(e) => {
           // Keys inside an open thread menu or a text box belong to those, not to the list.
-          if (!prefs.sidebarKeys || e.target instanceof HTMLInputElement || (e.target as HTMLElement).closest("[role=menu]")) return;
+          if (e.target instanceof HTMLInputElement || (e.target as HTMLElement).closest("[role=menu]")) return;
           const row = (e.target as HTMLElement).closest<HTMLElement>("[data-thread]");
           const rows = [...e.currentTarget.querySelectorAll<HTMLElement>(".th-row")];
           if (["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) {
@@ -757,7 +755,7 @@ export function ProjectsSidebar() {
         {groups.map((g) => {
           const zone: Zone = g.key === "pinned" ? "pinned" : "active";
           // While dragging, an empty Pinned strip shows up so there is somewhere to drop.
-          const showEmptyPinned = g.key === "pinned" && g.ids.length === 0 && prefs.pin && prefs.dragSections && !!drag;
+          const showEmptyPinned = g.key === "pinned" && g.ids.length === 0 && !!drag;
           if (g.ids.length === 0 && !showEmptyPinned) return null;
           return (
             <section key={g.key} className={`grp ${g.key}${drag?.over === zone ? " drop-over" : ""}`} {...(g.key === "pinned" ? zoneProps("pinned") : {})}>

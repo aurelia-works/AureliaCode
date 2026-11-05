@@ -226,7 +226,7 @@ function spawn(entry: TermEntry, cols: number, rows: number) {
     .then(({ attached, missingCwd }) => {
       entry.ready = true;
       if (missingCwd) {
-        entry.term.write(`\x1b[33m[AureliaSpace] ${missingCwd} no longer exists; started in the default folder instead.\x1b[0m\r\n`);
+        entry.term.write(`\x1b[33m[AureliaCode] ${missingCwd} no longer exists; started in the default folder instead.\x1b[0m\r\n`);
         useRecents.getState().remove(missingCwd);
       }
       // A shell that kept running in the terminal host: whatever it runs is still there
@@ -236,7 +236,7 @@ function spawn(entry: TermEntry, cols: number, rows: number) {
     })
     .catch((err) => {
       entry.ready = true;
-      entry.term.write(`\r\n\x1b[31m[AureliaSpace] could not start shell: ${err}\x1b[0m\r\n`);
+      entry.term.write(`\r\n\x1b[31m[AureliaCode] could not start shell: ${err}\x1b[0m\r\n`);
     });
   // Shells without our integration never announce a prompt; don't wait forever.
   if (entry.pendingInit) setTimeout(() => flushInit(entry), 4000);
@@ -269,7 +269,7 @@ export function respawnPane(paneId: string, init: string): boolean {
   entry.fresh = true;
   entry.promptSeen = false;
   entry.sentSize = undefined;
-  entry.term.write("\r\n\x1b[2m[AureliaSpace] switching account…\x1b[0m\r\n");
+  entry.term.write("\r\n\x1b[2m[AureliaCode] switching account…\x1b[0m\r\n");
   fitTerminal(paneId);
   return true;
 }

@@ -10,12 +10,10 @@ interface UndoStore {
 
 export const useUndo = create<UndoStore>(() => ({ entries: [], closed: [] }));
 
-/** Offers an Undo for `label` (if the undo switch is on). `run` puts things back. */
+/** Offers an Undo for `label`. `run` puts things back. */
 export function offerUndo(label: string, run: () => void) {
-  const prefs = useUi.getState().prefs;
-  if (!prefs.undo) return;
   const now = Date.now();
-  useUndo.setState((s) => ({ entries: pushEntry(s.entries, makeEntry(label, run, now, prefs.undoSeconds * 1000), now) }));
+  useUndo.setState((s) => ({ entries: pushEntry(s.entries, makeEntry(label, run, now, useUi.getState().prefs.undoSeconds * 1000), now) }));
 }
 
 /** Whether an undo is on offer right now. */

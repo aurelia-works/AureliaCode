@@ -137,16 +137,16 @@ export function installShortcuts(): () => void {
     switch (e.code) {
       case "KeyZ":
         // Undo a close, settle or snooze while its toast is up; in a text field ⌘Z stays the field's own undo.
-        if (!shift && !alt && ui.prefs.undo && hasUndo() && !isTextField(document.activeElement)) action = () => void runUndo();
+        if (!shift && !alt && hasUndo() && !isTextField(document.activeElement)) action = () => void runUndo();
         break;
       case "KeyT":
-        if (shift && !alt && ui.prefs.reopen) action = () => void reopenLastClosed();
+        if (shift && !alt) action = () => void reopenLastClosed();
         else if (!shift && !alt) action = () => layout.newTab({ cwd, launcher: true });
         else if (alt && !shift) action = () => toggleNav("thread");
         break;
       case "KeyN":
         if (!shift && !alt) action = () => layout.newTab({ cwd, launcher: true });
-        else if (alt && !shift && ui.prefs.noProject) action = () => void newScratchTab().catch((err) => toast(String(err), true));
+        else if (alt && !shift) action = () => void newScratchTab().catch((err) => toast(String(err), true));
         break;
       case "KeyM":
         if (shift && !alt) action = () => toggleNav("problems");
@@ -169,7 +169,7 @@ export function installShortcuts(): () => void {
       case "BracketLeft":
       case "BracketRight":
         if (shift) action = () => layout.cycleTab(e.code === "BracketLeft" ? -1 : 1);
-        else if (!alt && ui.prefs.backForward) action = () => void navigate(e.code === "BracketLeft" ? -1 : 1);
+        else if (!alt) action = () => void navigate(e.code === "BracketLeft" ? -1 : 1);
         break;
       case "KeyE":
         if (!alt) action = () => ui.set({ accountPicker: { target: shift ? "tab" : "split" } });

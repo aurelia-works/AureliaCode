@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { emptyNav, prune, step, visit, type NavHistory } from "../lib/navHistory";
 import { showPane } from "../lib/terminals";
 import { focusedPaneId, useLayout } from "./layout";
-import { toast, useUi } from "./ui";
+import { toast } from "./ui";
 
 export const useNav = create<{ h: NavHistory }>(() => ({ h: emptyNav() }));
 
@@ -25,7 +25,6 @@ export function startNavHistory() {
 
 /** ⌘[ (dir -1) and ⌘] (dir +1): the previous or next thread you were in. */
 export function navigate(dir: -1 | 1): boolean {
-  if (!useUi.getState().prefs.backForward) return false;
   const r = step(useNav.getState().h, dir, (id) => !!useLayout.getState().panes[id]);
   if (!r.id) {
     toast(dir === -1 ? "No earlier thread" : "No later thread");
