@@ -7,6 +7,7 @@ import { AgentsSection } from "./AgentsSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { BrowserSection } from "./BrowserSection";
 import { ChatSection } from "./ChatSection";
+import { ComputerSection } from "./ComputerSection";
 import { DiagnosticsSection } from "./DiagnosticsSection";
 import { EffortSection } from "./EffortSection";
 import { GeneralSection } from "./GeneralSection";
@@ -64,6 +65,7 @@ export const PART_COMPONENTS: Record<PartId, ComponentType<SectionProps>> = {
   suggestions: SuggestionsSection,
   planner: PlannerSection,
   labs: LabsSection,
+  computer: ComputerSection,
   shortcuts: ShortcutsSection,
   usage: UsageSection,
   diagnostics: DiagnosticsSection,

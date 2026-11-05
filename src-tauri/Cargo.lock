@@ -226,6 +226,7 @@ dependencies = [
  "axum",
  "base64 0.22.1",
  "block2",
+ "core-graphics 0.24.0",
  "discord-rich-presence",
  "futures-util",
  "if-addrs",

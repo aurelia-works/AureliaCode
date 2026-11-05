@@ -14,6 +14,7 @@ export function paneTitle(cwd: string | undefined, running: string | undefined):
 
 export function TitleBar() {
   const nav = useUi((s) => s.nav);
+  const computerUse = useUi((s) => s.prefs.computerUse);
   const ui = useUi.getState();
 
   return (
@@ -33,6 +34,11 @@ export function TitleBar() {
       </div>
       <span className="tb-sp" data-tauri-drag-region />
       <ModeSwitch />
+      {computerUse && (
+        <button className="chip computer-on" title="Computer use is on: agents can control the desktop. Open Settings → Advanced & Labs to turn it off." onClick={() => useUi.getState().set({ settingsOpen: true, settingsSection: "advanced" })}>
+          Desktop control
+        </button>
+      )}
       <FocusChip />
       <NoticeBell />
       <FontReset />

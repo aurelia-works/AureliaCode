@@ -10,7 +10,7 @@ import type { ChatDocument } from "./attachments";
 import { workAfterTurn } from "./workBridge";
 import { cacheSafe } from "./effort";
 import { ipc, type ChatEvent, type ChatImage, type CliModel, type ChatUsage, type ContextUsage, type SlashCommand } from "./ipc";
-import { chatCan } from "./chatStart";
+import { chatCan, missingHistory } from "./chatStart";
 import { startPermissionMode } from "./startMode";
 import { refreshUsageAfterTurn } from "../store/usage";
 import { runGoalCheck } from "../store/goals";
@@ -233,17 +233,25 @@ export async function ensureChat(pane: PaneMeta) {
     // OpenCode keeps the conversation in its own store; the next message continues it.
     patch(pane.id, (s) => ({ ...s, transcript: addNotice(s.transcript, "Earlier messages are in OpenCode's session; new ones continue it") }));
   } else if (resume) {
-    let lines = await ipc.chatHistory(pane.account, pane.cwd ?? "", resume).catch(() => null);
+    let readError = "";
+    let lines = await ipc.chatHistory(pane.account, pane.cwd ?? "", resume).catch((e: unknown) => {
+      readError = String(e);
+      return null;
+    });
     // A branch shows the conversation up to the edited message.
     const cut = branch ? (lines?.findIndex((l) => l.uuid === branch.before) ?? -1) : -1;
     if (lines && cut >= 0) lines = lines.slice(0, cut);
     if (lines) patch(pane.id, (s) => ({ ...s, transcript: lines.reduce<Transcript>((t, l) => applyLine(t, l), s.transcript) }));
     else {
-      // Its transcript is gone (deleted, other account or folder): start over rather than fail on the first message.
-      resume = undefined;
-      useLayout.getState().updatePane(pane.id, { claudeSession: undefined });
-      // Claude Code only writes the transcript after the first message, so an unused chat has none.
-      if (pane.chatUsed) patch(pane.id, (s) => ({ ...s, transcript: addNotice(s.transcript, "The earlier conversation couldn't be found, so this is a new chat") }));
+      // An unused chat's session (assigned at spawn) has no file yet: drop it quietly; freshChat
+      // ignores the session, so the project picker stays. A used chat keeps chatUsed and says why.
+      const miss = missingHistory(readError, !!pane.chatUsed);
+      if (miss.clearSession) {
+        resume = undefined;
+        useLayout.getState().updatePane(pane.id, { claudeSession: undefined });
+      }
+      const notice = miss.notice;
+      if (notice) patch(pane.id, (s) => ({ ...s, transcript: addNotice(s.transcript, notice) }));
     }
   }
   if (spawns.get(pane.id) !== token) return;

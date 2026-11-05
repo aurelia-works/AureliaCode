@@ -272,6 +272,19 @@ async function browser(from: string, p: Record<string, unknown>): Promise<unknow
   return invoke("browser_agent", { pane, action, args: { ...args, ...(expect && action !== "open" ? { expect } : {}) } });
 }
 
+/** `aurelia_computer`: desktop control, distinct from the browser pane's DOM automation. */
+async function computer(p: Record<string, unknown>): Promise<unknown> {
+  const action = str(p.action);
+  if (action === "status") return invoke("computer_status");
+  if (!useUi.getState().prefs.computerUse) {
+    throw new Error("Computer use is off. Turn it on in Settings → Advanced & Labs → Computer use, and grant Accessibility and Screen Recording.");
+  }
+  if (action === "screenshot") return invoke("computer_screenshot");
+  const allowed = ["move", "click", "doubleClick", "rightClick", "type", "key", "scroll"];
+  if (!allowed.includes(action)) throw new Error(`unknown computer action ${action || "(none)"}`);
+  return invoke("computer_action", { action, args: p });
+}
+
 async function answer(req: Request): Promise<unknown> {
   const p = req.params ?? {};
   switch (req.method) {
@@ -301,6 +314,8 @@ async function answer(req: Request): Promise<unknown> {
       return teamFinish(p, req.from);
     case "browser":
       return browser(req.from, p);
+    case "computer":
+      return computer(p);
     default:
       throw new Error(`unknown method ${req.method}`);
   }

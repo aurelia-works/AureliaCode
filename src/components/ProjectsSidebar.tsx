@@ -27,6 +27,7 @@ import { matchesFilter, prAttention, snoozeChoices } from "../lib/threads";
 import { toast, useUi } from "../store/ui";
 import { useRemote } from "../lib/remote";
 import { usePaneAgent } from "./AgentChip";
+import { CrewSection } from "./CrewSection";
 import { StatusGlyph, stateLabel, visualOf, type Visual } from "./StatusGlyph";
 import { ArrowUpIcon, CheckIcon, CloseIcon, FolderIcon, GearIcon, GlobeIcon, JellyIcon, LogIcon, PhoneIcon, PinIcon, PlusIcon, PrIcon, SearchIcon, TerminalIcon, TimerIcon, TrashIcon } from "./Icons";
 
@@ -274,9 +275,10 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   const oc = isOpenCode(pane);
   const ocWorking = useChat((s) => oc && s.byPane[paneId]?.status === "working");
   const asking = useChat((s) => (s.byPane[paneId]?.approvals.length ?? 0) > 0);
+  const itemCount = useChat((s) => s.byPane[paneId]?.transcript.items.length ?? 0);
   const isClaude = !oc && (!!agent || !!account);
-  const v: Visual | undefined = asking && !agent ? "needs_input" : oc ? (ocWorking ? "working" : "idle") : agent ? visualOf(agent) : isClaude ? (freshChat(pane, 0) ? "idle" : "starting") : undefined;
-  const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher || freshChat(pane, 0) ? "New thread" : custom ? custom.name : oc ? "OpenCode" : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
+  const v: Visual | undefined = asking && !agent ? "needs_input" : oc ? (ocWorking ? "working" : "idle") : agent ? visualOf(agent) : isClaude ? (freshChat(pane, itemCount) ? "idle" : "starting") : undefined;
+  const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher || freshChat(pane, itemCount) ? "New thread" : custom ? custom.name : oc ? "OpenCode" : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
   const label = pane?.title ?? title ?? task?.title ?? kind;
   const dir = paneDir(paneId);
   const repo = basename(git?.repo ?? dir) || "~";
@@ -569,7 +571,7 @@ export function ProjectsSidebar() {
   const tripped = (id: string) => !!diffGrowth(bases[id], stats[dirOf(id)]);
   // Ready: finished, with proof on the diff as it is now (Theo: the agent shouldn't bother you until it's ready to merge).
   const ready = (id: string) => {
-    if (freshChat(panes[id], 0)) return false;
+    if (freshChat(panes[id], chats[id]?.first ? 1 : 0)) return false;
     const chatBusy = ["working", "waiting", "starting"].includes(chats[id]?.status ?? "");
     const v = st(id) ?? (chatBusy ? "working" : "idle");
     const proof = proofOf({ bar: prefs.readyScore, goal: panes[id]?.goal, review: markOf(reviews[git[dirOf(id)]?.root ?? ""]), stat: stats[dirOf(id)] });
@@ -584,7 +586,7 @@ export function ProjectsSidebar() {
     { key: "needs", label: "Needs you", ids: needsIds },
     { key: "ready", label: "Ready", ids: readyIds },
     // A chat nobody has written in yet is a new thread (Recent), not work in progress.
-    { key: "work", label: "Working", ids: active.filter((id) => !needsIds.includes(id) && !readyIds.includes(id) && !freshChat(panes[id], 0) && (st(id) === "working" || st(id) === "starting" || (!sessions[id] && (panes[id]?.account || panes[id]?.mode === "chat")))) },
+    { key: "work", label: "Working", ids: active.filter((id) => !needsIds.includes(id) && !readyIds.includes(id) && !freshChat(panes[id], chats[id]?.first ? 1 : 0) && (st(id) === "working" || st(id) === "starting" || (!sessions[id] && (panes[id]?.account || panes[id]?.mode === "chat")))) },
     { key: "recent", label: "Recent", ids: [] },
   ];
   const grouped = new Set(groups.flatMap((g) => g.ids));
@@ -729,6 +731,7 @@ export function ProjectsSidebar() {
           </button>
         </div>
       )}
+      <CrewSection paneId={focusedId} />
       <div
         className="side-list"
         role="tree"

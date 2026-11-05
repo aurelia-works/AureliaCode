@@ -77,4 +77,5 @@ test("changedKeys names the top-level fields that differ", () => {
 
 test("search finds the inbox switch and the wordmark greeting", () => {
   for (const q of ["inbox", "background inbox", "greeting", "hourly"]) assert.deepEqual(searchSections(q).map((s) => s.id), ["appearance"], q);
+  assert.ok(searchSections("accessibility").some((s) => s.id === "advanced"));
 });

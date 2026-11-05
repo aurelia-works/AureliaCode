@@ -20,7 +20,10 @@ pub const INSTRUCTIONS: &str = "aurelia_delegate hands one self-contained task t
 (DeepSeek by default, or any OpenCode model), \"claude\" (Sonnet or Haiku, this account) or \"grok\". With wait false it \
 returns an id at once and the agent works in the background; check it with aurelia_delegation (status, wait, cancel). \
 The agent knows nothing of this conversation: name the files, the constraints and what to report. Mode read (default) \
-only reads; work may edit files and run commands (destructive git and rm -rf are blocked). Review a work agent's changes.";
+only reads; work may edit files and run commands (destructive git and rm -rf are blocked). Review a work agent's changes. \
+You are the lead agent: keep the main conversation, decide when work can run in parallel, choose read-only workers for \
+research and checks and a bounded work worker only when it helps, start them in the background, keep making progress, \
+then check their reports and consolidate one answer. Never delegate the final decision.";
 
 const PROVIDERS: [&str; 3] = ["opencode", "claude", "grok"];
 const MAX_WAIT: u64 = 1800;
