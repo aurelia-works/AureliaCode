@@ -507,8 +507,8 @@ export const ipc = {
 
   getConfig: () => invoke<Config>("get_config"),
   saveConfig: (config: Config) => invoke<void>("save_config", { config }),
-  loadState: <T>(name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" | "nightly") => invoke<T | null>("load_state", { name }),
-  saveState: (name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" | "nightly", value: unknown) => invoke<void>("save_state", { name, value }),
+  loadState: <T>(name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" | "nightly" | "mergequeue") => invoke<T | null>("load_state", { name }),
+  saveState: (name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" | "nightly" | "mergequeue", value: unknown) => invoke<void>("save_state", { name, value }),
   makeScratch: (name: string) => invoke<string>("make_scratch", { name }),
   pickFolder: (start?: string) => invoke<string | null>("pick_folder", { start: start ?? null }),
   revealConfig: (file: boolean) => invoke<void>("reveal_config", { file }),
@@ -564,6 +564,11 @@ export const ipc = {
   prStatus: (cwd: string) => invoke<PrInfo | null>("pr_status", { cwd }),
   /** The repo's last merged PRs as `gh pr list` JSON, for lib/humanStats.ts. */
   prHistory: (cwd: string, limit?: number) => invoke<GhPr[]>("pr_history", { cwd, limit }),
+  /** Rebases the PR's branch on its base and pushes (refuses uncommitted changes; aborts on conflict). */
+  prSync: (cwd: string) => invoke<{ sha: string; conflict: boolean }>("pr_sync", { cwd }),
+  prComments: (cwd: string) => invoke<{ headRefOid: string; headRefName: string; comments?: { body?: string }[] }>("pr_comments", { cwd }),
+  /** Squash-merges only if the head is still `sha`, then deletes the remote branch. */
+  prMerge: (cwd: string, sha: string) => invoke<void>("pr_merge", { cwd, sha }),
   /** Stages everything, commits and returns the short SHA. */
   gitChanges: (cwd: string) => invoke<GitChange[]>("git_changes", { cwd }),
   gitCommit: (cwd: string, message: string, paths: string[]) => invoke<string>("git_commit", { cwd, message, paths }),

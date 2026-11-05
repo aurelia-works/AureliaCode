@@ -121,6 +121,8 @@ export interface ThreadPrefs {
   agentPrompts: boolean;
   /** Cards say which thread started this one, and how many it started. */
   threadFamily: boolean;
+  /** "Add to merge queue" on threads with an open PR: rebase, checks, reviewer PASS, then squash-merge, one at a time. Off by default: it merges code. */
+  mergeQueue: boolean;
   alerts: AlertPrefs;
 }
 
@@ -180,6 +182,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   humanStats: true,
   agentPrompts: true,
   threadFamily: true,
+  mergeQueue: false,
   alerts: DEFAULT_ALERTS,
 };
 

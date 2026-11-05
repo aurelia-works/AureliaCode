@@ -2606,6 +2606,22 @@ body.resizing-row .rail-grip {
   white-space: nowrap;
 }
 
+/* Merge queue stage on a thread row (store/mergeQueue.ts); "out" is a PR the queue sent back. */
+.th-queue {
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: var(--r-xs);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.th-queue.out {
+  background: var(--attn-soft);
+  color: var(--warn);
+}
+
 /* Composer attachments (AttachChips.tsx): one chip per file, saying what will happen to it. */
 .chat-attach {
   list-style: none;

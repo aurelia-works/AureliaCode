@@ -529,6 +529,12 @@ mockIPC(
         if (args.name === "layout") return structuredClone(layout);
         if (args.name === "ui") return { mode: view === "board" ? "agents" : view === "work" ? "work" : "terminals", agentPanelOpen: params.get("rail") !== null, nav: "projects" };
         if (args.name === "work") return { items: WORK_ITEMS };
+        // ?queue=1: web's PR waits on checks; payments' was sent back.
+        if (args.name === "mergequeue" && params.get("queue"))
+          return [
+            { paneId: "p2", pr: 212, stage: "checks", at: atMin(4), sha: "a1b2c3d4e5f6" },
+            { paneId: "p4", pr: 41, stage: "bounced", at: atMin(30), reason: "Checks failed: test (node 22)" },
+          ];
         if (args.name === "tasks")
           return {
             projects: {
@@ -586,6 +592,12 @@ mockIPC(
           comments: [{ author: { login: "you" }, body: "<!-- pr-verdict -->\nVerdict: PASS", createdAt: at(i * 10 + 2) }],
         }));
       }
+      case "pr_sync":
+        return { sha: "a1b2c3d4e5f6", conflict: false };
+      case "pr_comments":
+        return { headRefOid: "a1b2c3d4e5f6", headRefName: "feat/x", comments: [] };
+      case "pr_merge":
+        return null;
       case "pr_status":
         return PRS[String(args.cwd).split("/").pop()!] ?? null;
       case "fetch_usage":
@@ -814,6 +826,7 @@ if (view === "review") {
 if (view === "weekly") useUi.setState({ weeklyOpen: true });
 if (view === "roadmap") useUi.setState({ roadmapOpen: true, roadmapProject: params.get("project") });
 if (view === "settings") useUi.setState({ settingsOpen: true, settingsSection: params.get("section") });
+if (params.get("queue")) useUi.setState((s) => ({ prefs: { ...s.prefs, mergeQueue: true } }));
 if (params.get("nav") === "right") useUi.setState((s) => ({ prefs: { ...s.prefs, navRight: true } }));
 if (params.get("overnight") === "1") {
   // view=board&overnight=1: the morning after a nightly review (store/nightly.ts) found one agreed bug.

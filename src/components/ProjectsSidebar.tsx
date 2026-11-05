@@ -17,6 +17,7 @@ import { useAgents } from "../store/agents";
 import { paneDir, useGit } from "../store/git";
 import { paneIds, useLayout, type PaneMeta } from "../store/layout";
 import { usePrs } from "../store/prs";
+import { addToQueue, queueItemOf, removeFromQueue, useMergeQueue } from "../store/mergeQueue";
 import { useRuntime } from "../store/runtime";
 import { tasksForPane, useTasks } from "../store/tasks";
 import { ipc, type PrInfo, type WorktreeEntry } from "../lib/ipc";
@@ -165,6 +166,8 @@ export function retitleThread(paneId: string) {
   toast(`Titled "${t}"`);
 }
 
+const QUEUE_WORD = { queued: "Queued", syncing: "Rebasing", checks: "Checks", verdict: "Verdict", merging: "Merging", merged: "Merged", bounced: "Bounced" } as const;
+
 /** Right-click or ⇧F10 on a thread. */
 function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned: boolean; away: boolean; onSnooze: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -174,6 +177,7 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
     return d ? s.byDir[d] : undefined;
   });
   const isChat = useLayout((s) => s.panes[paneId]?.mode === "chat");
+  const queued = useMergeQueue((s) => queueItemOf(s.items, paneId)?.stage);
   const close = () => {
     useUi.getState().set({ threadMenu: null });
     // Keys keep working in the list: focus goes back to the thread row (if it still exists).
@@ -218,6 +222,8 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
       {prefs.prCopy && pr && item(`Copy PR link (${prNumberRef(pr.number)})`, () => copyText(pr.url, "PR link copied"))}
       {prefs.prCopy && pr && item("Copy PR number", () => copyText(prNumberRef(pr.number), `Copied ${prNumberRef(pr.number)}`))}
       {prefs.revertAction && pr?.state === "MERGED" && item(`Revert PR ${prNumberRef(pr.number)}`, () => void revertMergedPr(paneId, pr))}
+      {prefs.mergeQueue && pr?.state === "OPEN" && (!queued || queued === "bounced" || queued === "merged") && item(`Add ${prNumberRef(pr.number)} to merge queue`, () => addToQueue(paneId))}
+      {prefs.mergeQueue && queued && queued !== "merging" && item("Remove from merge queue", () => removeFromQueue(paneId))}
       {prefs.scrapAction && item("Scrap and start over", () => scrapThread(paneId))}
       {!away && item("Snooze…", onSnooze)}
       {away ? item("Wake", () => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")) : item("Settle", () => patchThreads([paneId], settlePatch(), "Settled"))}
@@ -278,6 +284,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
     if (prefs.diffTripwire && v === "working") noteBase(paneId, stat);
   }, [prefs.diffTripwire, v, stat]);
   const grown = prefs.diffTripwire ? diffGrowth(base, stat) : null;
+  const queue = useMergeQueue((s) => (prefs.mergeQueue ? queueItemOf(s.items, paneId) : undefined));
 
   return (
     <div
@@ -330,6 +337,11 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
           {grown && (
             <span className="th-trip num" title={`The diff grew from ${grown.from} to ${grown.to} lines since this thread started. Running in circles? Open it to stop or keep going.`}>
               {grown.factor}×
+            </span>
+          )}
+          {queue && queue.stage !== "merged" && (
+            <span className={`th-queue num${queue.stage === "bounced" ? " out" : ""}`} title={queue.stage === "bounced" ? `Left the merge queue: ${queue.reason}` : `Merge queue: ${QUEUE_WORD[queue.stage]}`}>
+              {queue.stage === "bounced" ? "Bounced" : QUEUE_WORD[queue.stage]}
             </span>
           )}
           {pane?.babysit && (
@@ -529,7 +541,9 @@ export function ProjectsSidebar() {
     const proof = proofOf({ bar: prefs.readyScore, goal: panes[id]?.goal, review: markOf(reviews[git[dirOf(id)]?.root ?? ""]), stat: stats[dirOf(id)] });
     return isReady(v, proof);
   };
-  const needsIds = active.filter((id) => st(id) === "needs_input" || tripped(id));
+  // A PR the merge queue sent back needs you: it says why on the row.
+  const bounced = new Set(useMergeQueue((s) => (prefs.mergeQueue ? s.items.filter((i) => i.stage === "bounced").map((i) => i.paneId).join("\n") : "")).split("\n"));
+  const needsIds = active.filter((id) => st(id) === "needs_input" || tripped(id) || bounced.has(id));
   const readyIds = active.filter((id) => !needsIds.includes(id) && ready(id));
   const groups: Group[] = [
     { key: "pinned", label: "Pinned", ids: pinnedIds },
