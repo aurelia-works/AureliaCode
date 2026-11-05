@@ -111,6 +111,8 @@ export interface ThreadPrefs {
   scrapAction: boolean;
   /** Grid cards show what the thread has cost so far. */
   threadCost: boolean;
+  /** The Work board shows a project's human time per PR (approvals, comments, wait, reverts). */
+  humanStats: boolean;
   /** Sub-agent calls show the prompt they were given (chat tool card, and a hover on the grid feed). */
   agentPrompts: boolean;
   /** Cards say which thread started this one, and how many it started. */
@@ -169,6 +171,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   revertAction: true,
   scrapAction: true,
   threadCost: true,
+  humanStats: true,
   agentPrompts: true,
   threadFamily: true,
   alerts: DEFAULT_ALERTS,

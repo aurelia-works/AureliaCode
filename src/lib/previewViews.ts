@@ -35,7 +35,7 @@ const RULES: [RegExp, PreviewView[]][] = [
   [/^src\/components\/(ThreadPanel|ThreadHeader|QueueRail|DetailsPanel|RightPanel|Navigator|ProjectsSidebar|StatusGlyph|AgentChip|UsageStrip)\.tsx$|^src\/lib\/(threads|threadOrder|threadActions)\.ts$/, ["threads", "threads&single=1"]],
   [/^src\/components\/(StartScreen|SkillsPanel|ChatStart)\.tsx$|^src\/lib\/(startMode|chatStart)\.ts$/, ["start"]],
   [/^src\/components\/AgentsBoard\.tsx$/, ["board"]],
-  [/^src\/components\/WorkBoard\.tsx$|^src\/lib\/work\.ts$/, ["work"]],
+  [/^src\/components\/(WorkBoard|HumanTime)\.tsx$|^src\/lib\/(work|humanStats)\.ts$/, ["work"]],
   [/^src\/components\/DiffReview\.tsx$/, ["review"]],
   [/^src\/components\/(AccountPicker|AccountSwitch)\.tsx$|^src\/components\/settings\/AccountsSection\.tsx$/, ["settings&section=accounts"]],
   [/^src\/components\/settings\/ProvidersSection\.tsx$|^src\/lib\/providers\.ts$|^src\/store\/providers\.ts$/, ["settings&section=providers", "chat"]],

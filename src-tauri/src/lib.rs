@@ -279,6 +279,7 @@ pub fn run() {
             git::git_worktree_status,
             git::git_merge_worktree,
             pr::pr_status,
+            pr::pr_history,
             checkpoints::diff_scope,
             checkpoints::checkpoint_create,
             checkpoints::checkpoint_list,

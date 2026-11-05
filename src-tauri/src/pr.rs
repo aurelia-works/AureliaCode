@@ -95,6 +95,28 @@ pub async fn pr_status(cwd: String) -> Result<Option<PrInfo>, String> {
         .map_err(|e| e.to_string())?
 }
 
+/// The last `limit` merged PRs of the repo at `cwd`, as `gh pr list` JSON, for the human-time stats
+/// (src/lib/humanStats.ts does the counting). Empty when gh is missing, signed out, or it isn't a GitHub repo.
+#[tauri::command]
+pub async fn pr_history(cwd: String, limit: Option<u32>) -> Result<Value, String> {
+    let limit = limit.unwrap_or(50).clamp(1, 200).to_string();
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(gh) = which::locate("gh") else { return Ok(Value::Array(vec![])) };
+        let out = Command::new(gh)
+            .current_dir(PathBuf::from(expand_path(&cwd)))
+            .args(["pr", "list", "--state", "merged", "--limit", &limit, "--json", "number,title,body,author,createdAt,mergedAt,labels,reviews,comments"])
+            .env("GH_PROMPT_DISABLED", "1")
+            .output()
+            .map_err(|e| format!("gh: {e}"))?;
+        if !out.status.success() {
+            return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+        }
+        serde_json::from_slice(&out.stdout).map_err(|e| e.to_string())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
