@@ -32,6 +32,7 @@ import { trackNoticeFocus, useNotices } from "./store/notifications";
 import { useConfig } from "./store/config";
 import { startGitPolling } from "./store/git";
 import { startPrPolling } from "./store/prs";
+import { startMergeQueue } from "./store/mergeQueue";
 import { serializeLayout, useLayout, type SavedLayout } from "./store/layout";
 import { loadCustomAgents } from "./store/customAgents";
 import { loadPrompts, startPromptLinks } from "./store/prompts";
@@ -120,6 +121,7 @@ async function boot() {
   startUsagePolling();
   startGitPolling();
   startPrPolling();
+  startMergeQueue().catch(() => {});
   trackAttention();
   trackNoticeFocus();
   startCacheWatch();

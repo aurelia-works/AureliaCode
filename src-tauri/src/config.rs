@@ -596,7 +596,7 @@ pub(crate) fn write_private_json(path: &Path, value: &Value) -> Result<(), Strin
 /// Only these state files may be read/written from the frontend.
 fn state_path(name: &str) -> Result<PathBuf, String> {
     match name {
-        "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" | "nightly" => Ok(app_dir().join(format!("{name}.json"))),
+        "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" | "nightly" | "mergequeue" => Ok(app_dir().join(format!("{name}.json"))),
         _ => Err(format!("unknown state file: {name}")),
     }
 }
