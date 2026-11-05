@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { ipc } from "../lib/ipc";
 import type { Routing } from "../lib/router";
 import { uid } from "./layout";
+import { readSaved } from "../lib/savedState";
+import { warnUnreadable } from "./notifications";
 
 /** Named swatches; the hue sits on the agent's avatar and its pane chip. */
 export const AGENT_COLORS = ["gold", "coral", "rose", "violet", "blue", "teal", "green", "slate"] as const;
@@ -95,7 +97,9 @@ function normalizeTeam(t: AgentTeam): AgentTeam {
 
 /** Loads agents.json (agents and teams), then saves on every change. */
 export async function loadCustomAgents() {
-  const saved = await ipc.loadState<{ agents: CustomAgent[]; teams?: AgentTeam[] }>("agents").catch(() => null);
+  const r = await readSaved(() => ipc.loadState<{ agents: CustomAgent[]; teams?: AgentTeam[] }>("agents"));
+  if (!r.ok) return warnUnreadable("agents.json", r.error);
+  const saved = r.value;
   if (Array.isArray(saved?.agents)) {
     const valid = saved.agents.filter((a) => a && typeof a.id === "string" && typeof a.name === "string" && typeof a.variant === "string");
     useCustomAgents.setState({ agents: valid.map((a) => ({ ...a, color: AGENT_COLORS.includes(a.color) ? a.color : "gold" })) });

@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { ipc } from "../lib/ipc";
 import { uid } from "./layout";
+import { readSaved } from "../lib/savedState";
+import { warnUnreadable } from "./notifications";
 
 export type TaskStatus = "todo" | "doing" | "done";
 
@@ -58,8 +60,10 @@ export const useTasks = create<TasksState>((set, get) => {
 });
 
 export async function loadTasks() {
-  const saved = await ipc.loadState<{ projects: Record<string, Task[]> }>("tasks").catch(() => null);
-  if (saved?.projects) useTasks.setState({ projects: saved.projects });
+  const r = await readSaved(() => ipc.loadState<{ projects: Record<string, Task[]> }>("tasks"));
+  // Never save over a file we couldn't read: this session's tasks would replace all of yours.
+  if (!r.ok) return warnUnreadable("tasks.json", r.error);
+  if (r.value?.projects) useTasks.setState({ projects: r.value.projects });
   let timer: ReturnType<typeof setTimeout> | undefined;
   useTasks.subscribe((s, prev) => {
     if (s.projects === prev.projects) return;

@@ -2,6 +2,8 @@ import { create } from "zustand";
 import { shortenPath } from "../lib/format";
 import { ipc } from "../lib/ipc";
 import { useLayout } from "./layout";
+import { readSaved } from "../lib/savedState";
+import { warnUnreadable } from "./notifications";
 
 const MAX = 15;
 
@@ -26,7 +28,9 @@ export const useRecents = create<RecentsState>((set) => ({
 
 /** Loads saved folders, then records every pane cwd that settles for a couple of seconds. */
 export async function loadRecents() {
-  const saved = await ipc.loadState<{ folders: string[] }>("recents").catch(() => null);
+  const r = await readSaved(() => ipc.loadState<{ folders: string[] }>("recents"));
+  if (!r.ok) warnUnreadable("recents.json", r.error);
+  const saved = r.ok ? r.value : null;
   if (Array.isArray(saved?.folders)) {
     const folders = saved.folders.filter((f) => typeof f === "string").slice(0, MAX);
     // Drop folders that were moved or deleted: starting a pane there would land in ~.
@@ -36,7 +40,7 @@ export async function loadRecents() {
 
   let saveTimer: ReturnType<typeof setTimeout> | undefined;
   useRecents.subscribe((s, prev) => {
-    if (s.folders === prev.folders) return;
+    if (!r.ok || s.folders === prev.folders) return;
     clearTimeout(saveTimer);
     saveTimer = setTimeout(() => ipc.saveState("recents", { folders: useRecents.getState().folders }).catch(() => {}), 400);
   });

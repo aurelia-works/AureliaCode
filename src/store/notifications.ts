@@ -161,3 +161,14 @@ export function trackNoticeFocus() {
   useLayout.subscribe(check);
   useUi.subscribe((s, prev) => (s.windowFocused !== prev.windowFocused || s.mode !== prev.mode) && check());
 }
+
+/** A state file exists but couldn't be read (lib/savedState.ts): say so, sticky, since this session won't save over it. */
+export function warnUnreadable(file: string, error: string) {
+  alertUser({
+    kind: "error",
+    sticky: true,
+    key: `unreadable:${file}`,
+    title: `Couldn't read ${file}`,
+    body: `${error}. AureliaCode won't save over it this session, so changes to it are lost when you quit. Fix or move the file, then restart.`,
+  });
+}

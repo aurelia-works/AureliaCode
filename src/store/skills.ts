@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { expandPath } from "../lib/format";
 import { ipc } from "../lib/ipc";
-import { DEFAULT_SKILL_ROOTS, parseSkill, sortSkills, type Skill, type SkillRoot } from "../lib/skills";
+import { DEFAULT_SKILL_ROOTS, parseSkill, savedRoots, sortSkills, type Skill, type SkillRoot } from "../lib/skills";
 
 interface SkillsState {
   roots: SkillRoot[];
@@ -32,7 +32,7 @@ export const useSkills = create<SkillsState>((set, get) => ({
       try {
         const saved = await ipc.loadState<{ roots?: SkillRoot[] }>("skills");
         if (token !== scanSeq) return;
-        if (saved?.roots?.length) next = saved.roots;
+        next = savedRoots(saved);
         loaded = true;
         canSave = true;
       } catch {

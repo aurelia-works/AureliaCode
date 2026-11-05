@@ -4,6 +4,7 @@ import { useConfig } from "./config";
 import { DEFAULT_PREFS, normalizePrefs, type ThreadPrefs } from "../lib/prefs";
 import { startWorktree } from "../lib/threadTools";
 import { setTerminalsAllowed } from "../lib/paneKind";
+import { readSaved } from "../lib/savedState";
 
 /** A task the account picker will hand to the new Claude pane as its first prompt. */
 export interface PickerTask {
@@ -139,7 +140,10 @@ interface SavedUi {
 }
 
 export async function loadUiState() {
-  const saved = await ipc.loadState<SavedUi>("ui").catch(() => null);
+  const r = await readSaved(() => ipc.loadState<SavedUi>("ui"));
+  // notifications.ts imports this file, so the warning is a toast here.
+  if (!r.ok) toast(`Couldn't read ui.json: ${r.error}. Settings changed now won't be saved this session.`, true);
+  const saved = r.ok ? r.value : null;
   if (saved) {
     useUi.setState({
       mode: saved.mode === "agents" || saved.mode === "work" ? saved.mode : "terminals",
@@ -181,7 +185,7 @@ export async function loadUiState() {
       prefs: s.prefs,
       stash: s.stash,
     });
-    if (next !== last) {
+    if (r.ok && next !== last) {
       last = next;
       ipc.saveState("ui", JSON.parse(next)).catch(() => {});
     }

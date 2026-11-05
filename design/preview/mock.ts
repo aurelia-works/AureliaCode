@@ -526,6 +526,8 @@ mockIPC(
         Object.assign(config, args.config);
         return null;
       case "load_state":
+        // ?unreadable=layout,tasks: those files exist but can't be read (lib/savedState.ts); nothing may be saved over them.
+        if ((params.get("unreadable") ?? "").split(",").includes(args.name)) throw new Error(`${args.name}.json: Permission denied (os error 13)`);
         if (args.name === "layout") return structuredClone(layout);
         if (args.name === "ui") return { mode: view === "board" ? "agents" : view === "work" ? "work" : "terminals", agentPanelOpen: params.get("rail") !== null, nav: "projects" };
         if (args.name === "work") return { items: WORK_ITEMS };

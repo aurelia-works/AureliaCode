@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterSkills, parseFrontmatter, parseSkill, skillPrompt, sortSkills } from "./skills.ts";
+import { DEFAULT_SKILL_ROOTS, filterSkills, parseFrontmatter, parseSkill, savedRoots, skillPrompt, sortSkills } from "./skills.ts";
 
 const swarm = `---
 name: ds-swarm
@@ -58,4 +58,14 @@ test("the prompt carries the procedure and the task", () => {
   assert.match(p, /Split work across workers/);
   assert.match(p, /Audit the auth module/);
   assert.match(p, /PASS, ISSUES or BLOCKED/);
+});
+
+test("an empty saved root list is your choice and survives a restart; a missing or broken one gets the defaults", () => {
+  assert.deepEqual(savedRoots({ roots: [] }), []);
+  const mine = [{ path: "~/my-skills", label: "Mine" }];
+  assert.deepEqual(savedRoots({ roots: mine }), mine);
+  assert.equal(savedRoots(null), DEFAULT_SKILL_ROOTS);
+  assert.equal(savedRoots({}), DEFAULT_SKILL_ROOTS);
+  assert.equal(savedRoots({ roots: "nope" }), DEFAULT_SKILL_ROOTS);
+  assert.deepEqual(savedRoots({ roots: [{ path: "~/ok", label: "Ok" }, { path: 3 }, null] }), [{ path: "~/ok", label: "Ok" }]);
 });
