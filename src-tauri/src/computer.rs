@@ -222,14 +222,12 @@ pub async fn computer_action(app: tauri::AppHandle, action: String, args: Option
 fn action_blocking(app: &tauri::AppHandle, action: String, args: Option<Value>) -> Result<Value, String> {
     #[cfg(target_os = "macos")]
     {
-        let mut args = args.unwrap_or(Value::Null);
+        let mut args = args.unwrap_or_else(|| json!({}));
         // A scroll without a point lands under the pointer: guard that point, not none.
         if action == "scroll" && (args["x"].as_f64().is_none() || args["y"].as_f64().is_none()) {
             if let (Ok((x, y)), Some(obj)) = (current_mouse(), args.as_object_mut()) {
                 obj.insert("x".into(), json!(x));
                 obj.insert("y".into(), json!(y));
-            } else if let Ok((x, y)) = current_mouse() {
-                args = json!({ "x": x, "y": y });
             }
         }
         let (frames, focused) = own_windows(app);
