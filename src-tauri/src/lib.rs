@@ -6,6 +6,7 @@ mod checkpoints;
 mod config;
 mod control;
 mod delegate;
+mod devserver;
 mod discord;
 mod effort;
 mod files;
@@ -194,6 +195,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            devserver::dev_server_start,
+            devserver::dev_server_stop,
+            devserver::dev_server_list,
+            devserver::dev_server_log,
             browser::browser_open,
             browser::browser_bounds,
             browser::browser_visible,
@@ -373,6 +378,7 @@ pub fn run() {
         if let RunEvent::Exit = event {
             pty::kill_all(&handle.state::<pty::PtyState>());
             chat::kill_all(&handle.state::<chat::ChatState>());
+            devserver::kill_all();
             proxy::shutdown();
             voice::cleanup();
         }

@@ -21,6 +21,7 @@ const REVIEW_SWITCHES: Switch[] = [
   { key: "agentPrompts", label: "Show sub-agent prompts", hint: "What each sub-agent was told, in the chat and on the grid feed" },
   { key: "threadFamily", label: "Thread family on cards", hint: "Which thread started this one, and how many it started" },
   { key: "mergeQueue", label: "Merge queue", hint: "Thread menu → Add to merge queue: rebase, wait for checks and a reviewer PASS for that commit, then squash-merge, one PR at a time" },
+  { key: "devServer", label: "Dev server per thread", hint: "Thread menu → Start dev server: the repo's dev script on its own free port, so worktrees don't fight over 5173" },
 ];
 
 const SWITCHES: Switch[] = [

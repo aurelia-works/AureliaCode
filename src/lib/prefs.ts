@@ -123,6 +123,8 @@ export interface ThreadPrefs {
   threadFamily: boolean;
   /** "Add to merge queue" on threads with an open PR: rebase, checks, reviewer PASS, then squash-merge, one at a time. Off by default: it merges code. */
   mergeQueue: boolean;
+  /** "Start dev server" in the thread menu: the repo's dev script on a free port, opened next to the thread. */
+  devServer: boolean;
   alerts: AlertPrefs;
 }
 
@@ -183,6 +185,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   agentPrompts: true,
   threadFamily: true,
   mergeQueue: false,
+  devServer: true,
   alerts: DEFAULT_ALERTS,
 };
 

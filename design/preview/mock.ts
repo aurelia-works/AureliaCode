@@ -598,6 +598,15 @@ mockIPC(
         return { headRefOid: "a1b2c3d4e5f6", headRefName: "feat/x", comments: [] };
       case "pr_merge":
         return null;
+      // ?dev=1: web's thread runs its dev server on its own port.
+      case "dev_server_list":
+        return params.get("dev") ? [{ pane: "p2", cwd: dev("web"), port: 5174, url: "http://127.0.0.1:5174", command: "npm run dev -- --port 5174", running: true }] : [];
+      case "dev_server_start":
+        return { pane: args.pane, cwd: args.cwd, port: 5175, url: "http://127.0.0.1:5175", command: "npm run dev -- --port 5175", running: true };
+      case "dev_server_log":
+        return [];
+      case "dev_server_stop":
+        return null;
       case "pr_status":
         return PRS[String(args.cwd).split("/").pop()!] ?? null;
       case "fetch_usage":

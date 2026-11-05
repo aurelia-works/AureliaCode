@@ -18,6 +18,7 @@ import { paneDir, useGit } from "../store/git";
 import { paneIds, useLayout, type PaneMeta } from "../store/layout";
 import { usePrs } from "../store/prs";
 import { addToQueue, queueItemOf, removeFromQueue, useMergeQueue } from "../store/mergeQueue";
+import { openDevServer, startDevServer, stopDevServer, useDevServers } from "../store/devServers";
 import { useRuntime } from "../store/runtime";
 import { tasksForPane, useTasks } from "../store/tasks";
 import { ipc, type PrInfo, type WorktreeEntry } from "../lib/ipc";
@@ -178,6 +179,7 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
   });
   const isChat = useLayout((s) => s.panes[paneId]?.mode === "chat");
   const queued = useMergeQueue((s) => queueItemOf(s.items, paneId)?.stage);
+  const dev = useDevServers((s) => s.byPane[paneId]?.port);
   const close = () => {
     useUi.getState().set({ threadMenu: null });
     // Keys keep working in the list: focus goes back to the thread row (if it still exists).
@@ -224,6 +226,9 @@ function ThreadMenu({ paneId, pinned, away, onSnooze }: { paneId: string; pinned
       {prefs.revertAction && pr?.state === "MERGED" && item(`Revert PR ${prNumberRef(pr.number)}`, () => void revertMergedPr(paneId, pr))}
       {prefs.mergeQueue && pr?.state === "OPEN" && (!queued || queued === "bounced" || queued === "merged") && item(`Add ${prNumberRef(pr.number)} to merge queue`, () => addToQueue(paneId))}
       {prefs.mergeQueue && queued && queued !== "merging" && item("Remove from merge queue", () => removeFromQueue(paneId))}
+      {prefs.devServer && !dev && item("Start dev server", () => void startDevServer(paneId))}
+      {prefs.devServer && dev && item(`Open dev server :${dev}`, () => openDevServer(paneId))}
+      {prefs.devServer && dev && item("Stop dev server", () => void stopDevServer(paneId))}
       {prefs.scrapAction && item("Scrap and start over", () => scrapThread(paneId))}
       {!away && item("Snooze…", onSnooze)}
       {away ? item("Wake", () => patchThreads([paneId], { settled: false, snoozedUntil: undefined }, "Woke")) : item("Settle", () => patchThreads([paneId], settlePatch(), "Settled"))}
@@ -285,6 +290,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   }, [prefs.diffTripwire, v, stat]);
   const grown = prefs.diffTripwire ? diffGrowth(base, stat) : null;
   const queue = useMergeQueue((s) => (prefs.mergeQueue ? queueItemOf(s.items, paneId) : undefined));
+  const devPort = useDevServers((s) => (prefs.devServer ? s.byPane[paneId]?.port : undefined));
 
   return (
     <div
@@ -342,6 +348,19 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
           {queue && queue.stage !== "merged" && (
             <span className={`th-queue num${queue.stage === "bounced" ? " out" : ""}`} title={queue.stage === "bounced" ? `Left the merge queue: ${queue.reason}` : `Merge queue: ${QUEUE_WORD[queue.stage]}`}>
               {queue.stage === "bounced" ? "Bounced" : QUEUE_WORD[queue.stage]}
+            </span>
+          )}
+          {devPort && (
+            <span
+              className="th-dev num"
+              role="button"
+              title={`Dev server on :${devPort}. Click to open it`}
+              onClick={(e) => {
+                e.stopPropagation();
+                openDevServer(paneId);
+              }}
+            >
+              :{devPort}
             </span>
           )}
           {pane?.babysit && (

@@ -5,6 +5,7 @@
 //   npm run shots -- --views chat,start  pick views yourself ("all" for every view)
 //   npm run shots -- --no-before         after only
 //   npm run shots -- --publish           push the PNGs to the `pr-shots` branch and print image links for the PR
+//   npm run shots -- --clip              also record a short GIF of each after view (needs ffmpeg; --clip-seconds 4)
 //
 // With a before, each view also gets a "changes" image: the after shot with each changed area
 // boxed and numbered, and a legend under the table saying where each one is.
@@ -126,6 +127,31 @@ async function capture(browser, url, label, dir) {
   return files;
 }
 
+/** A few seconds of each after view as a GIF (GitHub plays GIFs inline in a PR; it doesn't for videos on a branch). */
+async function clips(browser, url) {
+  const seconds = Number(opt("clip-seconds", "4"));
+  const files = {};
+  for (const view of views) {
+    const phone = isPhoneView(view);
+    const size = phone ? PHONE : { width, height };
+    const tmp = mkdtempSync(join(tmpdir(), "shots-clip-"));
+    const ctx = await browser.newContext({ viewport: size, colorScheme: "dark", recordVideo: { dir: tmp, size }, ...(phone ? { hasTouch: true, isMobile: true } : {}) });
+    const page = await ctx.newPage();
+    await page.goto(phone ? `${url}/design/preview/remote.html?view=${view}` : `${url}/design/preview/?theme=dark&view=${view}`, { waitUntil: "load" });
+    await page.waitForFunction(() => window.__ready === true, null, { timeout: 20_000 }).catch(() => {});
+    await page.waitForTimeout(seconds * 1000);
+    const video = page.video();
+    await ctx.close();
+    const webm = await video.path();
+    const gif = join(outDir, `${viewSlug(view)}-clip.gif`);
+    const scale = Math.min(size.width, 960);
+    execFileSync("ffmpeg", ["-y", "-loglevel", "error", "-i", webm, "-vf", `fps=10,scale=${scale}:-1:flags=lanczos,split[a][b];[a]palettegen=max_colors=128[p];[b][p]paletteuse`, gif], quiet);
+    rmSync(tmp, { recursive: true, force: true });
+    files[view] = gif;
+  }
+  return files;
+}
+
 /** The after shot with each changed area boxed and numbered, and a legend line per box; null when nothing changed. */
 async function annotate(browser, view, beforeFile, afterFile) {
   const page = await browser.newPage();
@@ -231,7 +257,8 @@ mkdirSync(outDir, { recursive: true });
 const { chromium } = await import("playwright");
 const browser = await chromium.launch();
 try {
-  const after = await capture(browser, await serve(root), "after", root);
+  const afterUrl = await serve(root);
+  const after = await capture(browser, afterUrl, "after", root);
   let before = {};
   if (!flag("no-before")) {
     worktree = mkdtempSync(join(tmpdir(), "shots-base-"));
@@ -242,7 +269,8 @@ try {
   }
   const changes = {};
   for (const v of views) if (before[v] && after[v]) changes[v] = await annotate(browser, v, before[v], after[v]);
-  const shots = [...Object.values(before), ...Object.values(after), ...Object.values(changes).flatMap((c) => (c ? [c.file] : []))];
+  const clipped = flag("clip") ? await clips(browser, afterUrl) : {};
+  const shots = [...Object.values(before), ...Object.values(after), ...Object.values(changes).flatMap((c) => (c ? [c.file] : [])), ...Object.values(clipped)];
   const link = flag("publish") ? publish(shots) : (f) => f.replace(`${root}/`, "");
   const cell = (view, f) => (f ? `![${view}](${link(f)})` : "—");
   const solo = flag("no-before");
@@ -251,6 +279,7 @@ try {
     lines.push(solo ? `| \`${v}\` | ${cell(v, after[v])} |` : `| \`${v}\` | ${cell(v, before[v])} | ${cell(v, after[v])} | ${changes[v] ? cell(v, changes[v].file) : before[v] ? "no visible change" : "—"} |`);
   const legends = views.filter((v) => changes[v]).map((v) => `**\`${v}\`** ${changes[v].legend.join("; ")}`);
   if (legends.length) lines.push("", "Changed areas (CSS px, numbered in the Changes shots):", "", ...legends.map((l) => `- ${l}`));
+  if (Object.keys(clipped).length) lines.push("", "Clips (after):", "", ...views.filter((v) => clipped[v]).map((v) => `**\`${v}\`**<br>${cell(v, clipped[v])}`));
   const md = lines.join("\n");
   writeFileSync(join(outDir, "shots.md"), md + "\n");
   console.log(md);

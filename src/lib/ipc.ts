@@ -240,6 +240,16 @@ export interface DiffStat {
 }
 
 /** The pull request for a branch (src-tauri/src/pr.rs). */
+/** A thread's dev server (src-tauri/src/devserver.rs). */
+export interface DevInfo {
+  pane: string;
+  cwd: string;
+  port: number;
+  url: string;
+  command: string;
+  running: boolean;
+}
+
 export interface PrInfo {
   number: number;
   url: string;
@@ -562,6 +572,11 @@ export const ipc = {
   /** The working tree against the thread's last checkpoint ("turn") or its branch's base ("branch"). */
   diffScope: (cwd: string, pane: string, scope: "turn" | "branch") => invoke<Diff>("diff_scope", { cwd, pane, scope }),
   prStatus: (cwd: string) => invoke<PrInfo | null>("pr_status", { cwd }),
+  /** Runs the repo's dev (or start) script on a free port for this thread; one per thread. */
+  devServerStart: (pane: string, cwd: string) => invoke<DevInfo>("dev_server_start", { pane, cwd }),
+  devServerStop: (pane: string) => invoke<void>("dev_server_stop", { pane }),
+  devServerList: () => invoke<DevInfo[]>("dev_server_list"),
+  devServerLog: (pane: string) => invoke<string[]>("dev_server_log", { pane }),
   /** The repo's last merged PRs as `gh pr list` JSON, for lib/humanStats.ts. */
   prHistory: (cwd: string, limit?: number) => invoke<GhPr[]>("pr_history", { cwd, limit }),
   /** Rebases the PR's branch on its base and pushes (refuses uncommitted changes; aborts on conflict). */
