@@ -880,6 +880,49 @@ if (params.get("overnight") === "1") {
     },
   });
 }
+if (view === "threads" && params.get("inbox") === "1") {
+  // view=threads&inbox=1: Alerts → Inbox with one of each kind of background work, opened a moment after load.
+  const now = Date.now();
+  const { useNightly } = await import("../../src/store/nightly.ts");
+  const { useTeamRuns } = await import("../../src/store/teamRuns.ts");
+  const { useRoutineRuns } = await import("../../src/lib/routines.ts");
+  const { useChat } = await import("../../src/lib/chat.ts");
+  useNightly.setState({
+    running: false,
+    byRepo: {
+      [dev("payments")]: { folder: "src/refunds", at: now - 5 * 3_600_000, reviewers: 2, findings: [{ tag: "important", file: "src/refunds/retry.ts", line: 48, text: "attempt never resets", by: ["deepseek", "kimi"] }] },
+      [dev("api-server")]: { folder: "src/auth", at: now - 5 * 3_600_000, reviewers: 2, findings: [] },
+    },
+  });
+  useTeamRuns.setState({ runs: [{ id: "tr1", teamId: "t1", task: "Port the CSV importer to streams", plan: { lead: "", workers: [] } as never, paneIds: ["p2"], status: "blocked", summary: "The lead needs the new schema before workers can start", createdAt: now - 40 * 60_000 }] });
+  useRoutineRuns.setState({ runs: { r1: { at: now - 12 * 60_000, paneId: "p5" } } });
+  // The routine's pane is still working (a chat pane's status lives in the chat store).
+  if (useChat.getState().byPane.p5) useChat.setState((s) => ({ byPane: { ...s.byPane, p5: { ...s.byPane.p5!, status: "working" } } }));
+  else useAgents.setState((s) => ({ sessions: { ...s.sessions, p5: { ...(s.sessions.p5 ?? {}), status: "working" } as never } }));
+  const pid = Object.keys(useChat.getState().byPane)[0];
+  const chat = pid ? useChat.getState().byPane[pid] : undefined;
+  if (chat) {
+    const tool = (id: string, input: Record<string, unknown>, result: string | undefined, at: number, isError = false) => ({ kind: "tool" as const, id, toolId: id, name: "mcp__aurelia__aurelia_delegate", input, partial: "", result, isError, steps: 0, at });
+    useChat.setState((s) => ({
+      byPane: {
+        ...s.byPane,
+        [pid]: {
+          ...chat,
+          transcript: {
+            ...chat.transcript,
+            items: [
+              ...chat.transcript.items,
+              tool("ib1", { provider: "opencode", task: "Find why the right arrow types boxes in the composer", mode: "work" }, "Named keys were inserted as text; Composer.tsx now ignores them.\n\n---\nDeepSeek agent · opencode-go/deepseek-v4.1-flash · write · 9 tool calls · 48.2s\nChanged: src/components/Composer.tsx", now - 25 * 60_000),
+              tool("ib2", { provider: "claude", model: "haiku", task: "Check Notes gets the same key code", wait: false }, 'Started d2: Claude agent on "Check Notes gets the same key code"', now - 3 * 60_000),
+              tool("ib3", { provider: "grok", task: "Review the Composer change" }, "Grok CLI isn't signed in", now - 60 * 60_000, true),
+            ],
+          },
+        },
+      },
+    }));
+  }
+  setTimeout(() => document.querySelector<HTMLButtonElement>(".notice-bell > button")?.click(), 700);
+}
 if (view === "palette") useUi.setState({ paletteOpen: true });
 if (view === "permissions") useUi.setState({ permissionsOpen: true });
 if (view === "files") useUi.setState({ nav: "files" });

@@ -43,3 +43,9 @@ export function formatTokens(n: number): string {
 export function formatCost(usd: number): string {
   return usd < 0.01 ? "$0.00" : usd < 100 ? `$${usd.toFixed(2)}` : `$${Math.round(usd)}`;
 }
+
+/** "now" under 10 s, else how long ago, for notice and inbox rows. */
+export function ago(at: number, now = Date.now()): string {
+  const ms = now - at;
+  return ms < 10_000 ? "now" : formatDuration(ms);
+}

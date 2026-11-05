@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { formatDuration } from "../lib/format";
+import { ago } from "../lib/format";
 import { showPane, submitToPane } from "../lib/terminals";
 import { paneIds, useLayout } from "../store/layout";
 import { useNotices, type Notice } from "../store/notifications";
 import { toast, useUi } from "../store/ui";
+import { BackgroundInbox } from "./BackgroundInbox";
 import { BellIcon, CloseIcon } from "./Icons";
 
 const MAX_CARDS = 3;
@@ -16,11 +17,6 @@ function useVisiblePanes(): string {
     const tab = l.tabs.find((t) => t.id === l.activeTabId);
     return tab ? paneIds(tab.root).join(" ") : "";
   });
-}
-
-function ago(at: number) {
-  const ms = Date.now() - at;
-  return ms < 10_000 ? "now" : formatDuration(ms);
 }
 
 function Card({ n }: { n: Notice }) {
@@ -136,6 +132,9 @@ export function NoticeBell() {
   const notices = useNotices((s) => s.notices);
   const unread = notices.filter((n) => !n.read).length;
   const [open, setOpen] = useState(false);
+  const inboxOn = useUi((s) => s.prefs.inbox);
+  const [tab, setTab] = useState<"inbox" | "notifications">("inbox");
+  const onInbox = inboxOn && tab === "inbox";
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -161,14 +160,27 @@ export function NoticeBell() {
       {open && (
         <div className="notice-history">
           <div className="notice-history-head">
-            <span>Notifications</span>
-            {notices.length > 0 && (
+            {inboxOn ? (
+              <span className="seg notice-tabs" role="tablist">
+                <button role="tab" aria-selected={onInbox} className={onInbox ? "on" : ""} onClick={() => setTab("inbox")}>
+                  Inbox
+                </button>
+                <button role="tab" aria-selected={!onInbox} className={onInbox ? "" : "on"} onClick={() => setTab("notifications")}>
+                  Notifications
+                </button>
+              </span>
+            ) : (
+              <span>Notifications</span>
+            )}
+            {!onInbox && notices.length > 0 && (
               <button className="link-btn" onClick={() => useNotices.getState().clear()}>
                 clear
               </button>
             )}
           </div>
-          {notices.length === 0 ? (
+          {onInbox ? (
+            <BackgroundInbox onOpen={() => setOpen(false)} />
+          ) : notices.length === 0 ? (
             <p className="empty">Nothing yet. Finished sessions, prompts and limit warnings land here.</p>
           ) : (
             notices.map((n) => (

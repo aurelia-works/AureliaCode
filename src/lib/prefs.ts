@@ -77,6 +77,8 @@ export interface ThreadPrefs {
   briefFeed: boolean;
   /** The board's Signals start folded to one line. */
   signalsFolded: boolean;
+  /** Alerts opens on an Inbox of background work: delegations, routines, nightly review, PR babysits, teams. */
+  inbox: boolean;
   /** Branch, cost, permission-mode and account chips in a chat's thread header (the sidebar row and composer show them; off leaves the title room). */
   headerModeChip: boolean;
   /** One faint jellyfish per live thread on the start screen. */
@@ -166,6 +168,7 @@ export const DEFAULT_PREFS: ThreadPrefs = {
   oneHeader: true,
   briefFeed: true,
   signalsFolded: true,
+  inbox: true,
   headerModeChip: false,
   bloom: false,
   legacyTerminals: false,
