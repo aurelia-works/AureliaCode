@@ -264,6 +264,7 @@ pub fn run() {
             files::open_url,
             files::snap_capture,
             git::git_info,
+            git::git_diffstat,
             git::git_last_commit,
             git::create_worktree,
             git::list_worktrees,

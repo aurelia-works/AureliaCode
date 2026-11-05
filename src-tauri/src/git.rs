@@ -262,6 +262,47 @@ pub(crate) fn capped(root: &Path, mut diff: String) -> Diff {
     Diff { root: root.to_string_lossy().into_owned(), diff, truncated }
 }
 
+/// What a thread has changed so far: uncommitted files and lines against HEAD, untracked
+/// files included (the `+42 −7 · 3 files` on thread rows and cards).
+#[derive(Serialize, Debug, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct DiffStat {
+    pub files: u32,
+    pub additions: u32,
+    pub deletions: u32,
+}
+
+/// Sums `git diff --numstat` output. Binary files ("-\t-\tpath") count as a file with no lines.
+pub(crate) fn parse_numstat(out: &str) -> DiffStat {
+    let mut s = DiffStat::default();
+    for line in out.lines().filter(|l| !l.trim().is_empty()) {
+        let mut parts = line.splitn(3, '\t');
+        let (a, d) = (parts.next().unwrap_or(""), parts.next().unwrap_or(""));
+        s.files += 1;
+        s.additions += a.parse::<u32>().unwrap_or(0);
+        s.deletions += d.parse::<u32>().unwrap_or(0);
+    }
+    s
+}
+
+#[tauri::command]
+pub fn git_diffstat(cwd: String) -> Result<DiffStat, String> {
+    let top = toplevel(&PathBuf::from(expand_path(&cwd)))?;
+    let tracked = git_ok(&top, &["diff", "--numstat", "HEAD"]).or_else(|_| git_ok(&top, &["diff", "--numstat"]))?;
+    let mut stat = parse_numstat(&tracked);
+    let untracked = git_ok(&top, &["ls-files", "-z", "--others", "--exclude-standard"])?;
+    for file in untracked.split('\0').filter(|l| !l.is_empty()) {
+        stat.files += 1;
+        let small = fs::metadata(top.join(file)).map(|m| m.len() <= MAX_UNTRACKED_BYTES).unwrap_or(false);
+        if small {
+            if let Ok(text) = fs::read_to_string(top.join(file)) {
+                stat.additions += text.lines().count() as u32;
+            }
+        }
+    }
+    Ok(stat)
+}
+
 // ---------- The commit / push / PR / merge loop ----------
 
 #[derive(Serialize)]
@@ -492,6 +533,23 @@ mod tests {
         git_ok(&dir, &["add", "-A"]).unwrap();
         git_ok(&dir, &["commit", "-qm", "init"]).unwrap();
         fs::canonicalize(dir).unwrap()
+    }
+
+    #[test]
+    fn numstat_sums_files_and_lines_and_counts_binaries_as_files() {
+        assert_eq!(parse_numstat("3\t1\tsrc/a.ts\n10\t0\tb.md\n-\t-\timg.png\n"), DiffStat { files: 3, additions: 13, deletions: 1 });
+        assert_eq!(parse_numstat(""), DiffStat::default());
+    }
+
+    #[test]
+    fn diffstat_counts_edits_and_untracked_files() {
+        let root = repo();
+        fs::write(root.join("a.txt"), "one\ntwo\nthree\n").unwrap();
+        fs::write(root.join("new.txt"), "x\ny\n").unwrap();
+        let s = git_diffstat(root.to_string_lossy().into()).unwrap();
+        assert_eq!(s.files, 2);
+        assert_eq!(s.additions, 3 + 2);
+        assert_eq!(s.deletions, 1);
     }
 
     #[test]

@@ -79,10 +79,10 @@ export function MetricsLine({ paneId }: { paneId: string }) {
           <span className="ctx-bar" title={`Context ${formatTokens(fill.tokens)} (${Math.round(pct)}%)`}>
             <span className={`ctx-fill ${level}`} style={{ width: `${pct}%` }} />
           </span>
-          <span>{Math.round(pct)}%</span>
+          <span>{Math.round(pct)}% context</span>
         </>
       )}
-      <span title="Input + output, cache included">{formatTokens(m.totalTokens)}</span>
+      <span title="Input + output, cache included">{formatTokens(m.totalTokens)} tokens</span>
       <span title="Estimated at API prices">{formatCost(m.costUsd)}</span>
       {m.hot && (
         <>

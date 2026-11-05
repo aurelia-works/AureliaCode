@@ -266,6 +266,14 @@ const inAnHour = (h: number) => new Date(Date.now() + h * 3600_000).toISOString(
   work: { fiveHour: 14, sevenDay: 22, fiveHourResetsAt: inAnHour(4), sevenDayResetsAt: inAnHour(120), updatedAt: Date.now() },
 };
 
+// What each repo's thread has changed (git_diffstat), so rows and cards show +/- like they would live.
+const DIFFSTAT: Record<string, { files: number; additions: number; deletions: number }> = {
+  web: { files: 3, additions: 42, deletions: 7 },
+  "api-server": { files: 2, additions: 18, deletions: 4 },
+  payments: { files: 5, additions: 120, deletions: 31 },
+  infra: { files: 1, additions: 6, deletions: 0 },
+  docs: { files: 2, additions: 64, deletions: 12 },
+};
 const BRANCH: Record<string, string> = {
   "api-server": "fix/user-org-null",
   web: "feat/settings-a11y",
@@ -523,6 +531,8 @@ mockIPC(
         const name = String(args.cwd).split("/").pop()!;
         return BRANCH[name] ? { root: args.cwd, branch: BRANCH[name], detached: false, worktree: name === "payments", repo: args.cwd } : null;
       }
+      case "git_diffstat":
+        return DIFFSTAT[String(args.cwd).split("/").pop()!] ?? { files: 0, additions: 0, deletions: 0 };
       case "make_scratch":
         return `/Users/you/scratch/${args.name}`;
       case "resolve_paths":
@@ -659,11 +669,18 @@ for (const p of ["p1", "p2", "p3", "p4", "p5", "p8"]) ev(p, "SessionStart");
 ev("p1", "UserPromptSubmit");
 ev("p1", "Notification", { notification_type: "permission_prompt", message: "Claude needs your permission to use Bash" });
 ev("p2", "UserPromptSubmit", { permission_mode: "auto" });
-ev("p2", "PreToolUse", { tool_name: "Edit" });
+ev("p2", "PreToolUse", { tool_name: "Read", tool_input: { file_path: "/Users/you/dev/web/src/settings/Nav.tsx" } });
+ev("p2", "PreToolUse", { tool_name: "Grep", tool_input: { pattern: "onKeyDown" } });
+ev("p2", "PreToolUse", { tool_name: "Bash", tool_input: { command: "npm test -- settings-nav" } });
+ev("p2", "PreToolUse", { tool_name: "Edit", tool_input: { file_path: "/Users/you/dev/web/src/settings/Nav.tsx" } });
 ev("p3", "UserPromptSubmit");
+ev("p3", "PreToolUse", { tool_name: "Read", tool_input: { file_path: "/Users/you/dev/docs/quickstart.md" } });
+ev("p3", "PreToolUse", { tool_name: "Edit", tool_input: { file_path: "/Users/you/dev/docs/quickstart.md" } });
+ev("p3", "PreToolUse", { tool_name: "Bash", tool_input: { command: "npm run docs:check" } });
 ev("p3", "Stop");
 ev("p4", "UserPromptSubmit", { permission_mode: "plan" });
-ev("p4", "PreToolUse", { tool_name: "Bash" });
+ev("p4", "PreToolUse", { tool_name: "Read", tool_input: { file_path: "/Users/you/dev/payments/src/refunds.ts" } });
+ev("p4", "PreToolUse", { tool_name: "Bash", tool_input: { command: "pnpm vitest refunds" } });
 ev("p5", "UserPromptSubmit");
 ev("p5", "Notification", { notification_type: "elicitation", message: "Which region should the bucket live in?" });
 

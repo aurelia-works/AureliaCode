@@ -8,6 +8,7 @@ import { draftInPane, usePrompts, type SavedPrompt } from "../store/prompts";
 import { useRecents } from "../store/recents";
 import { useTasks, type Task, type TaskStatus } from "../store/tasks";
 import { useUi } from "../store/ui";
+import { queueSessions } from "../lib/threadOrder";
 import { AgentChip, usePaneAgent } from "./AgentChip";
 import { CloseIcon, PinIcon, PlayIcon } from "./Icons";
 import { PermissionButtons, ReplyBox, since } from "./SessionExtras";
@@ -67,8 +68,9 @@ const GROUPS: { id: Visual[]; label: string }[] = [
 function Queue() {
   const sessions = useAgents((s) => s.sessions);
   const tabs = useLayout((s) => s.tabs);
+  const panes = useLayout((s) => s.panes);
   const now = useNow(10_000);
-  const list = Object.values(sessions).sort((a, b) => urgency[visualOf(a)] - urgency[visualOf(b)] || a.updatedAt - b.updatedAt);
+  const list = queueSessions(sessions, panes).sort((a, b) => urgency[visualOf(a)] - urgency[visualOf(b)] || a.updatedAt - b.updatedAt);
   const tabIndex = (paneId: string) => tabs.findIndex((t) => paneIds(t.root).includes(paneId));
   return (
     <section className="rail-section" aria-label="Agent queue">

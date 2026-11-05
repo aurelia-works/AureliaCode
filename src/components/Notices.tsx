@@ -153,8 +153,9 @@ export function NoticeBell() {
 
   return (
     <div className="notice-bell" ref={ref}>
-      <button className={`icon-btn${open ? " on" : ""}`} title="Notifications" onClick={() => setOpen(!open)}>
+      <button className={`icon-btn labelled${open ? " on" : ""}`} title="Notifications" aria-label={unread ? `Alerts, ${unread} unread` : "Alerts"} onClick={() => setOpen(!open)}>
         <BellIcon />
+        <span className="tb-word">Alerts</span>
         {unread > 0 && <span className="notice-badge">{unread > 9 ? "9+" : unread}</span>}
       </button>
       {open && (

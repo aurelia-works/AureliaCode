@@ -1,5 +1,6 @@
 import { basename } from "../lib/format";
-import { isOpenCode } from "../lib/chat";
+import { isOpenCode, useChat } from "../lib/chat";
+import { chatIcon } from "../lib/threadOrder";
 import { freshChat } from "../lib/chatStart";
 import { ipc } from "../lib/ipc";
 import { useAgents } from "../store/agents";
@@ -10,9 +11,10 @@ import { useUi } from "../store/ui";
 import { usePaneAgent } from "./AgentChip";
 import { BottomPanelIcon, BranchIcon, GridIcon, PrIcon, RightPanelIcon, WorktreeIcon } from "./Icons";
 import { AccountSwitch } from "./AccountSwitch";
-import { ModeChip, PaneControls } from "./PaneHeader";
+import { ModeChip, PaneMenu } from "./PaneHeader";
 import { ChatUsageChip } from "./UsageChip";
 import { useChatTitle } from "./ProjectsSidebar";
+import { StatusGlyph, visualOf } from "./StatusGlyph";
 
 /** "AureliaSpace" → "AS", "mtr-addon" → "MA", "web" → "WE". */
 export function repoBadge(name: string) {
@@ -28,6 +30,9 @@ export function repoBadge(name: string) {
  */
 export function ThreadHeader() {
   const single = useUi((s) => s.single);
+  // The composer's picker shows a chat's permission mode; this repeats it in the header (Settings → Threads & keys).
+  const headerMode = useUi((s) => s.prefs.headerModeChip);
+  const oneHeader = useUi((s) => s.prefs.oneHeader);
   const board = useUi((s) => s.mode === "agents");
   const work = useUi((s) => s.mode === "work");
   const full = board || work;
@@ -41,17 +46,19 @@ export function ThreadHeader() {
   const git = useGit((s) => (dir ? s.info[dir] : undefined));
   const pr = usePrs((s) => (dir ? s.byDir[dir] : undefined));
   const title = useChatTitle(paneId ?? "");
+  const chatStatus = useChat((s) => (paneId ? s.byPane[paneId]?.status : undefined));
+  const approvals = useChat((s) => (paneId ? (s.byPane[paneId]?.approvals.length ?? 0) : 0));
   const custom = usePaneAgent(paneId ?? "");
   const ui = useUi.getState();
 
   const tools = (
     <div className="th-tools">
-      <button className="ib" aria-label="Colony: every thread of this tab at once" title="Colony: every thread of this tab at once" aria-pressed={!single || full} onClick={() => ui.set(full ? { mode: "terminals" } : { single: !single })}>
+      <button className="ib labelled" title="Grid: every thread of this tab at once" aria-pressed={!single || full} onClick={() => ui.set(full ? { mode: "terminals" } : { single: !single })}>
         <GridIcon />
+        <span>Grid</span>
       </button>
       <button
-        className="ib"
-        aria-label="Shell below this thread"
+        className="ib labelled"
         title="Open a shell below this thread (⇧⌘D)"
         onClick={() => {
           if (!paneId) return;
@@ -60,15 +67,16 @@ export function ThreadHeader() {
         }}
       >
         <BottomPanelIcon />
+        <span>Shell</span>
       </button>
       <button
-        className="ib"
-        aria-label="Changes"
+        className="ib labelled"
         title="This thread's changes (⌘B)"
         aria-pressed={railOpen}
         onClick={() => ui.set(railOpen ? { agentPanelOpen: false } : { agentPanelOpen: true, railTab: "changes" })}
       >
         <RightPanelIcon />
+        <span>Changes</span>
       </button>
     </div>
   );
@@ -103,7 +111,7 @@ export function ThreadHeader() {
     return (
       <div className="thread-head">
         <div className="crumb">
-          <h1>Colony</h1>
+          <h1>All threads</h1>
           <span className="num">
             · {ids.length} {ids.length === 1 ? "thread" : "threads"} in this tab
             {working ? `, ${working} working` : ""}
@@ -128,20 +136,21 @@ export function ThreadHeader() {
   return (
     <div className="thread-head">
       <div className="crumb" title={dir}>
+        {oneHeader && chat && <StatusGlyph state={agent ? visualOf(agent) : chatIcon(chatStatus, approvals)} />}
         <span className="mono-badge">{repoBadge(repo)}</span>
         {repo}
         <span>/</span>
-        <h1>{name}</h1>
+        <h1 title={name}>{name}</h1>
       </div>
-      {chat && account && paneId && <AccountSwitch paneId={paneId} account={account} />}
-      {git && (
+      {chat && account && paneId && headerMode && <AccountSwitch paneId={paneId} account={account} />}
+      {git && headerMode && (
         <span className={`chip${git.worktree ? " wt" : ""}`} title={`${git.detached ? "Detached HEAD" : "Branch"} ${git.branch}${git.worktree ? `\nWorktree: ${git.root}` : ""}`}>
           {git.worktree ? <WorktreeIcon width={13} height={13} /> : <BranchIcon width={13} height={13} />}
           {git.branch}
         </span>
       )}
-      {chat && paneId && !isOpenCode(pane) && <ModeChip paneId={paneId} />}
-      {chat && paneId && <ChatUsageChip paneId={paneId} />}
+      {chat && paneId && !isOpenCode(pane) && headerMode && <ModeChip paneId={paneId} />}
+      {chat && paneId && headerMode && <ChatUsageChip paneId={paneId} />}
       {pr && (
         <button className={`chip pr ${prTone}`} title={`PR #${pr.number}: ${pr.title}\nClick to open on GitHub`} onClick={() => void ipc.openUrl(pr.url)}>
           <PrIcon width={13} height={13} />#{pr.number} {prWhat}
@@ -150,7 +159,7 @@ export function ThreadHeader() {
       <span className="sp" />
       {bare && paneId && (
         <span className="th-pane">
-          <PaneControls paneId={paneId} />
+          <PaneMenu paneId={paneId} />
         </span>
       )}
       {tools}

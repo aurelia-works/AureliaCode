@@ -7,7 +7,8 @@ import { patchThreads } from "../lib/threadActions";
 import { dropPlan, pinKeyBefore, zoneOf, type Zone } from "../lib/threadDrop";
 import { copyText } from "../lib/copyText";
 import { prNumberRef, retitle } from "../lib/threadTools";
-import { cleanTitle, pinPatch, settlePatch, splitPinned, stepFocus } from "../lib/threadOrder";
+import { approvalPanes, cleanTitle, pinPatch, settlePatch, shouldRecede, splitPinned, stepFocus } from "../lib/threadOrder";
+import { DiffStat } from "./ThreadCard";
 import { showPane } from "../lib/terminals";
 import { useAgents } from "../store/agents";
 import { paneDir, useGit } from "../store/git";
@@ -20,7 +21,7 @@ import { matchesFilter, prAttention, snoozeChoices } from "../lib/threads";
 import { toast, useUi } from "../store/ui";
 import { useRemote } from "../lib/remote";
 import { usePaneAgent } from "./AgentChip";
-import { stateLabel, visualOf, type Visual } from "./StatusGlyph";
+import { StatusGlyph, stateLabel, visualOf, type Visual } from "./StatusGlyph";
 import { ArrowUpIcon, CheckIcon, CloseIcon, FolderIcon, GearIcon, GlobeIcon, JellyIcon, LogIcon, PhoneIcon, PinIcon, PlusIcon, PrIcon, SearchIcon, TerminalIcon, TimerIcon, TrashIcon } from "./Icons";
 
 
@@ -141,6 +142,9 @@ function Lead({ v, pane, running }: { v: Visual | undefined; pane: PaneMeta | un
           : undefined
     : undefined;
   const state = v ?? cv;
+  const jelly = useUi((s) => s.prefs.jellyIcons);
+  // One status icon set everywhere (StatusGlyph); the jellyfish are a switch in Threads & keys.
+  if (state && !jelly) return <StatusGlyph state={state} />;
   if (state === "needs_input") return <span className="dot-needs" aria-label="needs you" />;
   if (state) return <JellyIcon className={state === "working" || state === "starting" ? "working" : state === "done" ? "done" : "idle"} aria-label={stateLabel[state]} />;
   if (pane?.browser) return <GlobeIcon className="th-ico" />;
@@ -233,6 +237,10 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
     const d = paneDir(paneId);
     return d ? s.info[d] : undefined;
   });
+  const stat = useGit((s) => {
+    const d = paneDir(paneId);
+    return d ? s.stat[d] : undefined;
+  });
   const pr = usePrs((s) => {
     const d = paneDir(paneId);
     return d ? s.byDir[d] : undefined;
@@ -245,8 +253,9 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   // OpenCode chats have no hooks: their state is the chat's own.
   const oc = isOpenCode(pane);
   const ocWorking = useChat((s) => oc && s.byPane[paneId]?.status === "working");
+  const asking = useChat((s) => (s.byPane[paneId]?.approvals.length ?? 0) > 0);
   const isClaude = !oc && (!!agent || !!account);
-  const v: Visual | undefined = oc ? (ocWorking ? "working" : "idle") : agent ? visualOf(agent) : isClaude ? (freshChat(pane, 0) ? "idle" : "starting") : undefined;
+  const v: Visual | undefined = asking && !agent ? "needs_input" : oc ? (ocWorking ? "working" : "idle") : agent ? visualOf(agent) : isClaude ? (freshChat(pane, 0) ? "idle" : "starting") : undefined;
   const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher || freshChat(pane, 0) ? "New thread" : custom ? custom.name : oc ? "OpenCode" : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
   const label = pane?.title ?? title ?? task?.title ?? kind;
   const dir = paneDir(paneId);
@@ -262,7 +271,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
 
   return (
     <div
-      className={`nav-thread${focused ? " on" : ""}${away ? " away" : ""}${selected ? " selected" : ""}${dnd?.dragging ? " dragging" : ""}`}
+      className={`nav-thread${focused ? " on" : ""}${away ? " away" : ""}${selected ? " selected" : ""}${prefs.recedeWorking && shouldRecede({ v, focused, selected }) ? " recede" : ""}${dnd?.dragging ? " dragging" : ""}`}
       data-thread={paneId}
       draggable={!!dnd && !renaming && !menu && !menuOpen}
       onDragStart={(e) => {
@@ -301,8 +310,8 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
       >
         <span className="th-t">
           <Lead v={v} pane={pane} running={!!running} />
-          <span className="th-title">{label}</span>
-          {prefs.pin && pane?.pinned !== undefined && <span className="th-pin" title="Pinned" aria-label="Pinned">📌</span>}
+          <span className="th-title" title={label}>{label}</span>
+          {prefs.pin && pane?.pinned !== undefined && <span className="th-pin" title="Pinned" aria-label="Pinned"><PinIcon width={12} height={12} /></span>}
           {pane?.goal && !pane.goal.ended && (
             <span className="th-goal num" title={`Goal: ${pane.goal.text} (round ${pane.goal.rounds + 1} of ${pane.goal.maxRounds})`}>
               Goal {pane.goal.rounds + 1}/{pane.goal.maxRounds}
@@ -322,6 +331,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
               <span className="th-br">{git.branch}</span>
             </>
           )}
+          {prefs.rowDiffStat && (git?.worktree || (v && v !== "idle")) && <DiffStat stat={stat} files={false} />}
           {pr && <PrBadge pr={pr} attention={attention} onOpen={() => update(paneId, { prSeenFeedback: pr.feedback })} />}
           {when && <time>{when}</time>}
         </span>
@@ -488,7 +498,9 @@ export function ProjectsSidebar() {
   const settledIds = visible.filter((id) => panes[id]?.settled);
   const activeAll = visible.filter((id) => !snoozed(id) && !panes[id]?.settled);
   const { pinned: pinnedIds, rest: active } = prefs.pin ? splitPinned(activeAll, panes) : { pinned: [] as string[], rest: activeAll };
-  const st = (id: string) => (sessions[id] ? visualOf(sessions[id]) : undefined);
+  // A chat waiting on an approval needs you even without a hook session (a string, so streaming doesn't re-render the list).
+  const asking = new Set(useChat((s) => approvalPanes(s.byPane).join("\n")).split("\n"));
+  const st = (id: string) => (sessions[id] ? visualOf(sessions[id]) : asking.has(id) ? "needs_input" : undefined);
   const groups: Group[] = [
     { key: "pinned", label: "Pinned", ids: pinnedIds },
     { key: "needs", label: "Needs you", ids: active.filter((id) => st(id) === "needs_input") },
@@ -728,17 +740,21 @@ export function ProjectsSidebar() {
           </div>
         )}
         <div className="foot">
-          <button className="ib" aria-label="Settings" title="Settings (⌘,)" onClick={() => set({ settingsOpen: true })}>
+          <button className="ib labelled" title="Settings (⌘,)" onClick={() => set({ settingsOpen: true })}>
             <GearIcon />
+            <span>Settings</span>
           </button>
-          <button className="ib" aria-label="Command palette" title="Go to a thread or action (⌘P)" onClick={() => set({ paletteOpen: true })}>
-            <span className="kbd">⌘P</span>
+          <button className="ib labelled" title="Go to a thread or action (⌘P)" onClick={() => set({ paletteOpen: true })}>
+            <SearchIcon width={14} height={14} />
+            <span>Go to</span>
           </button>
-          <button className="ib" aria-label="Project files" title="Files, search and problems (⇧⌘F)" onClick={() => set({ nav: "files" })}>
+          <button className="ib labelled" title="Files, search and problems (⇧⌘F)" onClick={() => set({ nav: "files" })}>
             <FolderIcon />
+            <span>Files</span>
           </button>
-          <button className="ib" aria-label="Conversation log" title="The focused thread's conversation as a log (⌥⌘T)" onClick={() => set({ nav: "thread" })}>
+          <button className="ib labelled" title="The focused thread's conversation as a log (⌥⌘T)" onClick={() => set({ nav: "thread" })}>
             <LogIcon />
+            <span>Log</span>
           </button>
           <PhoneStatus />
         </div>

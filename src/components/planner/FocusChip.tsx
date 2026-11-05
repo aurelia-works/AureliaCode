@@ -35,6 +35,7 @@ export function FocusChip() {
     <span className="tb-focus-wrap">
       <button className="tb-focus icon" aria-expanded={menu} aria-label="Start a focus session" title="Start a focus session" onClick={() => setMenu(!menu)}>
         <TimerIcon />
+        <span>Focus</span>
       </button>
       {menu && (
         <div className="tb-focus-menu" role="dialog" aria-label="Start focus">

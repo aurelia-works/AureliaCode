@@ -5,6 +5,39 @@ import { alertUser, type NoticeAction } from "../store/notifications";
 import { useUsage } from "../store/usage";
 import type { Usage } from "./ipc";
 import { switchAccount } from "./handoff";
+import { fallbackLabel, parseFallback, usableFallback, type Fallback } from "./fallback";
+import { ipc } from "./ipc";
+import { queueFirstMessage, useChat } from "./chat";
+import { useUi } from "../store/ui";
+
+/**
+ * Continue a limited thread on the fallback from Settings → New threads. Another Claude account
+ * takes the conversation itself; another provider (OpenCode) gets a new thread in the same
+ * folder, seeded with the recent conversation, since a transcript can't cross providers.
+ */
+export async function continueOnFallback(paneId: string, f: Fallback) {
+  const layout = useLayout.getState();
+  const pane = layout.panes[paneId];
+  if (!pane) return;
+  if (f.provider === "claude") {
+    if (await switchAccount(paneId, f.account)) layout.updatePane(paneId, { chatModel: f.model });
+    return;
+  }
+  const path = useAgents.getState().sessions[paneId]?.transcriptPath;
+  let recent = path ? await ipc.handoffSummary(path, 6000).catch(() => "") : "";
+  if (!recent) {
+    const said = (useChat.getState().byPane[paneId]?.transcript.items ?? []).flatMap((i) => (i.kind === "user" ? [`User: ${i.text}`] : []));
+    recent = said.slice(-6).join("\n\n");
+  }
+  const id = layout.newTab({ mode: "chat", provider: "opencode", cwd: pane.cwd });
+  layout.updatePane(id, { chatModel: f.model, title: pane.title });
+  queueFirstMessage(
+    id,
+    "You are continuing work another agent started in this folder; its account hit its usage limit. " +
+      "Here is the recent conversation; pick up where it left off without redoing finished work." +
+      (recent ? `\n\n${recent}` : ""),
+  );
+}
 
 /** Remaining room across both windows; null when we have no reading. */
 export function headroom(u: Usage | null | undefined): number | null {
@@ -49,6 +82,7 @@ export async function offerHandoff(paneId: string, message?: string) {
   await Promise.all(useConfig.getState().config!.accounts.map((a) => useUsage.getState().refresh(a.name, true)));
   const reset = resetLabel(useUsage.getState().usage[from]);
   const alts = alternatives(from);
+  const fb = usableFallback(parseFallback(useUi.getState().prefs.fallback), from);
   const go = (name: string) => () => void switchAccount(paneId, name);
   const post = (names: string[], more: boolean) => {
     const actions: NoticeAction[] = names.map((n, i) => ({
@@ -57,16 +91,23 @@ export async function offerHandoff(paneId: string, message?: string) {
       run: go(n),
     }));
     if (more) actions.push({ label: "More…", run: () => (post(alts.map((a) => a.name), false), false) });
+    // The fallback from Settings → New threads comes first, whichever provider it is on.
+    if (fb) actions.unshift({ label: `Continue on ${fallbackLabel(fb)}`, tone: "primary", run: () => void continueOnFallback(paneId, fb) });
+    if (fb && actions[1]?.tone === "primary") actions[1] = { ...actions[1], tone: undefined };
     actions.push({ label: "Wait", run: () => {} });
     alertUser({
       kind: "limit",
       key: `offer:${from}:${paneId}`,
       paneId,
       title: `${from} hit its limit${reset ? ` · resets ${reset}` : ""}`,
-      body: alts.length
-        ? `Keep this conversation going on ${alts[0].name}? The history moves with it.`
-        : (message?.slice(0, 160) || "Every other account is limited too."),
-      actions: alts.length ? actions : undefined,
+      body: fb
+        ? fb.provider === "claude"
+          ? `Keep this conversation going on your fallback, ${fallbackLabel(fb)}? The history moves with it.`
+          : `Continue on your fallback, ${fallbackLabel(fb)}? It starts a new thread in this folder with the recent conversation.`
+        : alts.length
+          ? `Keep this conversation going on ${alts[0].name}? The history moves with it.`
+          : (message?.slice(0, 160) || "Every other account is limited too."),
+      actions: alts.length || fb ? actions : undefined,
     });
   };
   const names = alts.map((a) => a.name);

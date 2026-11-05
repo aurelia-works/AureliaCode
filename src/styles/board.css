@@ -32,7 +32,7 @@
 }
 .board-sub {
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .board-actions {
   display: flex;
@@ -64,7 +64,7 @@
   margin: 0 0 var(--sp-2);
   padding: 6px 0;
   background: var(--bg);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 600;
   color: var(--text-dim);
 }
@@ -161,7 +161,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13.5px;
+  font-size: var(--fs-body);
   font-weight: 650;
   letter-spacing: -0.01em;
 }
@@ -169,7 +169,7 @@
   margin-left: auto;
   display: inline-flex;
   gap: 8px;
-  font-size: 10.5px;
+  font-size: var(--fs-label);
   color: var(--text-faint);
   white-space: nowrap;
 }
@@ -199,7 +199,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 .card-detail {
@@ -212,7 +212,7 @@
 .card-detail-text {
   min-width: 0;
   color: var(--text);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   overflow: hidden;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -230,7 +230,7 @@
   border-radius: var(--r-sm);
   background: var(--pane-bg);
   border: 1px solid var(--border);
-  font: 10.5px/1.5 var(--font-mono);
+  font: var(--fs-label)/1.5 var(--font-mono);
   color: var(--text-dim);
   overflow: hidden;
 }
@@ -277,7 +277,7 @@
 }
 .board-empty h2 {
   margin: 4px 0 0;
-  font-size: 16px;
+  font-size: var(--fs-title);
   color: var(--text);
 }
 .board-empty p {
@@ -292,7 +292,7 @@
   gap: 4px 16px;
   padding: 7px var(--sp-5);
   border-top: 1px solid var(--border);
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 .board-keys span {
@@ -312,7 +312,7 @@
   background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .wb-filter:hover {
   background: var(--surface-2);
@@ -333,7 +333,7 @@
   background: var(--surface);
   color: var(--text);
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 
 .wb-new input:focus {
@@ -385,7 +385,7 @@
   gap: 8px;
   margin: 0 2px var(--sp-2);
   padding: 2px 0 6px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 500;
   letter-spacing: 0.01em;
   color: var(--text-faint);
@@ -421,7 +421,7 @@
 }
 .wk-empty {
   margin: 2px 4px 6px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 
@@ -461,7 +461,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -475,12 +475,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10.5px;
+  font-size: var(--fs-label);
   color: var(--text-faint);
 }
 .wk-desc {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
   overflow: hidden;
   display: -webkit-box;
@@ -505,7 +505,7 @@
   border: 1px solid var(--border);
   background: var(--surface-2);
   color: var(--text-dim);
-  font: 10.5px/1 var(--font-mono);
+  font: var(--fs-label)/1 var(--font-mono);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -556,18 +556,18 @@
   min-height: 22px;
 }
 .wk-meta {
-  font-size: 10.5px;
+  font-size: var(--fs-label);
   color: var(--text-faint);
 }
 .wk-age {
   margin-left: auto;
-  font-size: 10.5px;
+  font-size: var(--fs-label);
   color: var(--text-faint);
 }
 .wk-act.btn {
   height: 22px;
   padding: 0 8px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 .wk-act.btn.primary {
   display: inline-flex;
@@ -578,4 +578,99 @@
 
 .wk-load-error {
   margin: 0 var(--sp-5) var(--sp-3);
+}
+/* The open button says what it does. */
+.card-open {
+  width: auto;
+  display: inline-flex;
+  gap: 4px;
+  padding: 0 7px;
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+}
+/* Signals: one action each in view (Start thread); Snooze shows on hover or keyboard focus.
+   Their dots are neutral, since colour is kept for a thread's state. */
+.sig .tb-focus-wrap {
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease);
+}
+.sig:hover .tb-focus-wrap,
+.sig:focus-within .tb-focus-wrap {
+  opacity: 1;
+}
+.signals .sig:not(.crit) .sig-dot {
+  background: var(--text-faint);
+}
+/* One meta size on the board: tab, age, tokens, cost and cache. */
+.card-foot,
+.card-foot *,
+.card header .num,
+.card header span {
+  font-size: var(--fs-meta);
+}
+.sig {
+  padding-block: 8px;
+}
+/* One secondary button: Open on a card looks like every other small outlined action. */
+.card-open {
+  height: 26px;
+  padding: 0 9px;
+  gap: 4px;
+  display: inline-flex;
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  font-size: var(--fs-meta);
+  color: var(--text);
+}
+/* Signals: only an urgent one is marked, and in words; the rest need no dot. */
+.signals .sig:not(.crit) .sig-dot {
+  display: none;
+}
+.sig-tag {
+  flex: none;
+  align-self: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--err) 60%, transparent);
+  color: var(--err);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+}
+/* Signals fold to one line ("Signals · 5, 1 urgent"); open, each row's actions show on hover or focus. */
+.signals-fold {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  text-decoration: none;
+}
+.signals-fold:hover {
+  color: var(--text);
+}
+.signals .sig > .btn,
+.signals .sig > .tb-focus-wrap {
+  opacity: 0;
+  transition: opacity 0.15s var(--ease);
+}
+.signals .sig:hover > .btn,
+.signals .sig:focus-within > .btn,
+.signals .sig:hover > .tb-focus-wrap,
+.signals .sig:focus-within > .tb-focus-wrap {
+  opacity: 1;
+}
+@media (hover: none) {
+  .signals .sig > .btn,
+  .signals .sig > .tb-focus-wrap {
+    opacity: 1;
+  }
+}
+/* The footer's meters wrap inside the card instead of running past its edge. */
+.card-foot {
+  flex-wrap: wrap;
+  row-gap: 6px;
+  min-width: 0;
+}
+.card-foot > * {
+  min-width: 0;
 }

@@ -52,6 +52,11 @@ export function GoalBanner({ paneId }: { paneId: string }) {
             {goal.text}
           </span>
         </div>
+        {!end && (
+          <span className="chat-goal-bar" role="progressbar" aria-label="Goal rounds used" aria-valuemin={0} aria-valuemax={goal.maxRounds} aria-valuenow={goalRound(goal)}>
+            <i style={{ width: `${Math.min(100, (goalRound(goal) / goal.maxRounds) * 100)}%` }} />
+          </span>
+        )}
         <div className="chat-goal-meta num">
           <span title={`Each round runs \`${goal.check}\` after a turn`}>
             Round {goalRound(goal)} of {goal.maxRounds}

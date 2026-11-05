@@ -18,7 +18,9 @@ import { cyclePermissionMode, MODES, modeKey, PICKER_MODES } from "../lib/permis
 import { riskOf } from "../lib/risk";
 import { CHAT_FIND, GOAL_OPEN } from "../lib/shortcuts";
 import { GoalBanner, GoalDialog } from "./GoalBar";
-import { focusedPaneId, useLayout } from "../store/layout";
+import { focusedPaneId, paneIds, tabOfPane, useLayout } from "../store/layout";
+import { PaneBrief } from "./PaneBrief";
+import { expandSkillRefs, skillQuery } from "../lib/skillRefs";
 import { chatCan, freshChat } from "../lib/chatStart";
 import { ChatStart, sendFirst } from "./ChatStart";
 import { loadProviders, useProviders } from "../store/providers";
@@ -31,7 +33,7 @@ import { toast, useUi } from "../store/ui";
 import { useConfig } from "../store/config";
 import { AgentLogo } from "./AgentLogos";
 import { delegationTool, parseDelegation } from "../lib/delegation";
-import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, CollapseIcon, ExpandIcon, FileIcon, GaugeIcon, GlobeIcon, PenIcon, PlusIcon, SearchIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
+import { ArrowUpIcon, AureliaMark, CheckIcon, ChevronIcon, CollapseIcon, ExpandIcon, FileIcon, GaugeIcon, GlobeIcon, MoreIcon, PenIcon, PlusIcon, SearchIcon, ShieldIcon, SparkIcon, StopIcon, TerminalIcon } from "./Icons";
 
 const MAX_ROWS = 12;
 /** Tool output shown when a call is opened; the rest stays in the transcript. */
@@ -74,9 +76,11 @@ export function ChatPane({ paneId }: { paneId: string }) {
     const el = logRef.current;
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
+  // A brief pane (grid, no conversation yet) reads from the top: its card, not the bottom of it.
+  const briefRef = useRef(false);
   const toBottom = () => {
     const el = logRef.current;
-    if (el && stick.current) el.scrollTop = el.scrollHeight;
+    if (el && stick.current && !briefRef.current) el.scrollTop = el.scrollHeight;
   };
   // Scrolling the browser does by itself (scroll anchoring as messages get their real
   // height, a hidden tab) isn't the user leaving: only their wheel, keys or scrollbar drag is.
@@ -115,6 +119,14 @@ export function ChatPane({ paneId }: { paneId: string }) {
     return () => window.removeEventListener(CHAT_FIND, open);
   }, [paneId]);
 
+  // In a grid of several panes, an empty one shows a compact status card, not the big prompt.
+  const briefOn = useUi((s) => !s.single && s.prefs.paneBrief);
+  const inGrid = useLayout((s) => {
+    const tab = tabOfPane(s.tabs, paneId);
+    return !!tab && paneIds(tab.root).length > 1;
+  });
+  const brief = briefOn && inGrid;
+  briefRef.current = brief && items.length === 0;
   const [composing, setComposing] = useState(false);
   const [goalOpen, setGoalOpen] = useState(false);
   useEffect(() => {
@@ -125,7 +137,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
 
   return (
     <div
-      className={`chat${composing ? " composing" : ""}`}
+      className={`chat${composing ? " composing" : ""}${brief && items.length === 0 ? " brief" : ""}`}
       tabIndex={-1}
       style={{ outline: "none" }}
       onKeyDown={(e) => {
@@ -155,8 +167,10 @@ export function ChatPane({ paneId }: { paneId: string }) {
         onClick={(e) => openLink(e, paneId)}
       >
         <div className="chat-col">
-          {items.length === 0 && fresh && <ChatStart paneId={paneId} starting={status === "starting"} />}
-          {items.length === 0 && !fresh && (
+          {items.length === 0 && fresh && brief && <PaneBrief paneId={paneId} cwd={cwd} />}
+          {items.length === 0 && fresh && !brief && <ChatStart paneId={paneId} starting={status === "starting"} />}
+          {items.length === 0 && !fresh && brief && <PaneBrief paneId={paneId} cwd={cwd} />}
+          {items.length === 0 && !fresh && !brief && (
             <div className="chat-empty">
               <AureliaMark width={34} height={34} />
               <p>{status === "starting" ? "Starting Claude…" : `What should Claude do in ${basename(cwd) || "this folder"}?`}</p>
@@ -196,7 +210,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
           <ol className="chat-queue" aria-label="Queued messages">
             {session.queued.map((q, i) => (
               <li key={q.uuid}>
-                <span className="chat-queue-n num">{i === 0 ? "Next" : i + 1}</span>
+                <span className="chat-queue-n num">{i === 0 ? "Next up" : i + 1}</span>
                 <span className="chat-queue-text" title={q.text}>
                   {q.text || (q.files?.length ? q.files.join(", ") : q.images && q.images.length > 1 ? `${q.images.length} images` : "Image")}
                 </span>
@@ -411,7 +425,7 @@ function UserMessage({ item, paneId, idle, changedLater }: { item: Extract<ChatI
     <div className={`chat-user-wrap${item.via ? ` ${item.via}` : ""}`}>
       {item.via && (
         <span className="chat-user-via" title={item.via === "queued" ? "Held until Claude finished the turn before" : "Stopped Claude's turn to send this"}>
-          {item.via === "queued" ? "Queued" : "Steered"}
+          {item.via === "queued" ? "Sent after the turn" : "Sent mid-turn"}
         </span>
       )}
       <div className="chat-user">
@@ -518,7 +532,7 @@ function LiveStatus({ label, since }: { label: string; since?: number }) {
 
 /** What Claude is doing right now, from the newest thing in the turn. */
 function liveLabel(seg: Work, waiting: boolean): string {
-  if (waiting) return "Needs you";
+  if (waiting) return "Waiting for your answer below";
   const latest = seg.answer.at(-1) ?? seg.activity.at(-1);
   if (!latest) return pickBySeed(THINKING, seg.id);
   if (latest.kind === "tool" && latest.result === undefined) {
@@ -1223,6 +1237,16 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
     return true;
   };
   const [rulesOpen, setRulesOpen] = useState(false);
+  // T3's composer layout: below 620px the bar folds permissions, provider and style into one "…" menu.
+  const barRef = useRef<HTMLDivElement>(null);
+  const [narrowBar, setNarrowBar] = useState(false);
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([e]) => setNarrowBar(e.contentRect.width < 620));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
   const fileInput = useRef<HTMLInputElement>(null);
   const patchAtt = (id: string, p: Partial<Attachment>) => writeAtts((cur) => settleRead(cur, id, p));
   /** New chips, each refused with its reason when the message would go over the cap; then read in the background. */
@@ -1282,7 +1306,23 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
   const files = useProjectFiles(atQuery !== undefined ? pane?.cwd : undefined);
   const mentions = useMemo(() => (atQuery === undefined || slashOff === text ? [] : matchFiles(files, atQuery)), [files, atQuery, slashOff, text]);
   useEffect(() => setSlashSel(0), [atQuery]);
-  const menuLen = slash.length || mentions.length;
+  // The $ menu: a skill being named at the caret, as in Codex (lib/skillRefs.ts turns it into what Claude runs).
+  const skillNames = useMemo(() => (commands ?? []).filter((c) => !c.builtin), [commands]);
+  const dollarQuery = slashQuery === undefined && atQuery === undefined ? skillQuery(text.slice(0, caret)) : undefined;
+  const skills = useMemo(() => (dollarQuery === undefined || slashOff === text ? [] : matchCommands(skillNames, dollarQuery)), [skillNames, dollarQuery, slashOff, text]);
+  useEffect(() => setSlashSel(0), [dollarQuery]);
+  const menuLen = slash.length || mentions.length || skills.length;
+  const pickSkill = (c: SlashCommand) => {
+    const start = caret - (dollarQuery?.length ?? 0) - 1;
+    const insert = `$${c.name} `;
+    const at = start + insert.length;
+    setText(text.slice(0, start) + insert + text.slice(caret));
+    requestAnimationFrame(() => {
+      ref.current?.setSelectionRange(at, at);
+      setCaret(at);
+    });
+    ref.current?.focus();
+  };
   const mention = (path: string) => {
     const start = caret - (atQuery?.length ?? 0) - 1;
     const insert = `@${/\s/.test(path) ? `"${path}"` : path} `;
@@ -1340,11 +1380,12 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
     el.style.height = "auto";
     const line = parseFloat(getComputedStyle(el).lineHeight) || 22;
     el.style.height = `${Math.min(el.scrollHeight, line * MAX_ROWS + 8)}px`;
-  }, [text, expanded]);
+  }, [text, expanded, narrowBar]);
 
   /** Enter sends; ⌘Enter does the opposite of the Queue/Steer mode for this one message. */
   const send = (opposite = false) => {
-    const t = text.trim();
+    const typed = text.trim();
+    const t = oc ? typed : expandSkillRefs(typed, skillNames.map((c) => c.name));
     const problem = sendProblem(atts);
     if (problem) return toast(problem, true);
     const { images, documents, refs } = forSend(atts);
@@ -1407,12 +1448,22 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
     effort === "auto" ? `Auto${auto?.effort?.pick ? ` · ${cap(auto.effort.pick)}` : ""}` : effort === "default" ? "Effort" : (EFFORTS.find((e) => e.value === effort)?.label ?? effort);
   const level = EFFORTS.findIndex((e) => e.value === (effort === "auto" ? auto?.effort?.pick : effort)) - 1;
   const m = MODES[mode] ?? MODES.default;
+  const fold = prefs.composerFold && narrowBar;
+  const merged = prefs.mergeModelEffort && !oc;
+  const providerValue = chatProviderId(providerAccount, pane?.provider);
+  const pickProvider = (v: string) => {
+    if (v === providerValue) return;
+    // A conversation can't move between providers or accounts: the pick starts a new chat.
+    if (v.startsWith("claude:")) useLayout.getState().newTab({ mode: "chat", account: v.slice("claude:".length), cwd: pane?.cwd });
+    else if (v === "opencode") useLayout.getState().newTab({ mode: "chat", provider: "opencode", cwd: pane?.cwd });
+  };
 
   return (
     <div className="chat-compose">
       {rulesOpen && <RulesDialog cwd={pane?.cwd ?? "~"} account={pane?.account ?? null} onClose={() => setRulesOpen(false)} />}
       {mentions.length > 0 && <FileMenu items={mentions} sel={Math.min(slashSel, mentions.length - 1)} onHover={setSlashSel} onPick={mention} />}
       {slash.length > 0 && <SlashMenu items={slash} sel={Math.min(slashSel, slash.length - 1)} onHover={setSlashSel} onPick={(c) => pick(c, true)} />}
+      {skills.length > 0 && <SlashMenu sigil="$" items={skills} sel={Math.min(slashSel, skills.length - 1)} onHover={setSlashSel} onPick={pickSkill} />}
       <div
         className="chat-card"
         data-mode={mode}
@@ -1423,6 +1474,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             else if (e.key === "ArrowUp") setSlashSel((i) => (i + menuLen - 1) % menuLen);
             else if (e.key === "Escape") setSlashOff(text);
             else if (slash.length) pick(slash[Math.min(slashSel, slash.length - 1)], e.key === "Enter");
+            else if (skills.length) pickSkill(skills[Math.min(slashSel, skills.length - 1)]);
             else mention(mentions[Math.min(slashSel, mentions.length - 1)]);
           } else if ((e.key === "ArrowUp" || e.key === "ArrowDown") && !e.shiftKey && !e.altKey && !e.metaKey && e.target === ref.current) {
             const el = ref.current!;
@@ -1459,13 +1511,14 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
           }
         }}
       >
-        <button type="button" className="chat-expand" aria-pressed={expanded} aria-label={expanded ? "Shrink the composer" : "Expand the composer"} title={expanded ? "Shrink (Esc)" : "Expand to write a long message"} onClick={() => { setExpanded(!expanded); ref.current?.focus(); }}>
+        {/* Only once the draft is long enough to want more room (4+ lines or ~240 characters). */}
+        {(expanded || text.split("\n").length >= 4 || text.length >= 240) && <button type="button" className="chat-expand" aria-pressed={expanded} aria-label={expanded ? "Shrink the composer" : "Expand the composer"} title={expanded ? "Shrink (Esc)" : "Expand to write a long message"} onClick={() => { setExpanded(!expanded); ref.current?.focus(); }}>
           {expanded ? <CollapseIcon /> : <ExpandIcon />}
-        </button>
+        </button>}
         {atts.length > 0 && <AttachChips atts={atts} onRemove={(id) => writeAtts((cur) => cur.filter((a) => a.id !== id))} />}
         <textarea
           ref={ref}
-          rows={2}
+          rows={narrowBar && !text ? 1 : 2}
           value={text}
           data-chat-input={paneId}
           placeholder={busy ? `${agentName(pane)} is working. A message now goes after this turn` : oc ? "Ask anything. @ files" : "Ask anything. @ files, / commands"}
@@ -1483,7 +1536,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
           }}
           spellCheck={false}
         />
-        <div className="chat-card-bar">
+        <div className="chat-card-bar" ref={barRef}>
           <PlusMenu
             onGoal={() => window.dispatchEvent(new CustomEvent(GOAL_OPEN, { detail: paneId }))}
             onPick={pickFiles}
@@ -1511,45 +1564,71 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
             }}
           />
           {/* OpenCode runs on its own permission rules (opencode.json). */}
-          {!oc && (
+          {fold ? (
             <Picker
-              label={m.label}
-              title={`Permission mode: ${m.what} (Shift+Tab)`}
-              value={mode}
-              options={PERMISSIONS}
-              onPick={(v) => void setChatMode(paneId, v)}
-              icon={<ShieldIcon className={`chat-mode-icon ${m.tone ?? ""}`} />}
+              label=""
+              title={`More: permissions (${m.label})${providerOptions.length > 1 ? ", provider" : ""}${styles && styles.length > 1 ? ", output style" : ""}`}
+              value=""
+              options={[]}
+              onPick={() => {}}
+              icon={<MoreIcon />}
               tone={m.tone}
-              more={{ label: "Saved rules…", onClick: () => setRulesOpen(true) }}
-              className="chat-pick-mode"
+              groups={[
+                ...(!oc ? [{ heading: "Permissions", value: mode, options: PERMISSIONS, onPick: (v: string) => void setChatMode(paneId, v as typeof mode), more: { label: "Saved rules…", onClick: () => setRulesOpen(true) } }] : []),
+                ...(providerOptions.length > 1 ? [{ heading: "Provider", value: providerValue, options: providerOptions, onPick: pickProvider }] : []),
+                ...(styles && styles.length > 1 ? [{ heading: "Output style", value: style, options: styleOptions(styles), onPick: (v: string) => setChatOptions(paneId, { style: v }) }] : []),
+              ]}
+              className="chat-pick-fold"
             />
+          ) : (
+            <>
+              {!oc && (
+                <Picker
+                  label={m.label}
+                  title={`Permission mode: ${m.what} (Shift+Tab)`}
+                  value={mode}
+                  options={PERMISSIONS}
+                  onPick={(v) => void setChatMode(paneId, v)}
+                  icon={<ShieldIcon className={`chat-mode-icon ${m.tone ?? ""}`} />}
+                  tone={m.tone}
+                  more={{ label: "Saved rules…", onClick: () => setRulesOpen(true) }}
+                  className="chat-pick-mode"
+                />
+              )}
+              {providerOptions.length > 1 && (
+                <Picker
+                  label={oc ? `OpenCode${providerProblem ? `: ${providerProblem}` : ""}` : providerProblem ? `${providerAccount}: ${providerProblem}` : (providerAccount ?? "Claude")}
+                  title={providerProblem ? `This chat's provider: ${providerProblem}` : "Provider and account for this chat"}
+                  value={providerValue}
+                  options={providerOptions}
+                  onPick={pickProvider}
+                  icon={agentIcon}
+                  tone={providerProblem ? "warn" : undefined}
+                  className="chat-pick-account"
+                />
+              )}
+            </>
           )}
-          {providerOptions.length > 1 && (
-            <Picker
-              label={oc ? `OpenCode${providerProblem ? `: ${providerProblem}` : ""}` : providerProblem ? `${providerAccount}: ${providerProblem}` : (providerAccount ?? "Claude")}
-              title={providerProblem ? `This chat's provider: ${providerProblem}` : "Provider and account for this chat"}
-              value={chatProviderId(providerAccount, pane?.provider)}
-              options={providerOptions}
-              onPick={(v) => {
-                if (v === chatProviderId(providerAccount, pane?.provider)) return;
-                // A conversation can't move between providers or accounts: the pick starts a new chat.
-                if (v.startsWith("claude:")) useLayout.getState().newTab({ mode: "chat", account: v.slice("claude:".length), cwd: pane?.cwd });
-                else if (v === "opencode") useLayout.getState().newTab({ mode: "chat", provider: "opencode", cwd: pane?.cwd });
-              }}
-              icon={agentIcon}
-              tone={providerProblem ? "warn" : undefined}
-              className="chat-pick-account"
-            />
-          )}
+          <span className="chat-card-gap" />
+          {/* As in Codex: what to attach and how far Claude may go on the left; the model, effort,
+              context and send together on the right, so a wrap never leaves send alone. */}
+          <span className="chat-card-end">
           <Picker
-            label={modelLabel}
-            title={model === "auto" && auto?.model ? `Auto picked ${auto.model.pick}: ${auto.model.why}` : "Model for the next message"}
+            label={merged && effort !== "default" ? `${modelLabel} · ${effortLabel}` : modelLabel}
+            title={
+              merged
+                ? `Model and effort for the next message${model === "auto" && auto?.model ? `. Auto picked ${auto.model.pick}: ${auto.model.why}` : ""}${effort === "auto" && auto?.effort ? `. Auto effort: ${auto.effort.why}` : ""}`
+                : model === "auto" && auto?.model
+                  ? `Auto picked ${auto.model.pick}: ${auto.model.why}`
+                  : "Model for the next message"
+            }
             value={model}
             options={models}
             onPick={(v) => setChatOptions(paneId, { model: v })}
             icon={model === "auto" ? <SparkIcon className="chat-auto-icon" /> : agentIcon}
+            groups={merged ? [{ heading: "Effort: how hard Claude thinks", value: effort, options: EFFORTS, onPick: (v) => setChatOptions(paneId, { effort: v }) }] : undefined}
           />
-          {!oc && (
+          {!oc && !merged && (
             <Picker
               label={effortLabel}
               title={effort === "auto" && auto?.effort ? `Auto effort: ${auto.effort.why}` : "Effort for the next message: how hard Claude thinks"}
@@ -1559,7 +1638,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
               icon={<GaugeIcon level={Math.max(0, level)} />}
             />
           )}
-          {styles && styles.length > 1 && (
+          {!fold && styles && styles.length > 1 && (
             <Picker
               label={style === "default" ? "" : style}
               title="Output style: how Claude writes its answers"
@@ -1569,7 +1648,6 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
               icon={<PenIcon />}
             />
           )}
-          <span className="chat-card-gap" />
           <ContextRing paneId={paneId} />
           {busy && prefs.steerKey && (
             <button
@@ -1579,7 +1657,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
               title={`While Claude works, Enter ${prefs.followUp === "steer" ? "stops the turn and sends now" : "queues for after the turn"}. ⌘Enter does the other. Click to switch.`}
               onClick={() => useUi.getState().set({ prefs: { ...prefs, followUp: prefs.followUp === "steer" ? "queue" : "steer" } })}
             >
-              {prefs.followUp === "steer" ? "Steer" : "Queue"}
+              {prefs.followUp === "steer" ? "Enter steers" : "Enter queues"}
             </button>
           )}
           {busy && empty ? (
@@ -1591,6 +1669,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
               <ArrowUpIcon />
             </button>
           )}
+          </span>
         </div>
       </div>
     </div>
@@ -1750,13 +1829,13 @@ function matchCommands(all: SlashCommand[], q: string): SlashCommand[] {
 }
 
 /** The / menu above the composer: Claude Code's commands and skills, ↑↓ to move, Enter runs, Tab fills in. */
-function SlashMenu({ items, sel, onHover, onPick }: { items: SlashCommand[]; sel: number; onHover: (i: number) => void; onPick: (c: SlashCommand) => void }) {
+function SlashMenu({ items, sel, onHover, onPick, sigil = "/" }: { items: SlashCommand[]; sel: number; onHover: (i: number) => void; onPick: (c: SlashCommand) => void; sigil?: "/" | "$" }) {
   const list = useRef<HTMLDivElement>(null);
   useEffect(() => {
     list.current?.querySelector<HTMLElement>(`[data-i="${sel}"]`)?.scrollIntoView({ block: "nearest" });
   }, [sel]);
   return (
-    <div className="chat-slash" role="listbox" aria-label="Slash commands" ref={list}>
+    <div className="chat-slash" role="listbox" aria-label={sigil === "$" ? "Skills" : "Slash commands"} ref={list}>
       {items.map((c, i) => (
         <button
           key={c.name}
@@ -1770,7 +1849,8 @@ function SlashMenu({ items, sel, onHover, onPick }: { items: SlashCommand[]; sel
           onClick={() => onPick(c)}
         >
           <span className="chat-slash-name">
-            /{c.name}
+            {sigil}
+            {c.name}
             {c.argumentHint && <span className="chat-slash-arg"> {c.argumentHint}</span>}
           </span>
           <span className="chat-slash-desc">{c.description}</span>
@@ -1848,6 +1928,26 @@ async function pngFile(data: string): Promise<File> {
   return new File([blob], "image.png", { type: "image/png" });
 }
 
+/** A titled list inside a picker's menu (effort under the model, the parts of the "…" menu). */
+interface PickGroup {
+  heading: string;
+  value: string;
+  options: Option[];
+  onPick: (value: string) => void;
+  more?: { label: string; onClick: () => void };
+}
+
+function PickOption({ o, on, focus, onPick }: { o: Option; on: boolean; focus: boolean; onPick: () => void }) {
+  return (
+    <button type="button" role="option" className={o.tone} disabled={!!o.disabled} title={o.disabled} aria-selected={on} autoFocus={focus} onClick={onPick}>
+      <span className="chat-pick-icon">{o.icon}</span>
+      <span className="chat-pick-name">{o.label}</span>
+      <span className="chat-pick-desc">{o.desc}</span>
+      {on && <CheckIcon className="chat-pick-check" />}
+    </button>
+  );
+}
+
 /** A small menu above its button: one pick from a list, arrow keys to move, Esc to close. */
 function Picker({
   label,
@@ -1859,6 +1959,7 @@ function Picker({
   tone,
   more,
   className,
+  groups,
 }: {
   label: string;
   title: string;
@@ -1871,6 +1972,8 @@ function Picker({
   more?: { label: string; onClick: () => void };
   /** chat-pick-mode keeps its label in a narrow pane; chat-pick-account steps aside there. */
   className?: string;
+  /** More lists under headings in the same menu: effort under the model, or what the overflow menu holds. */
+  groups?: PickGroup[];
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -1919,25 +2022,27 @@ function Picker({
           }}
         >
           {options.map((o) => (
-            <button
-              key={o.value}
-              type="button"
-              role="option"
-              className={o.tone}
-              disabled={!!o.disabled}
-              title={o.disabled}
-              aria-selected={o.value === value}
-              autoFocus={o.value === value}
-              onClick={() => {
-                onPick(o.value);
-                close();
-              }}
-            >
-              <span className="chat-pick-icon">{o.icon}</span>
-              <span className="chat-pick-name">{o.label}</span>
-              <span className="chat-pick-desc">{o.desc}</span>
-              {o.value === value && <CheckIcon className="chat-pick-check" />}
-            </button>
+            <PickOption key={o.value} o={o} on={o.value === value} focus={o.value === value} onPick={() => (onPick(o.value), close())} />
+          ))}
+          {groups?.map((g) => (
+            <div key={g.heading} role="group" aria-label={g.heading} className="chat-pick-group">
+              <div className="chat-pick-head">{g.heading}</div>
+              {g.options.map((o) => (
+                <PickOption key={o.value} o={o} on={o.value === g.value} focus={!options.length && o.value === g.value && g === groups[0]} onPick={() => (g.onPick(o.value), close())} />
+              ))}
+              {g.more && (
+                <button
+                  type="button"
+                  className="chat-pick-more"
+                  onClick={() => {
+                    setOpen(false);
+                    g.more!.onClick();
+                  }}
+                >
+                  {g.more.label}
+                </button>
+              )}
+            </div>
           ))}
           {more && (
             <button
@@ -2027,7 +2132,8 @@ function ContextRing({ paneId }: { paneId: string }) {
           <circle cx="9" cy="9" r={r} className="fill" strokeDasharray={`${(pct / 100) * c} ${c}`} />
         </svg>
         {size ? `${pct}%` : null}
-        {size ? <span className="chat-ctx-word">context</span> : null}
+        {/* Named even before the first count arrives, so the ring is never a bare circle. */}
+        <span className="chat-ctx-word">context</span>
       </button>
       {open && (
         <div className="chat-ctx-menu" role="dialog" aria-label="Context window">

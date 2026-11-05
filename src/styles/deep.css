@@ -73,7 +73,7 @@ body {
   gap: 9px;
 }
 .brand-name {
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -93,7 +93,7 @@ body {
   padding: 0 8px;
   border-radius: 7px;
   color: var(--text-dim);
-  font: 11.5px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
 }
 
 .usage-strip {
@@ -136,16 +136,16 @@ body {
 }
 .u-name {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .u-left {
   margin-left: -3px;
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 .u-pct {
   min-width: 30px;
-  font: 500 12.5px var(--font-mono);
+  font: 500 var(--fs-meta) var(--font-mono);
   font-variant-numeric: tabular-nums;
 }
 .u-bar {
@@ -198,7 +198,7 @@ body {
   display: flex;
   justify-content: space-between;
   margin-bottom: 8px;
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 500;
 }
 .u-tip-h span {
@@ -209,14 +209,14 @@ body {
   display: grid;
   grid-template-columns: auto 1fr;
   gap: 3px 12px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .u-tip-dl .k {
   color: var(--text-dim);
 }
 .u-tip-dl .v {
   text-align: right;
-  font: 11.5px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
 }
 .u-meter {
   grid-column: 1 / -1;
@@ -269,7 +269,7 @@ body {
   outline: 0;
   background: none;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .side-search input::placeholder {
   color: var(--text-faint);
@@ -282,7 +282,7 @@ body {
   border: 0;
   background: none;
   color: var(--text-faint);
-  font: 11px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
 }
 .side-search-clear {
   display: grid;
@@ -291,7 +291,7 @@ body {
   height: 16px;
   border-radius: 4px;
   color: var(--text-faint);
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 .side-search-clear:hover {
   background: var(--s3);
@@ -305,7 +305,7 @@ body {
   border: 0;
   background: none;
   color: var(--text-faint);
-  font: 11px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
 }
 .find {
   width: 34px;
@@ -332,7 +332,7 @@ body {
   background: color-mix(in srgb, var(--attn) 12%, transparent);
 }
 .side .nav-bulk-count {
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .side .nav-bulk-acts {
   flex-wrap: wrap;
@@ -354,7 +354,7 @@ body {
   margin: 0;
   padding: 0 10px 6px;
   color: var(--text-faint);
-  font: 500 11px var(--font-ui);
+  font: 500 var(--fs-meta) var(--font-ui);
   letter-spacing: 0.01em;
 }
 .grp h3 .n {
@@ -367,7 +367,7 @@ body {
 .side-empty {
   margin: 24px 12px;
   color: var(--text-faint);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .nav-thread.away {
   opacity: 0.7;
@@ -418,7 +418,7 @@ body {
   align-items: center;
   gap: 8px;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 .th-title {
   flex: 1;
@@ -429,7 +429,7 @@ body {
 .th-babysit {
   flex: none;
   color: var(--work);
-  font-size: 10px;
+  font-size: var(--fs-label);
 }
 .th-ico {
   flex: none;
@@ -444,7 +444,7 @@ body {
   gap: 6px;
   margin-top: 2px;
   color: var(--text-dim);
-  font: 12px var(--font-ui);
+  font: var(--fs-meta) var(--font-ui);
   white-space: nowrap;
   overflow: hidden;
 }
@@ -529,7 +529,7 @@ body {
   border: 1px solid var(--line-2);
   background: var(--surface-2);
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .nav-act:hover {
   color: var(--text);
@@ -552,7 +552,7 @@ body {
 }
 .snooze-menu > button {
   height: 30px;
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .side-foot {
   flex: none;
@@ -566,7 +566,7 @@ body {
   padding: 6px 10px;
   border-radius: 8px;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-body);
   transition:
     background 0.25s var(--ease),
     color 0.25s var(--ease);
@@ -579,7 +579,7 @@ body {
 .bk > span {
   margin-left: auto;
   color: var(--text-faint);
-  font: 12px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
 }
 .bk.leftover {
   gap: 8px;
@@ -625,7 +625,7 @@ body {
   padding: 4px 10px;
   border-radius: 8px;
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .side-remote:hover {
   background: var(--s2);
@@ -655,14 +655,14 @@ body {
   min-width: 0;
   color: var(--text-dim);
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--fs-body);
 }
 .crumb h1 {
   margin: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text);
-  font-size: 14px;
+  font-size: var(--fs-body);
   font-weight: 500;
 }
 .mono-badge {
@@ -674,7 +674,7 @@ body {
   border-radius: 4px;
   background: var(--attn);
   color: #000;
-  font: 700 8.5px var(--font-ui);
+  font: 700 var(--fs-label) var(--font-ui);
 }
 .thread-head .chip {
   flex: none;
@@ -691,7 +691,7 @@ body {
   border-radius: 7px;
   border: 1px solid var(--line);
   color: var(--text-dim);
-  font: 11.5px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
   white-space: nowrap;
 }
 .thread-head .chip.pr.ok {
@@ -792,7 +792,7 @@ body {
 }
 .chat-col {
   gap: 16px;
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.65;
   color: var(--text);
 }
@@ -816,7 +816,7 @@ body {
   border: 0;
   border-radius: 0;
   color: var(--text-faint);
-  font-size: 13.5px;
+  font-size: var(--fs-body);
   transition: color 0.2s var(--ease);
 }
 .chat-tools-line:hover,
@@ -836,7 +836,7 @@ body {
   border-radius: 5px;
   border: 0;
   background: var(--s2);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
 }
 .chat-md pre {
   border-radius: 10px;
@@ -850,7 +850,7 @@ body {
 .chat-outcome,
 .chat-notice {
   color: var(--text-faint);
-  font: 12px var(--font-ui);
+  font: var(--fs-meta) var(--font-ui);
 }
 .chat-dock {
   padding: 6px clamp(14px, 6cqw, 48px) 16px;
@@ -872,7 +872,7 @@ body {
   border-color: var(--line-2);
 }
 .chat-card textarea {
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1.5;
 }
 .chat-pick-btn {
@@ -945,7 +945,7 @@ body {
 .chat-approval-sum {
   padding: 2px 0;
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
 }
 .chat-approval-actions button {
   height: 30px;
@@ -1047,7 +1047,7 @@ body {
   border: 1px solid var(--line-2);
   background: var(--surface);
   color: var(--text);
-  font: 400 16px var(--font-mono);
+  font: 400 var(--fs-title) var(--font-mono);
   vertical-align: middle;
 }
 .where {
@@ -1058,7 +1058,7 @@ body {
   gap: 6px;
   margin: 12px 0 24px;
   color: var(--text-faint);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .where .br {
   color: var(--text-dim);
@@ -1068,7 +1068,7 @@ body {
 }
 .where-link {
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .where-link:hover {
   color: var(--text);
@@ -1106,7 +1106,7 @@ body {
   background: var(--surface-2);
   box-shadow: var(--shadow);
   /* The start screen's menu sits inside the 32px heading: don't inherit its type. */
-  font: 400 13px / 1.4 var(--font-ui);
+  font: 400 var(--fs-body) / 1.4 var(--font-ui);
   letter-spacing: normal;
   text-align: left;
   text-wrap: wrap;
@@ -1130,7 +1130,7 @@ body {
   padding: 7px 8px;
   border-radius: 7px;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .pick-act:first-of-type {
   margin-top: 4px;
@@ -1146,7 +1146,7 @@ body {
   border-radius: 7px;
   border-color: var(--line-2);
   background: var(--surface-2);
-  font: 13px var(--font-mono);
+  font: var(--fs-body) var(--font-mono);
 }
 .start-card {
   width: 100%;
@@ -1162,7 +1162,7 @@ body {
 }
 .start-card textarea {
   min-height: 52px;
-  font-size: 15px;
+  font-size: var(--fs-title);
 }
 .start-hint {
   display: flex;
@@ -1171,7 +1171,7 @@ body {
   gap: 8px;
   margin-top: 8px;
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 .start-hint span + span::before {
   content: "·";
@@ -1187,7 +1187,7 @@ body {
   padding: 0 9px;
   border-radius: 8px;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: var(--fs-body);
   white-space: nowrap;
   transition: background 0.25s var(--ease);
 }
@@ -1248,7 +1248,7 @@ body {
   gap: 2px;
   margin-top: 14px;
   color: var(--text-faint);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
 }
 .start-others > span {
   margin-right: 4px;
@@ -1261,7 +1261,7 @@ body {
   padding: 0 8px;
   border-radius: 7px;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   transition:
     background 0.25s var(--ease),
     color 0.25s var(--ease);
@@ -1290,7 +1290,7 @@ body {
   padding: 8px 10px;
   border-radius: 8px;
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   cursor: pointer;
   list-style: none;
 }
@@ -1307,7 +1307,7 @@ body {
 .start-extras-meta {
   margin-left: auto;
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 .start-extras[open] > summary {
   color: var(--text);
@@ -1330,7 +1330,7 @@ body {
   margin: 0;
   padding: 0 12px 8px;
   color: var(--text-faint);
-  font: 500 12px var(--font-ui);
+  font: 500 var(--fs-meta) var(--font-ui);
   letter-spacing: 0.01em;
 }
 .rz {
@@ -1394,14 +1394,14 @@ body {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-dim);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
 }
 .rz .go {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   color: var(--text-faint);
-  font: 12px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
   transition:
     translate 0.35s var(--ease),
     color 0.25s;
@@ -1419,7 +1419,7 @@ body {
   border: 1px solid var(--line-2);
   background: none;
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--fs-body);
   white-space: nowrap;
   transition:
     background 0.25s var(--ease),
@@ -1511,7 +1511,7 @@ body.resizing-row .rail-grip {
   border-radius: 7px;
   background: none;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-body);
   font-weight: 400;
 }
 .rail-tabs button:hover {
@@ -1543,7 +1543,7 @@ body.resizing-row .rail-grip {
 }
 .changes-summary {
   padding: 0 12px 10px;
-  font: 12px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
 }
 .changes-summary .add,
 .diff-counts .add {
@@ -1558,7 +1558,7 @@ body.resizing-row .rail-grip {
 }
 .changes-empty {
   margin: 16px;
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .diff-file.side {
   margin-bottom: 12px;
@@ -1574,13 +1574,13 @@ body.resizing-row .rail-grip {
   background: var(--well);
   border-bottom: 1px solid var(--line);
   color: var(--ink-2);
-  font: 12px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
 }
 .diff-file.side .diff-counts {
   margin-left: auto;
 }
 .diff-file.side .diff-lines {
-  font: 12px/1.8 var(--font-mono);
+  font: var(--fs-meta)/1.8 var(--font-mono);
   background: var(--bg);
 }
 .diff-file.side .diff-line .ln {
@@ -1626,7 +1626,7 @@ body.resizing-row .rail-grip {
 .lane-head {
   background: var(--bg);
   color: var(--text-faint);
-  font: 500 11px var(--font-ui);
+  font: 500 var(--fs-meta) var(--font-ui);
   letter-spacing: 0.01em;
 }
 .lane-head::after {
@@ -1672,7 +1672,7 @@ body.resizing-row .rail-grip {
 }
 .settings-nav h2 {
   margin: 0 10px 14px;
-  font-size: 22px;
+  font-size: var(--fs-page);
   font-weight: 500;
   letter-spacing: -0.02em;
 }
@@ -1682,7 +1682,7 @@ body.resizing-row .rail-grip {
   padding: 0 12px;
   border-radius: 9px;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: var(--fs-body);
   transition:
     background 0.25s var(--ease),
     color 0.25s var(--ease);
@@ -1714,7 +1714,7 @@ body.resizing-row .rail-grip {
 .set-group h3 {
   margin-bottom: 10px;
   color: var(--text-faint);
-  font: 500 11px var(--font-ui);
+  font: 500 var(--fs-meta) var(--font-ui);
   letter-spacing: 0.01em;
 }
 .settings-page input[type="text"],
@@ -1748,7 +1748,7 @@ body.resizing-row .rail-grip {
 }
 .settings-bar .msg {
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .settings-bar button {
   height: 32px;
@@ -1756,7 +1756,7 @@ body.resizing-row .rail-grip {
   border-radius: 8px;
   border: 1px solid var(--line-2);
   background: none;
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .settings-bar button:hover:not(:disabled) {
   background: var(--s4);
@@ -1792,13 +1792,13 @@ body.resizing-row .rail-grip {
 }
 .setup h3 {
   margin: 0;
-  font-size: 15px;
+  font-size: var(--fs-title);
   font-weight: 500;
 }
 .setup-sub {
   margin: 4px 0 16px;
   color: var(--text-dim);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .setup-row {
   display: grid;
@@ -1807,7 +1807,7 @@ body.resizing-row .rail-grip {
   gap: 12px;
   padding: 10px 0;
   border-top: 1px solid var(--line);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .setup-row > span {
   color: var(--text-dim);
@@ -1857,7 +1857,7 @@ body.resizing-row .rail-grip {
 }
 .setup-perm span {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .setup-foot {
   display: flex;
@@ -1869,7 +1869,7 @@ body.resizing-row .rail-grip {
 .setup-foot span {
   flex: 1;
   color: var(--text-faint);
-  font: 11.5px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
 }
 .setup .seg button {
   text-transform: none;
@@ -1880,7 +1880,7 @@ body.resizing-row .rail-grip {
   max-width: 624px;
   margin-top: 20px;
   text-align: left;
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .today-head {
   display: flex;
@@ -1891,7 +1891,7 @@ body.resizing-row .rail-grip {
 .today-sub {
   margin: 0;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -1922,7 +1922,7 @@ body.resizing-row .rail-grip {
   min-width: 0;
 }
 .today-list .pts {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   opacity: 0.6;
 }
 .today-list .empty {
@@ -1930,7 +1930,7 @@ body.resizing-row .rail-grip {
 }
 .today-btn {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   padding: 3px 10px;
   border-radius: 6px;
   border: 1px solid var(--line, #2a2a2a);
@@ -1940,7 +1940,7 @@ body.resizing-row .rail-grip {
 }
 .today-btn.sm {
   padding: 1px 8px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
 }
 .today-add {
   display: flex;
@@ -1994,7 +1994,7 @@ body.resizing-row .rail-grip {
 }
 .roadmap-head h2 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--fs-page);
 }
 .roadmap-head select,
 .roadmap-add input,
@@ -2002,7 +2002,7 @@ body.resizing-row .rail-grip {
 .rcard-detail textarea,
 .rcard-detail select {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   padding: 4px 8px;
   border-radius: 6px;
   border: 1px solid var(--line, #2a2a2a);
@@ -2025,7 +2025,7 @@ body.resizing-row .rail-grip {
 .rlane h3 {
   margin: 0 0 8px;
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: var(--fs-meta);
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -2048,7 +2048,7 @@ body.resizing-row .rail-grip {
   font-weight: 500;
 }
 .rcard-meta {
-  font-size: 11px;
+  font-size: var(--fs-meta);
   opacity: 0.6;
 }
 .rcard-detail {
@@ -2061,7 +2061,7 @@ body.resizing-row .rail-grip {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .rcard-bar {
   display: flex;
@@ -2075,7 +2075,7 @@ body.resizing-row .rail-grip {
 }
 .tb-focus {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   padding: 2px 10px;
   border-radius: 6px;
   border: 1px solid var(--line, #2a2a2a);
@@ -2120,7 +2120,7 @@ body.resizing-row .rail-grip {
 .signals h2 {
   margin: 0 0 8px;
   color: var(--text-faint);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 500;
   letter-spacing: 0.01em;
 }
@@ -2139,7 +2139,7 @@ body.resizing-row .rail-grip {
   padding: 8px 10px;
   border: 1px solid var(--line, #2a2a2a);
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .sig-dot {
   width: 8px;
@@ -2160,7 +2160,7 @@ body.resizing-row .rail-grip {
   flex-direction: column;
 }
 .sig-what span {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   opacity: 0.65;
 }
 .briefing-text {
@@ -2180,7 +2180,7 @@ body.resizing-row .rail-grip {
 .notes input,
 .notes select {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   padding: 5px 8px;
   border-radius: 6px;
   border: 1px solid var(--line, #2a2a2a);
@@ -2209,7 +2209,7 @@ body.resizing-row .rail-grip {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
 }
 .notes-list li {
   display: flex;
@@ -2236,11 +2236,11 @@ body.resizing-row .rail-grip {
   border-radius: 10px;
   border: 1px solid var(--line-2, #2a2a2a);
   background: var(--surface-2);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .undo-toast button {
   font: inherit;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   padding: 3px 10px;
   border-radius: 6px;
   border: 1px solid var(--line-2, #2a2a2a);
@@ -2268,7 +2268,7 @@ body.resizing-row .rail-grip {
   color: inherit;
 }
 .th-pin {
-  font-size: 10px;
+  font-size: var(--fs-label);
   opacity: 0.7;
 }
 .thread-menu {
@@ -2298,7 +2298,7 @@ body.resizing-row .rail-grip {
   margin-left: 8px;
   padding: 0 7px;
   border-radius: 5px;
-  font-size: 10.5px;
+  font-size: var(--fs-label);
   letter-spacing: 0.01em;
   background: var(--gold, #e0b050);
   color: #111;
@@ -2308,7 +2308,7 @@ body.resizing-row .rail-grip {
   padding: 10px;
   border: 1px dashed var(--line-2, #2a2a2a);
   border-radius: 8px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   opacity: 0.7;
   text-align: center;
 }
@@ -2377,10 +2377,10 @@ body.resizing-row .rail-grip {
     display: none;
   }
   .crumb {
-    font-size: 12.5px;
+    font-size: var(--fs-meta);
   }
   .crumb h1 {
-    font-size: 13px;
+    font-size: var(--fs-body);
   }
 }
 
@@ -2402,7 +2402,7 @@ body.resizing-row .rail-grip {
 
 .chat-time {
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   font-variant-numeric: tabular-nums;
 }
 
@@ -2468,7 +2468,7 @@ body.resizing-row .rail-grip {
   gap: 3px;
 }
 .chat-user-via {
-  font: 500 11px var(--font-ui);
+  font: 500 var(--fs-meta) var(--font-ui);
   letter-spacing: 0.01em;
   color: var(--text-faint);
   padding-right: 4px;
@@ -2485,7 +2485,7 @@ body.resizing-row .rail-grip {
 }
 .chat-ctx-src {
   margin: -2px 0 8px;
-  font: 11.5px var(--font-ui);
+  font: var(--fs-meta) var(--font-ui);
   color: var(--text-faint);
 }
 
@@ -2497,11 +2497,11 @@ body.resizing-row .rail-grip {
   padding: 8px 10px 8px 12px;
   border-radius: var(--r-lg);
   background: var(--surface-2);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .chat-goal-mark {
   color: var(--accent);
-  font-size: 15px;
+  font-size: var(--fs-title);
   line-height: 1;
 }
 .chat-goal.met .chat-goal-mark {
@@ -2537,7 +2537,7 @@ body.resizing-row .rail-grip {
   display: flex;
   flex-wrap: wrap;
   gap: 4px 12px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 .chat-goal-checking {
@@ -2551,7 +2551,7 @@ body.resizing-row .rail-grip {
 .chat-goal-actions button {
   padding: 3px 9px;
   border-radius: var(--r-md, 6px);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   background: var(--surface-3, var(--surface-2));
 }
 .chat-goal-actions button:disabled {
@@ -2589,7 +2589,7 @@ body.resizing-row .rail-grip {
 }
 .th-goal {
   margin-left: 4px;
-  font-size: 11px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
   white-space: nowrap;
 }
@@ -2631,7 +2631,7 @@ body.resizing-row .rail-grip {
 .chat-chip-badge {
   display: grid;
   place-items: center;
-  font-size: 9.5px;
+  font-size: var(--fs-label);
   font-weight: 700;
   letter-spacing: 0.04em;
   color: var(--text-dim);
@@ -2647,13 +2647,13 @@ body.resizing-row .rail-grip {
   line-height: 1.3;
 }
 .chat-chip-name {
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .chat-chip-note {
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2673,7 +2673,7 @@ body.resizing-row .rail-grip {
   place-items: center;
   border-radius: 50%;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: var(--fs-body);
   line-height: 1;
 }
 .chat-chip-x:hover {
@@ -2696,7 +2696,7 @@ body.resizing-row .rail-grip {
   padding: 2px 8px;
   border-radius: 6px;
   background: var(--surface-3);
-  font-size: 12.5px;
+  font-size: var(--fs-meta);
 }
 
 /* Expanded composer: the box takes the pane for a long message; Esc or the button shrinks it. */
@@ -2749,7 +2749,7 @@ body.resizing-row .rail-grip {
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   background: var(--surface-2);
-  font-size: 13px;
+  font-size: var(--fs-body);
 }
 .chat-deleg.failed {
   border-color: color-mix(in srgb, var(--err) 45%, var(--line));
@@ -2784,7 +2784,7 @@ body.resizing-row .rail-grip {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-faint);
 }
 .chat-deleg-task,
@@ -2799,7 +2799,7 @@ body.resizing-row .rail-grip {
 }
 .chat-deleg-stopped,
 .chat-deleg-blocked {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--err);
 }
 .chat-deleg-files {
@@ -2809,14 +2809,14 @@ body.resizing-row .rail-grip {
   margin: 0;
   padding: 0;
   list-style: none;
-  font: 12px var(--font-mono);
+  font: var(--fs-meta) var(--font-mono);
 }
 .chat-deleg-toggle {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 .chat-deleg-toggle:hover {
@@ -2881,12 +2881,12 @@ body.resizing-row .rail-grip {
 }
 .prov-ver {
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 .prov-auth {
   margin-left: auto;
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: var(--fs-meta);
   text-align: right;
 }
 .prov-meta {
@@ -2896,7 +2896,7 @@ body.resizing-row .rail-grip {
   gap: 6px 10px;
   margin: 4px 0 0 15px;
   color: var(--text-faint);
-  font-size: 11.5px;
+  font-size: var(--fs-meta);
 }
 .prov-path {
   max-width: 260px;
@@ -2926,7 +2926,7 @@ body.resizing-row .rail-grip {
   list-style: none;
   color: var(--text-dim);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: var(--fs-meta);
   line-height: 1.6;
 }
 .chat-pick-menu [role="option"]:disabled {
@@ -2942,4 +2942,154 @@ body.resizing-row .rail-grip {
   font-size: var(--fs-meta);
   color: var(--text-dim);
   white-space: nowrap;
+}
+
+/* Header tools with their names showing: Colony, Shell, Changes, More. */
+.ib.labelled {
+  width: auto;
+  display: inline-flex;
+  gap: 6px;
+  padding: 0 9px;
+  font-size: var(--fs-meta);
+}
+.ib.labelled > svg {
+  flex: none;
+}
+@container (max-width: 760px) {
+  .ib.labelled > span {
+    display: none;
+  }
+}
+/* The sidebar footer's four named tools share the row instead of running off its edge. */
+.foot {
+  gap: 0;
+}
+.foot .ib.labelled {
+  padding: 0 6px;
+  gap: 5px;
+  font-size: var(--fs-meta);
+}
+/* Thread titles wrap to two lines instead of hiding what the thread is. */
+.th-t {
+  white-space: normal;
+  align-items: flex-start;
+}
+.th-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  text-overflow: clip;
+}
+.th-pin {
+  display: inline-flex;
+  color: var(--text-dim);
+}
+/* Goal actions are ordinary secondary buttons, outlined like every other one. */
+.chat-goal-actions button {
+  background: none;
+  border: 1px solid var(--line-2);
+  color: var(--text);
+}
+.icon-btn.labelled,
+.tb-focus.icon {
+  width: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 9px;
+  font-size: var(--fs-meta);
+}
+/* The goal reads in full: it wraps rather than cutting off what done means. */
+.chat-goal-text {
+  white-space: normal;
+  overflow: visible;
+}
+.chat-send,
+.chat-send:hover:not(:disabled),
+.chat-send.stop,
+.chat-send.stop:hover:not(:disabled) {
+  background: var(--text);
+  color: var(--bg);
+}
+.chat-send:disabled {
+  background: var(--text);
+  color: var(--bg);
+  opacity: 0.3;
+}
+.chat-card {
+  border-radius: 26px;
+}
+/* Navigation stays quiet: one usage meter until you point at the strip. */
+.usage-strip:not(:hover):not(:focus-within) .u-rest {
+  display: none;
+}
+/* The thread header is the title and its project, no decorative initials badge. */
+.thread-head .mono-badge {
+  display: none;
+}
+/* Goal banner: the text gets the full width, its buttons go on their own row. */
+.chat-goal {
+  flex-wrap: wrap;
+}
+.chat-goal-main {
+  flex: 1 1 100%;
+}
+.chat-goal-actions {
+  margin-left: 26px;
+}
+.chat-goal-bar {
+  height: 6px;
+}
+/* Sidebar meta (folder, branch, PR): it wraps rather than cutting the branch name. */
+.th-m {
+  flex-wrap: wrap;
+  white-space: normal;
+}
+.btn.sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: var(--fs-meta);
+}
+/* Disabled primary (Settings' Save with nothing to save): an outline with readable text. */
+.settings-bar button.primary:disabled,
+button.primary:disabled,
+.btn.primary:disabled {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--line-2);
+  opacity: 1;
+}
+/* Recede: a busy thread you aren't looking at reads quieter (still AA: --text-dim). Hover brings it back. */
+.nav-thread.recede .th-title {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.nav-thread.recede:hover .th-title {
+  color: var(--text);
+}
+.th-m .diffstat {
+  gap: 4px;
+}
+/* Sidebar rows, T3-style: one line for the title, one for the meta, both on the type scale.
+   The full title and path are in the row's tooltip, and the time never wraps onto a line of its own. */
+.th-t {
+  font-size: var(--fs-body);
+}
+.th-title {
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: unset;
+}
+.th-m {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  font-size: var(--fs-meta);
+}
+.th-m .th-br {
+  flex: 0 1 auto;
+}
+.th-m .diffstat,
+.th-m .prb {
+  flex: none;
 }

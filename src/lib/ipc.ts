@@ -216,6 +216,13 @@ export interface GitInfo {
   repo: string;
 }
 
+/** Uncommitted changes against HEAD, untracked files included (src-tauri/src/git.rs). */
+export interface DiffStat {
+  files: number;
+  additions: number;
+  deletions: number;
+}
+
 /** The pull request for a branch (src-tauri/src/pr.rs). */
 export interface PrInfo {
   number: number;
@@ -529,6 +536,7 @@ export const ipc = {
 
   gitLastCommit: (cwd: string) => invoke<number | null>("git_last_commit", { cwd }),
   gitInfo: (cwd: string) => invoke<GitInfo | null>("git_info", { cwd }),
+  gitDiffstat: (cwd: string) => invoke<DiffStat>("git_diffstat", { cwd }),
   createWorktree: (cwd: string, label: string) => invoke<string>("create_worktree", { cwd, label }),
   /** The repo's AureliaSpace worktrees (under `<repo>.worktrees/`). */
   listWorktrees: (cwd: string) => invoke<WorktreeEntry[]>("list_worktrees", { cwd }),

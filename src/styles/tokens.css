@@ -23,8 +23,8 @@
   --border: rgba(255, 255, 255, 0.07);
   --border-strong: rgba(255, 255, 255, 0.13);
   --text: #f1f3f7;
-  --text-dim: #a1a1aa;
-  --text-faint: #8b8b94;
+  --text-dim: #b1b1b9;
+  --text-faint: #9a9aa3;
   --accent: #6060dc;
   --accent-strong: #6e6ee6;
   --accent-ink: #ffffff;
@@ -50,8 +50,8 @@
   --border: rgba(0, 0, 0, 0.08);
   --border-strong: rgba(0, 0, 0, 0.14);
   --text: #18181b;
-  --text-dim: #52525b;
-  --text-faint: #686871;
+  --text-dim: #4a4a52;
+  --text-faint: #5c5c65;
   --accent: #5b5bd6;
   --accent-strong: #4a4ac4;
   --accent-ink: #ffffff;
@@ -97,10 +97,12 @@
   --font-ui: "Geist", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --font-serif: "Instrument Serif", Georgia, serif;
-  --fs-label: 10px; /* caps labels */
+  /* The only type sizes UI text uses (src/lib/designLint.test.ts enforces it): small marks
+     (badges, kbd, counts), meta, body, titles and reading text, then page and hero. */
+  --fs-label: 10.5px;
   --fs-meta: 12px;
   --fs-body: 13.5px;
-  --fs-title: 14px;
+  --fs-title: 15px;
   --fs-page: 20px;
   --fs-hero: 28px;
 

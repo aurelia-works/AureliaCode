@@ -1,3 +1,4 @@
+import { useUi } from "../store/ui";
 import { Channel } from "@tauri-apps/api/core";
 import { create } from "zustand";
 import { useAgents } from "../store/agents";
@@ -345,11 +346,12 @@ const appliedEffort = new Map<string, string>();
 /** Picks as they stand: unset follows Settings → Auto effort ("auto") or the account's settings. */
 export function chatPicks(pane: PaneMeta | undefined): { model: string; effort: string } {
   const cfg = getConfig().effort;
+  const prefs = useUi.getState().prefs;
   // Auto model and effort are Claude's (src-tauri/src/effort.rs).
   if (isOpenCode(pane)) return { model: pane?.chatModel ?? "default", effort: "default" };
   return {
-    model: pane?.chatModel ?? (cfg?.autoModel ? "auto" : "default"),
-    effort: pane?.chatEffort ?? (cfg?.auto === false ? "default" : "auto"),
+    model: pane?.chatModel ?? (prefs.newModel || (cfg?.autoModel ? "auto" : "default")),
+    effort: pane?.chatEffort ?? (prefs.newEffort || (cfg?.auto === false ? "default" : "auto")),
   };
 }
 
