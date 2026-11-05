@@ -15,6 +15,7 @@ const REVIEW_SWITCHES: Switch[] = [
   { key: "revertAction", label: "Revert a merged PR from the thread menu" },
   { key: "scrapAction", label: "Scrap and start over in the thread menu" },
   { key: "threadCost", label: "Thread cost on grid cards" },
+  { key: "humanStats", label: "Human time on the Work board", hint: "Pick a project: approvals, comments and wait per PR, people and bots apart, with reverts and incidents" },
   { key: "agentPrompts", label: "Show sub-agent prompts", hint: "What each sub-agent was told, in the chat and on the grid feed" },
   { key: "threadFamily", label: "Thread family on cards", hint: "Which thread started this one, and how many it started" },
 ];

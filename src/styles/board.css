@@ -674,3 +674,37 @@
 .card-foot > * {
   min-width: 0;
 }
+
+/* Human time per PR on the Work board (components/HumanTime.tsx). */
+.ht {
+  flex: none;
+  margin: 0 var(--sp-5) var(--sp-3);
+}
+p.ht {
+  font-size: var(--fs-meta);
+}
+section.ht {
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.ht h2 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.ht dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--sp-2) var(--sp-4);
+}
+.ht dt {
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+}
+.ht dd {
+  margin: 2px 0 0;
+  font-size: var(--fs-body);
+}

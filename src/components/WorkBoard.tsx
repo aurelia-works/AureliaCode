@@ -5,6 +5,8 @@ import { ipc } from "../lib/ipc";
 import { canTransition, groupBoard, type WorkItem, type WorkStatus } from "../lib/work";
 import { focusedPaneId, useLayout } from "../store/layout";
 import { useWork } from "../store/work";
+import { useUi } from "../store/ui";
+import { HumanTime } from "./HumanTime";
 import { BranchIcon, PrIcon, SparkIcon } from "./Icons";
 
 const DRAG_TYPE = "application/x-aurelia-work";
@@ -126,6 +128,7 @@ export function WorkBoard({
   const [drag, setDrag] = useState<{ id: string; over: WorkStatus | null } | null>(null);
   const [draft, setDraft] = useState("");
   const now = useNow();
+  const statsOn = useUi((s) => s.prefs.humanStats);
 
   const projects = useMemo(() => [...new Set(items.map((i) => i.project))].sort(), [items]);
   const shown = useMemo(() => (project === "all" ? items : items.filter((i) => i.project === project)), [items, project]);
@@ -177,6 +180,7 @@ export function WorkBoard({
           </select>
         </div>
       </header>
+      {statsOn && project !== "all" && <HumanTime cwd={project} />}
       {loadError && <p className="hint err wk-load-error">{loadError}</p>}
       {items.length === 0 ? (
         <div className="board-empty">

@@ -575,6 +575,17 @@ mockIPC(
         return args.candidates;
       case "diff_scope":
         return { root: dev("web"), diff: DIFF, truncated: false };
+      case "pr_history": {
+        // Human time (Work board, one project picked): mostly agent PRs with bot reviews, one person, one revert.
+        const at = (h: number) => new Date(Date.now() - (200 - h) * 3_600_000).toISOString();
+        const bot = { login: "coderabbitai[bot]", is_bot: true };
+        return Array.from({ length: 12 }, (_, i) => ({
+          number: 100 + i, title: i === 11 ? "Revert \"feat: retry webhooks\"" : `feat: change ${i}`, body: i === 11 ? "Reverts you/repo#104" : "",
+          author: { login: "you" }, createdAt: at(i * 10), mergedAt: at(i * 10 + 3), labels: i === 6 ? [{ name: "hotfix" }] : [],
+          reviews: [{ author: bot, state: "APPROVED", submittedAt: at(i * 10 + 1) }, ...(i % 4 === 0 ? [{ author: { login: "sam" }, state: "APPROVED", submittedAt: at(i * 10 + 2) }] : [])],
+          comments: [{ author: { login: "you" }, body: "<!-- pr-verdict -->\nVerdict: PASS", createdAt: at(i * 10 + 2) }],
+        }));
+      }
       case "pr_status":
         return PRS[String(args.cwd).split("/").pop()!] ?? null;
       case "fetch_usage":

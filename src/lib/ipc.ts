@@ -1,3 +1,4 @@
+import type { GhPr } from "./humanStats";
 import type { ChatDocument } from "./attachments";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { ProviderStatus } from "./providers";
@@ -561,6 +562,8 @@ export const ipc = {
   /** The working tree against the thread's last checkpoint ("turn") or its branch's base ("branch"). */
   diffScope: (cwd: string, pane: string, scope: "turn" | "branch") => invoke<Diff>("diff_scope", { cwd, pane, scope }),
   prStatus: (cwd: string) => invoke<PrInfo | null>("pr_status", { cwd }),
+  /** The repo's last merged PRs as `gh pr list` JSON, for lib/humanStats.ts. */
+  prHistory: (cwd: string, limit?: number) => invoke<GhPr[]>("pr_history", { cwd, limit }),
   /** Stages everything, commits and returns the short SHA. */
   gitChanges: (cwd: string) => invoke<GitChange[]>("git_changes", { cwd }),
   gitCommit: (cwd: string, message: string, paths: string[]) => invoke<string>("git_commit", { cwd, message, paths }),
