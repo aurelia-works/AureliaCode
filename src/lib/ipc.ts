@@ -507,8 +507,8 @@ export const ipc = {
 
   getConfig: () => invoke<Config>("get_config"),
   saveConfig: (config: Config) => invoke<void>("save_config", { config }),
-  loadState: <T>(name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills") => invoke<T | null>("load_state", { name }),
-  saveState: (name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills", value: unknown) => invoke<void>("save_state", { name, value }),
+  loadState: <T>(name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" | "nightly") => invoke<T | null>("load_state", { name }),
+  saveState: (name: "layout" | "tasks" | "work" | "ui" | "recents" | "agents" | "prompts" | "routines" | "planner" | "teamruns" | "skills" | "nightly", value: unknown) => invoke<void>("save_state", { name, value }),
   makeScratch: (name: string) => invoke<string>("make_scratch", { name }),
   pickFolder: (start?: string) => invoke<string | null>("pick_folder", { start: start ?? null }),
   revealConfig: (file: boolean) => invoke<void>("reveal_config", { file }),
@@ -591,6 +591,9 @@ export const ipc = {
     invoke<EffortPick>("choose_effort", { account, prompt, useJudge }),
   reviewChanges: (cwd: string) => invoke<ReviewResult>("review_changes", { cwd }),
   councilReview: (cwd: string, models: string[]) => invoke<CouncilSeat[]>("council_review", { cwd, models }),
+  /** Nightly review: the council over one folder of existing code (lib/nightly.ts). */
+  councilAudit: (cwd: string, folder: string, models: string[]) => invoke<CouncilSeat[]>("council_audit", { cwd, folder, models }),
+  auditFolders: (cwd: string) => invoke<{ root: string; folders: string[] }>("audit_folders", { cwd }),
   explainChanges: (cwd: string) => invoke<string>("explain_changes", { cwd }),
   gitRevertPr: (cwd: string, number: number) => invoke<Revert>("git_revert_pr", { cwd, number }),
   chooseModel: (account: string | null, prompt: string) =>

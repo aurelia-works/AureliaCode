@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { clampUndoSeconds, UNDO_SECONDS, type ThreadPrefs } from "../../lib/prefs";
+import { runNightly } from "../../store/nightly";
 import { useUi } from "../../store/ui";
 
-type Switch = { key: Exclude<keyof ThreadPrefs, "undoSeconds" | "followUp" | "newModel" | "newEffort" | "fallback" | "councilModels" | "reviewRoundCap" | "readyScore">; label: string; hint?: string };
+type Switch = { key: Exclude<keyof ThreadPrefs, "undoSeconds" | "followUp" | "newModel" | "newEffort" | "fallback" | "councilModels" | "reviewRoundCap" | "readyScore" | "nightlyHour">; label: string; hint?: string };
 
 /** From Theo Browne's 2026-11-04 stream: review councils, proof before done, and cheap ways out. */
 const REVIEW_SWITCHES: Switch[] = [
@@ -16,6 +17,7 @@ const REVIEW_SWITCHES: Switch[] = [
   { key: "scrapAction", label: "Scrap and start over in the thread menu" },
   { key: "threadCost", label: "Thread cost on grid cards" },
   { key: "humanStats", label: "Human time on the Work board", hint: "Pick a project: approvals, comments and wait per PR, people and bots apart, with reverts and incidents" },
+  { key: "nightlyReview", label: "Nightly review of old code", hint: "Off by default: it spends OpenCode credits while you sleep" },
   { key: "agentPrompts", label: "Show sub-agent prompts", hint: "What each sub-agent was told, in the chat and on the grid feed" },
   { key: "threadFamily", label: "Thread family on cards", hint: "Which thread started this one, and how many it started" },
 ];
@@ -119,6 +121,11 @@ export function ThreadsSection() {
         <input type="number" min={0} max={20} value={prefs.reviewRoundCap} onChange={(e) => e.target.value !== "" && set({ reviewRoundCap: Math.min(20, Math.max(0, Math.round(Number(e.target.value)))) })} />
       </label>
       <p className="hint">0 means no cap. Past the cap the review page says so and suggests stopping or scrapping instead of another round.</p>
+      <label className="field">
+        <span>Runs after (hour, 0-23)</span>
+        <input type="number" min={0} max={23} value={prefs.nightlyHour} onChange={(e) => e.target.value !== "" && set({ nightlyHour: Math.min(23, Math.max(0, Math.round(Number(e.target.value)))) })} />
+      </label>
+      <p className="hint">While the app is open, the council reviews one folder of each open repo's existing code once a night (up to 3 repos), taking folders in turn. Important findings two reviewers agree on show on the Board under Found overnight. Uses the council models above, never Claude limits. <button type="button" className="link-btn" onClick={() => void runNightly()}>Run it now</button></p>
     </section>
   );
 }

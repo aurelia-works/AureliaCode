@@ -708,3 +708,42 @@ section.ht {
   margin: 2px 0 0;
   font-size: var(--fs-body);
 }
+
+/* Found overnight: the nightly review's agreed findings (components/OvernightCard.tsx), styled like Signals. */
+.overnight {
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-lg);
+  background: var(--surface-2);
+}
+.overnight h2 {
+  margin: 0 0 var(--sp-2);
+  font-size: var(--fs-meta);
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.overnight ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--sp-2);
+}
+.overnight li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.ov-what {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-body);
+}
+.ov-what b {
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  color: var(--text-dim);
+}

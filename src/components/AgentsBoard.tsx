@@ -11,6 +11,7 @@ import { useRuntime } from "../store/runtime";
 import { tasksForPane, useTasks } from "../store/tasks";
 import { useUi } from "../store/ui";
 import { SignalsRow } from "./planner/SignalsRow";
+import { OvernightCard } from "./OvernightCard";
 import { AgentView, openAgentView, useAgentViewOpen } from "./AgentView";
 import { CacheBadge } from "./CacheBadge";
 import { AgentChip, usePaneAgent } from "./AgentChip";
@@ -255,6 +256,7 @@ export function AgentsBoard() {
       {items.length === 0 ? (
         <>
         <SignalsRow />
+        <OvernightCard />
         <div className="board-empty">
           <SparkIcon width={28} height={28} />
           <h2>Nothing running yet</h2>
@@ -267,7 +269,12 @@ export function AgentsBoard() {
       ) : (
         <div className="board-scroll">
           {/* Who needs you comes first; the signals sit under that lane, above the rest. */}
-          {!lanes.some((l) => l.id === "needs") && <SignalsRow />}
+          {!lanes.some((l) => l.id === "needs") && (
+            <>
+              <SignalsRow />
+              <OvernightCard />
+            </>
+          )}
           {lanes.map((l) => (
             <Fragment key={l.id}>
             <section className={`lane ${l.id}`} aria-label={l.title}>
@@ -281,7 +288,12 @@ export function AgentsBoard() {
                 ))}
               </div>
             </section>
-            {l.id === "needs" && <SignalsRow />}
+            {l.id === "needs" && (
+              <>
+                <SignalsRow />
+                <OvernightCard />
+              </>
+            )}
             </Fragment>
           ))}
         </div>
