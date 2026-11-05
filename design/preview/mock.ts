@@ -114,15 +114,15 @@ const SCREENS: Record<string, string> = {
   p8: claudeScreen(dev("web"), [`${col(90, ">")} ${dim("Try \"refactor the router\"")}`]),
 };
 
-const PANES: Record<string, { cwd: string; account?: string; agent?: string; launcher?: boolean; mode?: "chat" }> = {
+const PANES: Record<string, { cwd: string; account?: string; agent?: string; launcher?: boolean; mode?: "chat"; openedBy?: string }> = {
   p1: { cwd: dev("api-server"), account: "claude" },
   p2: { cwd: dev("web"), account: "claude-b" },
   p3: { cwd: dev("docs"), account: "work" },
   p4: { cwd: dev("payments"), account: "claude" },
   p5: { cwd: dev("infra"), account: "claude-b" },
   p6: { cwd: dev("api-server"), agent: "codex:oss" },
-  p7: { cwd: dev("web") },
-  p8: { cwd: dev("web"), account: "work" },
+  p7: { cwd: dev("web"), openedBy: "p2" },
+  p8: { cwd: dev("web"), account: "work", openedBy: "p2" },
   p9: { cwd: dev("api-server"), launcher: true },
   p10: params.get("opencode") === "1" ? { cwd: dev("web"), mode: "chat", provider: "opencode", chatModel: "opencode-go/deepseek-v4.1-flash" } : { cwd: dev("web"), account: "claude", mode: "chat" },
 };

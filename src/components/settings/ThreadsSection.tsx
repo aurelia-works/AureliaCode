@@ -16,6 +16,7 @@ const REVIEW_SWITCHES: Switch[] = [
   { key: "scrapAction", label: "Scrap and start over in the thread menu" },
   { key: "threadCost", label: "Thread cost on grid cards" },
   { key: "agentPrompts", label: "Show sub-agent prompts", hint: "What each sub-agent was told, in the chat and on the grid feed" },
+  { key: "threadFamily", label: "Thread family on cards", hint: "Which thread started this one, and how many it started" },
 ];
 
 const SWITCHES: Switch[] = [

@@ -3141,3 +3141,23 @@ textarea::placeholder {
 .tc-cost {
   color: var(--text-faint);
 }
+
+/* Thread family: which thread started this one, and how many it started (lib/threadFamily.ts). */
+.tc-family {
+  color: var(--text-dim, var(--text-faint));
+  font: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+}
+button.tc-family {
+  cursor: pointer;
+  max-width: 22ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+button.tc-family:hover {
+  color: var(--text);
+  text-decoration: underline;
+}

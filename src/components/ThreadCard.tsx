@@ -2,6 +2,7 @@ import { basename, formatCost, formatTokens } from "../lib/format";
 import { useChat } from "../lib/chat";
 import type { DiffStat as DiffStatData } from "../lib/ipc";
 import { chatIcon } from "../lib/threadOrder";
+import { familyOf } from "../lib/threadFamily";
 import { liveToolLabel } from "../lib/toolPhrase";
 import { useAgents } from "../store/agents";
 import { useGit } from "../store/git";
@@ -44,6 +45,9 @@ export interface ThreadSummary {
   age?: string;
   /** "$0.84 · 412k tokens" so far, for chats; undefined when nothing was spent or the switch is off. */
   cost?: string;
+  /** The thread that started this one (aurelia_open_pane), and the threads this one started. */
+  parent?: { id: string; title: string };
+  children?: number;
 }
 
 /** Everything a thread row or card says about a thread, from one place, so the grid, the board and the list agree. */
@@ -60,6 +64,12 @@ export function useThreadSummary(paneId: string, cwd?: string): ThreadSummary {
   const usd = useLayout((s) => s.panes[paneId]?.chatCost ?? 0);
   const tokens = useLayout((s) => s.panes[paneId]?.chatTokens ?? 0);
   const costOn = useUi((s) => s.prefs.threadCost);
+  const familyOn = useUi((s) => s.prefs.threadFamily);
+  // Primitives only, so the selectors don't hand back a fresh object every render.
+  const parent = useLayout((s) => (familyOn ? familyOf(s.panes, paneId).parent : undefined));
+  const children = useLayout((s) => (familyOn ? familyOf(s.panes, paneId).children.length : 0));
+  const parentTitle = useLayout((s) => (parent ? s.panes[parent]?.title : undefined));
+  const parentTask = useTasks((s) => (parent ? tasksForPane(s.projects, parent)[0]?.title : undefined));
 
   const v: Visual = agent ? visualOf(agent) : chatIcon(chat, approvals);
   const folder = basename(dir) || "this folder";
@@ -88,6 +98,8 @@ export function useThreadSummary(paneId: string, cwd?: string): ThreadSummary {
     stat: v === "idle" ? undefined : stat,
     age: agent ? since(Date.now() - agent.updatedAt) : undefined,
     cost: costOn && tokens > 0 ? `${formatCost(usd)} · ${formatTokens(tokens)} tokens` : undefined,
+    parent: parent ? { id: parent, title: parentTitle ?? parentTask ?? "another thread" } : undefined,
+    children: children || undefined,
   };
 }
 
@@ -110,6 +122,12 @@ export function ThreadMeta({ t }: { t: ThreadSummary }) {
       {t.branch && <span className="mono tc-branch">{t.branch}</span>}
       <DiffStat stat={t.stat} />
       {t.cost && <span className="num tc-cost" title="What this thread has spent so far">{t.cost}</span>}
+      {t.parent && (
+        <button type="button" className="tc-family" title="Go to the thread that started this one" onClick={(e) => { e.stopPropagation(); useLayout.getState().focusPane(t.parent!.id); }}>
+          ↳ from {t.parent.title}
+        </button>
+      )}
+      {t.children && <span className="tc-family num">Started {t.children} {t.children === 1 ? "thread" : "threads"}</span>}
     </p>
   );
 }
