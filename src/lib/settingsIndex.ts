@@ -7,8 +7,8 @@
 export const PARTS = {
   general: { label: "General", keywords: "workspace folder editor restore resume keep alive notifications prompt cache" },
   browser: { label: "Browser", keywords: "links local system search engine duckduckgo google bing" },
-  appearance: { label: "Appearance", keywords: "theme palette dark light system terminal font contrast chat width motion animation wordmark" },
-  "thread-view": { label: "Threads & grid", keywords: "thread list right grid status cards board signals" },
+  appearance: { label: "Appearance", keywords: "theme palette dark light system terminal font contrast chat width motion animation wordmark greeting hourly name" },
+  "thread-view": { label: "Threads & grid", keywords: "thread list right grid status cards board signals background inbox alerts" },
   "new-threads": { label: "New threads", keywords: "model effort fallback provider limit opencode permissions permission mode start in claude panes plan bypass workspace worktree default new thread git branch cleanup" },
   effort: { label: "Auto effort", keywords: "model effort auto judge" },
   chat: { label: "Chat", keywords: "send enter command enter queue steer follow-up timestamps messages" },
