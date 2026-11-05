@@ -1,6 +1,6 @@
 import { UndoToast } from "./components/UndoToast";
 import { CaptureBox } from "./components/planner/CaptureBox";
-import { lazy, Suspense, useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import { AccountPicker } from "./components/AccountPicker";
 import { GridPicker } from "./components/GridPicker";
 import { PromptFill } from "./components/PromptFill";
@@ -17,41 +17,49 @@ import { activeTab, useLayout } from "./store/layout";
 import { useUi } from "./store/ui";
 
 // Screens you open now and then load on first use, so the window shows sooner (`npm run perf`).
-const screens = {
-  weekly: () => import("./components/planner/WeeklyPage"),
-  roadmap: () => import("./components/planner/RoadmapPage"),
-  history: () => import("./components/HistoryPanel"),
-  permissions: () => import("./components/PermissionsSheet"),
-  agents: () => import("./components/AgentsBoard"),
-  palette: () => import("./components/CommandPalette"),
-  review: () => import("./components/DiffReview"),
-  checkpoints: () => import("./components/Checkpoints"),
-  settings: () => import("./components/settings/SettingsPage"),
-  work: () => import("./components/WorkBoard"),
-};
-const WeeklyPage = lazy(() => screens.weekly().then((m) => ({ default: m.WeeklyPage })));
-const RoadmapPage = lazy(() => screens.roadmap().then((m) => ({ default: m.RoadmapPage })));
-const HistoryPanel = lazy(() => screens.history().then((m) => ({ default: m.HistoryPanel })));
-const PermissionsSheet = lazy(() => screens.permissions().then((m) => ({ default: m.PermissionsSheet })));
-const AgentsBoard = lazy(() => screens.agents().then((m) => ({ default: m.AgentsBoard })));
-const CommandPalette = lazy(() => screens.palette().then((m) => ({ default: m.CommandPalette })));
-const DiffReview = lazy(() => screens.review().then((m) => ({ default: m.DiffReview })));
-const Checkpoints = lazy(() => screens.checkpoints().then((m) => ({ default: m.Checkpoints })));
-const SettingsPage = lazy(() => screens.settings().then((m) => ({ default: m.SettingsPage })));
-const WorkBoard = lazy(() => screens.work().then((m) => ({ default: m.WorkBoard })));
+// Not React.lazy: once a screen's code is in, it renders in the same frame instead of after
+// Suspense's reveal delay, and the idle preload below makes even the first open immediate.
+type Loaded<P> = ComponentType<P> | null;
+function onDemand<P extends object>(load: () => Promise<ComponentType<P>>) {
+  let loaded: Loaded<P> = null;
+  const fetch = () => load().then((c) => (loaded = c));
+  function Screen(props: P) {
+    const [, rerender] = useState(0);
+    useEffect(() => {
+      if (!loaded) void fetch().then(() => rerender((n) => n + 1));
+    }, []);
+    const C = loaded;
+    return C ? <C {...props} /> : null;
+  }
+  return Object.assign(Screen, { fetch });
+}
+const WeeklyPage = onDemand(() => import("./components/planner/WeeklyPage").then((m) => m.WeeklyPage));
+const RoadmapPage = onDemand(() => import("./components/planner/RoadmapPage").then((m) => m.RoadmapPage));
+const HistoryPanel = onDemand(() => import("./components/HistoryPanel").then((m) => m.HistoryPanel));
+const PermissionsSheet = onDemand(() => import("./components/PermissionsSheet").then((m) => m.PermissionsSheet));
+const AgentsBoard = onDemand(() => import("./components/AgentsBoard").then((m) => m.AgentsBoard));
+const CommandPalette = onDemand(() => import("./components/CommandPalette").then((m) => m.CommandPalette));
+const DiffReview = onDemand(() => import("./components/DiffReview").then((m) => m.DiffReview));
+const Checkpoints = onDemand(() => import("./components/Checkpoints").then((m) => m.Checkpoints));
+const SettingsPage = onDemand(() => import("./components/settings/SettingsPage").then((m) => m.SettingsPage));
+const WorkBoard = onDemand(() => import("./components/WorkBoard").then((m) => m.WorkBoard));
+const screens = [WeeklyPage, RoadmapPage, HistoryPanel, PermissionsSheet, AgentsBoard, CommandPalette, DiffReview, Checkpoints, SettingsPage, WorkBoard];
 
-/** Fetches every lazy screen once the app is idle, so the first open doesn't wait on a load. */
+/** Loads every on-demand screen's code (the preview harness waits on it before screenshots). */
+export const loadScreens = () => Promise.all(screens.map((s) => s.fetch()));
+
+/** Fetches every on-demand screen once the app is idle, so the first open doesn't wait on a load. */
 export function preloadScreens() {
-  const go = () => Object.values(screens).forEach((load) => void load().catch(() => {}));
+  const go = () => void loadScreens().catch(() => {});
   if ("requestIdleCallback" in window) requestIdleCallback(go, { timeout: 3000 });
   else setTimeout(go, 1500);
 }
 
-/** Mounts its screen the first time it opens and keeps it mounted after, as it was before it loaded lazily. */
+/** Mounts its screen the first time it opens and keeps it mounted after, as it was before it loaded on demand. */
 function OnceOpened({ open, children }: { open: boolean; children: ReactNode }) {
   const [seen, setSeen] = useState(open);
   if (open && !seen) setSeen(true);
-  return seen || open ? <Suspense fallback={null}>{children}</Suspense> : null;
+  return seen || open ? children : null;
 }
 
 /**
@@ -132,25 +140,19 @@ export function App() {
               </div>
             ))}
           </div>
-          {mode === "agents" && (
-            <Suspense fallback={null}>
-              <AgentsBoard />
-            </Suspense>
-          )}
+          {mode === "agents" && <AgentsBoard />}
           {mode === "work" && (
-            <Suspense fallback={null}>
-              <WorkBoard
-                // The launch path stays where it is: Start opens the existing picker with the item
-                // as its task. The owner wires that to the thread/worktree creation next.
-                onStart={(item) =>
-                  useUi.getState().set({ accountPicker: { target: "tab", task: { project: item.project, id: item.id, title: item.title } } })
-                }
-                onReview={(item) => {
-                  if (item.paneId && useLayout.getState().panes[item.paneId]) useLayout.getState().focusPane(item.paneId);
-                  useUi.getState().set({ reviewOpen: true });
-                }}
-              />
-            </Suspense>
+            <WorkBoard
+              // The launch path stays where it is: Start opens the existing picker with the item
+              // as its task. The owner wires that to the thread/worktree creation next.
+              onStart={(item) =>
+                useUi.getState().set({ accountPicker: { target: "tab", task: { project: item.project, id: item.id, title: item.title } } })
+              }
+              onReview={(item) => {
+                if (item.paneId && useLayout.getState().panes[item.paneId]) useLayout.getState().focusPane(item.paneId);
+                useUi.getState().set({ reviewOpen: true });
+              }}
+            />
           )}
         </main>
         {agentPanelOpen && mode === "terminals" && <RightPanel />}
@@ -166,16 +168,8 @@ export function App() {
       <OnceOpened open={paletteOpen}>
         <CommandPalette />
       </OnceOpened>
-      {historyOpen && (
-        <Suspense fallback={null}>
-          <HistoryPanel />
-        </Suspense>
-      )}
-      {permissionsOpen && (
-        <Suspense fallback={null}>
-          <PermissionsSheet />
-        </Suspense>
-      )}
+      {historyOpen && <HistoryPanel />}
+      {permissionsOpen && <PermissionsSheet />}
       <CaptureBox />
       <OnceOpened open={roadmapOpen}>
         <RoadmapPage />

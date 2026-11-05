@@ -1060,4 +1060,9 @@ if (view === "chat" && params.get("scroll") === "up") {
   if (log) log.scrollTop = 0;
   await sleep(100);
 }
+// Screens load lazily (App.tsx): screenshots wait until their code is in and React has drawn them.
+await (await import("../../src/App.tsx")).loadScreens();
+await new Promise((r) => setTimeout(r, 50));
+// A screen that just mounted is still fading in; finite animations settle first (spinners loop forever).
+await Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {})));
 (window as any).__ready = true;
