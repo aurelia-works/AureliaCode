@@ -3117,6 +3117,8 @@ textarea::placeholder {
   left: 0;
   right: auto;
   min-width: 0;
+  /* Above the notice stack (z 55), which otherwise sits on a two-column card's menu. */
+  z-index: 60;
 }
 .chat.brief .chat-pick-menu [role="option"] {
   min-width: 0;
@@ -3275,6 +3277,14 @@ textarea::placeholder {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+/* The tooltip is a span inside the button, so the label's nowrap and ellipsis would
+   clip it to one cut line. The tip shows the whole string and wraps. */
+.chat-pick-btn > span.chat-pick-tip,
+.pane.focused .chat.brief .chat-card-end .chat-pick-btn > span.chat-pick-tip {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 /* Grid card activity feed: the agent's last steps, newest last, so a glance says what it has been doing. */
 .pane-brief-feed {

@@ -938,6 +938,12 @@ async function pickerMatrix(browser, base) {
     }
 
     if (long.spanCut) {
+      await page.evaluate(async (text) => {
+        const mod = await import("/src/store/layout.ts");
+        const id = document.querySelector(".tab-content:not(.hidden) .pane.focused")?.dataset.paneId;
+        const cur = mod.useLayout.getState().panes[id]?.goal;
+        if (cur) mod.useLayout.getState().updatePane(id, { goal: { ...cur, text } });
+      }, LONG_GOAL);
       await modelBtn.hover();
       await page.waitForFunction(() => {
         const tip = document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-tip");
@@ -946,20 +952,34 @@ async function pickerMatrix(browser, base) {
       const hover = await page.evaluate(() => {
         const btn = document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-btn");
         const tip = btn.querySelector(".chat-pick-tip");
-        const pane = btn.closest(".pane").getBoundingClientRect();
+        const paneEl = btn.closest(".pane");
+        const pane = paneEl.getBoundingClientRect();
         const r = tip.getBoundingClientRect();
         const cs = getComputedStyle(tip);
+        const hit = (el) => {
+          if (!el) return false;
+          const b = el.getBoundingClientRect();
+          if (b.width < 1 || b.height < 1) return false;
+          return r.left < b.right - 0.5 && r.right > b.left + 0.5 && r.top < b.bottom - 0.5 && r.bottom > b.top + 0.5;
+        };
         return {
           on: tip.classList.contains("on"),
           display: cs.display,
           text: tip.textContent.trim(),
+          wrapped: tip.scrollHeight <= tip.clientHeight + 1 && tip.scrollWidth <= tip.clientWidth + 1,
           inside: r.width > 40 && r.height > 8 && r.left >= pane.left - 1 && r.right <= pane.right + 1 && r.top >= pane.top - 1 && r.bottom <= pane.bottom + 1,
+          coversActs: [...paneEl.querySelectorAll(".pane-brief-goal-acts button")].some(hit),
+          coversGoal: hit(paneEl.querySelector(".pane-brief-goal-text")),
+          coversField: hit(paneEl.querySelector(".chat-card textarea")),
           box: { l: Math.round(r.left), t: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) },
         };
       });
       report.picker[label].hover = hover;
       if (!hover.on || hover.display === "none" || !hover.text.includes(LONG_MODEL)) fail(`${label} hover tip is "${hover.text}"`);
+      if (!hover.wrapped) fail(`${label} hover tip clips the full label`);
       if (!hover.inside) fail(`${label} hover tip is outside the pane ${JSON.stringify(hover.box)}`);
+      if (hover.coversActs || hover.coversGoal) fail(`${label} hover tip covers the goal actions ${JSON.stringify(hover.box)}`);
+      if (hover.coversField) fail(`${label} hover tip covers the composer field ${JSON.stringify(hover.box)}`);
       await page.evaluate(() => {
         const btn = document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-btn");
         btn.focus({ focusVisible: true });
@@ -972,6 +992,72 @@ async function pickerMatrix(browser, base) {
       });
       report.picker[label].focus = focus;
       if (!focus.active || !focus.on || !focus.text.includes(LONG_MODEL)) fail(`${label} keyboard tip is "${focus.text}" (active ${focus.active})`);
+    }
+    await context.close();
+  }
+}
+
+async function visibleMenuWords(page) {
+  return page.evaluate(() => {
+    const pane = document.querySelector(".tab-content:not(.hidden) .pane.focused");
+    const menu = pane?.querySelector(".chat-card-end .chat-pick-menu");
+    const button = pane?.querySelector(".chat-card-end .chat-pick-btn");
+    if (!menu || !button) return { missing: true };
+    const mr = menu.getBoundingClientRect();
+    const br = button.getBoundingClientRect();
+    const pr = pane.getBoundingClientRect();
+    const words = [...menu.querySelectorAll("button[role=option]")].flatMap((b) => {
+      const r = b.getBoundingClientRect();
+      const top = Math.max(r.top, mr.top);
+      const bot = Math.min(r.bottom, mr.bottom);
+      if (bot - top < 8) return [];
+      const x = Math.min(mr.right - 8, Math.max(mr.left + 8, r.left + 16));
+      const y = top + (bot - top) / 2;
+      const hit = document.elementFromPoint(x, y);
+      const name = b.querySelector(".chat-pick-name")?.textContent?.trim() ?? "";
+      return [{ name, owns: !!(hit && b.contains(hit)) }];
+    });
+    return {
+      paneW: Math.round(pr.width),
+      btnW: Math.round(br.width * 10) / 10,
+      menuW: Math.round(mr.width * 10) / 10,
+      menuL: Math.round(mr.left),
+      btnL: Math.round(br.left),
+      words,
+    };
+  });
+}
+
+/** One column (the grid folded) and two columns, sidebar open. A short model control must still have clickable menu words. */
+async function narrowMenus(browser, base) {
+  const cases = [
+    { w: 800, h: 900, note: "800 one-column" },
+    { w: 1100, h: 700, note: "1100 two-column", tab: "t2", focus: "p8" },
+    { w: 880, h: 700, note: "880 two-column", tab: "t2", focus: "p8" },
+  ];
+  for (const c of cases) {
+    const context = await browser.newContext({ viewport: { width: c.w, height: c.h }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: "dark" });
+    const page = await context.newPage();
+    await prepare(page, base, "theme=dark&view=threads");
+    if (!(await page.locator(".navigator").count())) fail(`${c.note} sidebar is closed`);
+    if (c.tab) {
+      await page.evaluate(async ({ tab, focus }) => {
+        const { useLayout } = await import("/src/store/layout.ts");
+        useLayout.getState().activateTab(tab);
+        if (focus) useLayout.getState().focusPane(focus);
+      }, c);
+      await page.waitForTimeout(200);
+    }
+    await openPick(page, "model");
+    const info = await visibleMenuWords(page);
+    report.picker[c.note] = info;
+    if (info.missing) fail(`${c.note} model menu did not open`);
+    else {
+      if (info.menuW < 48) fail(`${c.note} menu is ${info.menuW}px wide`);
+      const missed = info.words.filter((w) => !w.owns).map((w) => w.name);
+      if (!info.words.length) fail(`${c.note} menu has no visible words`);
+      if (missed.length) fail(`${c.note} menu words are not clickable: ${missed.join(", ")} (button ${info.btnW}px, menu ${info.menuW}px)`);
+      if (Math.abs(info.menuL - info.btnL) > 2) fail(`${c.note} menu left ${info.menuL} left its trigger ${info.btnL}`);
     }
     await context.close();
   }
@@ -1150,6 +1236,7 @@ try {
   }
   await goalMatrix(browser, base);
   await pickerMatrix(browser, base);
+  await narrowMenus(browser, base);
 } finally {
   await browser.close();
   vite?.kill();

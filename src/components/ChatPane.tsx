@@ -7,7 +7,7 @@ import { basename, formatCost, formatDuration, formatTokens } from "../lib/forma
 import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
 import { cleanTextarea } from "../lib/controlChars";
-import { anchoredMenuWidth, pickFullText } from "../lib/pickMenu";
+import { anchoredMenuWidth, pickFullText, pickTipTop } from "../lib/pickMenu";
 import { liveToolLabel, pickBySeed, THINKING, toolPhrase } from "../lib/toolPhrase";
 import { agentPrompt, PROMPT_HIDDEN } from "../lib/agentPrompt";
 import { ACCEPT, capError, forSend, sendProblem, sentBytes, settleRead, type Attachment } from "../lib/attachments";
@@ -1974,22 +1974,36 @@ interface PickGroup {
   more?: { label: string; onClick: () => void };
 }
 
-/** Put a cut label's full text above its control, kept inside the pane. */
+/** Put a cut label's full text beside its control, kept inside the pane and off the goal actions. */
 function placePickTip(anchor: HTMLElement) {
   const tip = anchor.querySelector<HTMLElement>(":scope > .chat-pick-tip");
   if (!tip) return;
-  const pane = anchor.closest(".pane")?.getBoundingClientRect();
+  const paneEl = anchor.closest(".pane");
+  const pane = paneEl?.getBoundingClientRect();
   const r = anchor.getBoundingClientRect();
   const boundL = (pane?.left ?? 8) + 8;
   const boundR = (pane?.right ?? window.innerWidth) - 8;
-  const boundT = (pane?.top ?? 8) + 4;
-  const boundB = (pane?.bottom ?? window.innerHeight) - 4;
-  const width = Math.max(80, Math.min(280, boundR - boundL));
+  const minTop = (pane?.top ?? 8) + 4;
+  const maxBottom = (pane?.bottom ?? window.innerHeight) - 4;
+  const width = Math.max(80, Math.min(280, Math.max(0, boundR - boundL)));
   tip.style.width = `${width}px`;
   const h = tip.offsetHeight;
+  // Only the card's own model button. A menu row keeps the simple above/below place;
+  // the button is the control on the lower edge, where "above" covers Check now and Stop goal.
+  const cardBtn = anchor.classList.contains("chat-pick-btn") && !!anchor.closest(".chat.brief");
+  const actions = cardBtn ? paneEl?.querySelector(".pane-brief-goal-acts")?.getBoundingClientRect() : null;
+  const field = cardBtn ? paneEl?.querySelector("textarea")?.getBoundingClientRect() : null;
   const left = Math.min(Math.max(boundL, r.left), Math.max(boundL, boundR - width));
-  let top = r.top - h - 6;
-  if (top < boundT) top = Math.min(r.bottom + 6, boundB - h);
+  const top = pickTipTop({
+    anchorTop: r.top,
+    anchorBottom: r.bottom,
+    tipHeight: h,
+    minTop,
+    maxBottom,
+    actionsBottom: actions && actions.height > 0 ? actions.bottom : undefined,
+    fieldTop: field && field.height > 0 ? field.top : undefined,
+    fieldBottom: field && field.height > 0 ? field.bottom : undefined,
+  });
   tip.style.left = `${left}px`;
   tip.style.top = `${top}px`;
 }
