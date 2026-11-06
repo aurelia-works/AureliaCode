@@ -183,29 +183,44 @@ jobs:
               stderr=open(log / "stderr.txt", "w"),
               start_new_session=True,
           )
+          (log / "pid").write_text(str(proc.pid))
           time.sleep(8)
           alive = proc.poll() is None
           print(f"alive={alive} pid={proc.pid} returncode={proc.returncode}")
-          for sig in (signal.SIGTERM, signal.SIGKILL):
-              try:
-                  os.killpg(proc.pid, sig)
-              except ProcessLookupError:
-                  pass
+          # The GUI process can refuse killpg (EPERM) after it attaches to the
+          # window server. A refused kill does not undo the 8s start.
+          for sig, name in ((signal.SIGTERM, "TERM"), (signal.SIGKILL, "KILL")):
+              for fn in (
+                  lambda s, p=proc.pid: os.killpg(p, s),
+                  lambda s, p=proc.pid: os.kill(p, s),
+              ):
+                  try:
+                      fn(sig)
+                      print(f"sent {name}")
+                  except ProcessLookupError:
+                      print(f"{name}: already gone")
+                  except OSError as err:
+                      print(f"{name}: {err}")
               time.sleep(1)
           (log / "result.txt").write_text("alive\n" if alive else f"exited {proc.returncode}\n")
           raise SystemExit(0 if alive else 1)
           PY
           code=$?
           set -euo pipefail
+          if [ -f "$log/pid" ]; then
+            kill -TERM "$(cat "$log/pid")" 2>/dev/null || true
+            sleep 1
+            kill -KILL "$(cat "$log/pid")" 2>/dev/null || true
+          fi
           echo "--- stdout ---"
           cat "$log/stdout.txt" || true
           echo "--- stderr ---"
           cat "$log/stderr.txt" || true
           if [ "$code" -eq 0 ]; then
             {
-              echo "Smoke: launched \`$APP_BIN\` on this macos-15-intel runner. It was still running after 8 seconds, then the job killed it."
+              echo "Smoke: launched \`$APP_BIN\` on this macos-15-intel runner. It was still running after 8 seconds. The job then signalled it."
               echo ""
-              echo "That is a same-machine process start only. It is not a Gatekeeper install, not a click-through, and not an Apple Silicon run."
+              echo "That is a same-machine process start only. It is not a Gatekeeper install, not a click-through, and not an Apple Silicon run. stdout and stderr were empty, so this does not show a window."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$code"
