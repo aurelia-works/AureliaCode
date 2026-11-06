@@ -2491,7 +2491,7 @@ body.resizing-row .rail-grip {
   flex-wrap: wrap;
   gap: 4px 12px;
   font-size: var(--fs-meta);
-  color: var(--text-faint);
+  color: var(--text-dim);
 }
 .chat-goal-checking {
   color: var(--accent);
@@ -3058,8 +3058,10 @@ body.resizing-row .rail-grip {
   padding: 0 9px;
   font-size: var(--fs-meta);
 }
-/* The goal reads in full: it wraps rather than cutting off what done means. */
+/* The goal reads in full, at the title size, so it scans ahead of the round and the last check. */
 .chat-goal-text {
+  font-size: var(--fs-title);
+  font-weight: 600;
   white-space: normal;
   overflow: visible;
 }
@@ -3142,6 +3144,7 @@ button.primary:disabled,
   -webkit-line-clamp: 2;
   white-space: normal;
   overflow: hidden;
+  font-weight: 600;
 }
 .th-m {
   flex-wrap: wrap;
