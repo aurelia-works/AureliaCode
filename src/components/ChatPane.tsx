@@ -7,6 +7,7 @@ import { basename, formatCost, formatDuration, formatTokens } from "../lib/forma
 import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
 import { cleanTextarea } from "../lib/controlChars";
+import { anchoredMenuWidth, pickFullText } from "../lib/pickMenu";
 import { liveToolLabel, pickBySeed, THINKING, toolPhrase } from "../lib/toolPhrase";
 import { agentPrompt, PROMPT_HIDDEN } from "../lib/agentPrompt";
 import { ACCEPT, capError, forSend, sendProblem, sentBytes, settleRead, type Attachment } from "../lib/attachments";
@@ -1973,13 +1974,72 @@ interface PickGroup {
   more?: { label: string; onClick: () => void };
 }
 
+/** Put a cut label's full text above its control, kept inside the pane. */
+function placePickTip(anchor: HTMLElement) {
+  const tip = anchor.querySelector<HTMLElement>(":scope > .chat-pick-tip");
+  if (!tip) return;
+  const pane = anchor.closest(".pane")?.getBoundingClientRect();
+  const r = anchor.getBoundingClientRect();
+  const boundL = (pane?.left ?? 8) + 8;
+  const boundR = (pane?.right ?? window.innerWidth) - 8;
+  const boundT = (pane?.top ?? 8) + 4;
+  const boundB = (pane?.bottom ?? window.innerHeight) - 4;
+  const width = Math.max(80, Math.min(280, boundR - boundL));
+  tip.style.width = `${width}px`;
+  const h = tip.offsetHeight;
+  const left = Math.min(Math.max(boundL, r.left), Math.max(boundL, boundR - width));
+  let top = r.top - h - 6;
+  if (top < boundT) top = Math.min(r.bottom + 6, boundB - h);
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+}
+
 function PickOption({ o, on, focus, onPick }: { o: Option; on: boolean; focus: boolean; onPick: () => void }) {
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const descRef = useRef<HTMLSpanElement>(null);
+  const rowRef = useRef<HTMLButtonElement>(null);
+  const [cut, setCut] = useState(false);
+  const [tipOn, setTipOn] = useState(false);
+  useLayoutEffect(() => {
+    const over = (el: HTMLElement | null) => !!el?.textContent?.trim() && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
+    const measure = () => setCut(over(nameRef.current) || over(descRef.current));
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (nameRef.current) ro.observe(nameRef.current);
+    if (descRef.current) ro.observe(descRef.current);
+    return () => ro.disconnect();
+  }, [o.label, o.desc]);
+  const full = pickFullText(o.label, o.desc);
+  const text = o.disabled && !full.includes(o.disabled) ? `${full}. ${o.disabled}` : full;
+  useLayoutEffect(() => {
+    if (tipOn && rowRef.current) placePickTip(rowRef.current);
+  }, [tipOn, text]);
   return (
-    <button type="button" role="option" className={o.tone} disabled={!!o.disabled} title={o.disabled} aria-selected={on} autoFocus={focus} onClick={onPick}>
+    <button
+      type="button"
+      role="option"
+      ref={rowRef}
+      className={o.tone}
+      disabled={!!o.disabled}
+      title={cut ? text : o.disabled}
+      aria-label={cut ? text : undefined}
+      aria-selected={on}
+      autoFocus={focus}
+      onClick={onPick}
+      onMouseEnter={() => cut && setTipOn(true)}
+      onMouseLeave={() => setTipOn(false)}
+      onFocus={() => cut && setTipOn(true)}
+      onBlur={() => setTipOn(false)}
+    >
       <span className="chat-pick-icon">{o.icon}</span>
-      <span className="chat-pick-name">{o.label}</span>
-      <span className="chat-pick-desc">{o.desc}</span>
+      <span className="chat-pick-name" ref={nameRef}>{o.label}</span>
+      <span className="chat-pick-desc" ref={descRef}>{o.desc}</span>
       {on && <CheckIcon className="chat-pick-check" />}
+      {cut && (
+        <span className={`chat-pick-tip${tipOn ? " on" : ""}`} role="tooltip" aria-hidden="true">
+          {text}
+        </span>
+      )}
     </button>
   );
 }
@@ -2013,14 +2073,63 @@ function Picker({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const [labelCut, setLabelCut] = useState(false);
+  const [labelTip, setLabelTip] = useState(false);
   useEffect(() => {
     if (!open) return;
+    setLabelTip(false);
     const off = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
     addEventListener("mousedown", off);
     return () => removeEventListener("mousedown", off);
   }, [open]);
+  // A narrow grid card unpositions pickers so a menu can be as wide as the pane. That
+  // pins the menu to the pane's left, under the account control. Keep this menu on its
+  // own trigger: the left edge is the trigger, and the width is the room to the pane.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const pick = ref.current;
+    if (!pick?.closest(".chat.brief")) return;
+    const menu = pick.querySelector<HTMLElement>(":scope > .chat-pick-menu");
+    if (!menu) return;
+    const place = () => {
+      const pane = pick.closest(".pane");
+      if (!pane) return;
+      const box = pick.getBoundingClientRect();
+      const paneBox = pane.getBoundingClientRect();
+      const width = anchoredMenuWidth(box.left, paneBox.right);
+      menu.style.left = "0px";
+      menu.style.right = "auto";
+      menu.style.width = `${width}px`;
+      // The menu opens upward. Cap it to the room inside the pane so the list is not clipped.
+      menu.style.maxHeight = `${Math.max(120, Math.min(420, box.top - paneBox.top - 12))}px`;
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(pick);
+    const pane = pick.closest(".pane");
+    if (pane) ro.observe(pane);
+    return () => ro.disconnect();
+  }, [open]);
+  useLayoutEffect(() => {
+    const el = labelRef.current;
+    if (!el) {
+      setLabelCut(false);
+      return;
+    }
+    const measure = () => setLabelCut(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [label]);
+  const shown = labelCut && label ? pickFullText(label, title) : title;
+  useLayoutEffect(() => {
+    const btn = ref.current?.querySelector<HTMLElement>(":scope > .chat-pick-btn");
+    if (labelTip && btn) placePickTip(btn);
+  }, [labelTip, shown]);
   const close = () => {
     setOpen(false);
     ref.current?.querySelector<HTMLButtonElement>(".chat-pick-btn")?.focus();
@@ -2032,12 +2141,22 @@ function Picker({
         className={`chat-pick-btn${open ? " on" : ""}${tone ? ` ${tone}` : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={title}
+        aria-label={labelCut && label ? shown : undefined}
+        title={shown}
         onClick={() => setOpen((o) => !o)}
+        onMouseEnter={() => !open && labelCut && setLabelTip(true)}
+        onMouseLeave={() => setLabelTip(false)}
+        onFocus={() => !open && labelCut && setLabelTip(true)}
+        onBlur={() => setLabelTip(false)}
       >
         {icon}
-        {label && <span>{label}</span>}
+        {label && <span ref={labelRef}>{label}</span>}
         <ChevronIcon className="chat-chev down" />
+        {labelCut && label && (
+          <span className={`chat-pick-tip${labelTip ? " on" : ""}`} role="tooltip" aria-hidden="true">
+            {shown}
+          </span>
+        )}
       </button>
       {open && (
         <div

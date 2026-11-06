@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { briefScrollDelta, nextBriefScrollTop } from "../lib/briefScroll";
 import { recentSteps } from "../lib/recentSteps";
 import { useAgents } from "../store/agents";
 import { goalRound } from "../lib/goalLoop";
@@ -44,10 +45,60 @@ export function PaneBrief({ paneId, cwd }: { paneId: string; cwd?: string }) {
   const base = useReviews((s) => s.base[paneId]);
   const proof = (v === "done" || (v === "idle" && (goal || review))) ? proofOf({ bar: prefs.readyScore, goal, review: markOf(review), stat }) : null;
   const grown = diffGrowth(base, stat);
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [scrolls, setScrolls] = useState(false);
+  useLayoutEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const measure = () => setScrolls(el.scrollHeight > el.clientHeight + 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [goal?.text, steps.length, t.detail, t.title, v, feedOn, !!grown, proof?.text]);
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.target !== e.currentTarget) return;
+    // The card is a tab stop. Shift+Tab moves to the previous control; the pane only cycles permission from empty space.
+    if (e.key === "Tab") {
+      e.stopPropagation();
+      return;
+    }
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const delta = briefScrollDelta(e.key, e.shiftKey, e.currentTarget.clientHeight);
+    if (delta === null) return;
+    const el = e.currentTarget;
+    const next = nextBriefScrollTop(el.scrollTop, delta, el.scrollHeight, el.clientHeight);
+    if (next === el.scrollTop) return;
+    e.preventDefault();
+    el.scrollTop = next;
+  };
 
   return (
-    <div className={`pane-brief ${v}`} role="status">
+    <div
+      ref={cardRef}
+      className={`pane-brief ${v}`}
+      role={scrolls ? "region" : "status"}
+      aria-label={scrolls ? `${t.title} thread card` : undefined}
+      tabIndex={scrolls ? 0 : undefined}
+      onKeyDown={onKeyDown}
+    >
       <ThreadCardHead t={t} />
+      {goal && !goal.ended && (
+        <div className="pane-brief-goal-lead">
+          <span className="pane-brief-goal-text" title={goal.text}>
+            Goal: {goal.text}
+          </span>
+          <span className="pane-brief-goal-acts">
+            <button type="button" className="btn sm" disabled={v === "working"} title={v === "working" ? "The check runs when this turn ends" : `Run \`${goal.check}\` now`} onClick={() => void runGoalCheck(paneId, (text) => void sendChat(paneId, text))}>
+              Check now
+            </button>
+            <button type="button" className="btn sm" onClick={() => stopGoal(paneId)}>
+              Stop goal
+            </button>
+          </span>
+        </div>
+      )}
       <p className="pane-brief-detail">{t.detail}</p>
       {feedOn && steps.length > 0 && (
         <ol className="pane-brief-feed" aria-label="Recent steps">
@@ -71,9 +122,6 @@ export function PaneBrief({ paneId, cwd }: { paneId: string; cwd?: string }) {
       {proof && <p className={`pane-brief-proof${proof.ok ? " ok" : ""}`}>{proof.ok ? `Proof: ${proof.text}` : proof.text}</p>}
       {goal && !goal.ended && (
         <div className="pane-brief-goal">
-          <span className="pane-brief-goal-text" title={goal.text}>
-            Goal: {goal.text}
-          </span>
           <span className="chat-goal-bar" role="progressbar" aria-label="Goal rounds used" aria-valuemin={0} aria-valuemax={goal.maxRounds} aria-valuenow={goalRound(goal)}>
             <i style={{ width: `${Math.min(100, (goalRound(goal) / goal.maxRounds) * 100)}%` }} />
           </span>
@@ -81,14 +129,6 @@ export function PaneBrief({ paneId, cwd }: { paneId: string; cwd?: string }) {
             Round {goalRound(goal)} of {goal.maxRounds}
             {goal.last && !goal.last.met ? ` · last check failed (exit ${goal.last.code})` : ""}
             {v === "working" ? " · next check runs when this turn ends" : ""}
-          </span>
-          <span className="pane-brief-goal-acts">
-            <button type="button" className="btn sm" disabled={v === "working"} title={v === "working" ? "The check runs when this turn ends" : `Run \`${goal.check}\` now`} onClick={() => void runGoalCheck(paneId, (t) => void sendChat(paneId, t))}>
-              Check now
-            </button>
-            <button type="button" className="btn sm" onClick={() => stopGoal(paneId)}>
-              Stop goal
-            </button>
           </span>
         </div>
       )}
