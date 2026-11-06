@@ -1,11 +1,21 @@
 name: macos release
 
-# Manual 0.1.0 Apple Silicon .app. This does not publish a GitHub Release.
-# workflow_dispatch runs only after this file is on the default branch.
-# macos-15 is the standard arm64 image. macos-14 retired on 2026-11-02.
-# This replaces the macos-15-intel job. There is no x86_64 release leg.
+# Apple Silicon .app. This does not publish a GitHub Release or a git tag.
+# workflow_dispatch input `version` defaults to 0.1.0-beta. A push of this
+# branch has no input, so the job uses that same default. The string must
+# match the three source versions, and it is the artifact name.
+# macos-15 is the arm64 image. There is no x86_64 release leg.
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: Version for the bundle metadata and the artifact name. Not a git tag.
+        required: false
+        default: 0.1.0-beta
+        type: string
+  push:
+    branches:
+      - cursor/macos-beta-adhoc-f7fb
 
 permissions:
   contents: read
@@ -23,7 +33,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       CARGO_TERM_COLOR: never
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-      EXPECTED_VERSION: "0.1.0"
+      EXPECTED_VERSION: ${{ inputs.version || '0.1.0-beta' }}
       APP_BUNDLE: src-tauri/target/release/bundle/macos/AureliaCode.app
       APP_BIN: src-tauri/target/release/bundle/macos/AureliaCode.app/Contents/MacOS/aurelia-space
     steps:
@@ -57,7 +67,7 @@ jobs:
           shared-key: tauri-release
           save-if: ${{ github.ref == 'refs/heads/main' }}
 
-      - name: Require version 0.1.0
+      - name: Require the dispatch version
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -71,6 +81,9 @@ jobs:
           print(f"package.json={pkg}")
           print(f"tauri.conf.json={tauri}")
           print(f"Cargo.toml={cargo}")
+          print(f"expected={expected}")
+          if not re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.+-]*", expected or ""):
+              raise SystemExit(f"version {expected!r} must be a plain token such as 0.1.0-beta")
           if not (pkg == tauri == cargo == expected):
               raise SystemExit(f"expected {expected} in package.json, tauri.conf.json and Cargo.toml")
           identity = json.loads((root / "src-tauri" / "tauri.conf.json").read_text())["bundle"]["macOS"]["signingIdentity"]
@@ -156,7 +169,7 @@ jobs:
           codesign --verify --strict --verbose=2 "$APP_BUNDLE"
           git diff --exit-code -- src-tauri/tauri.conf.json
           {
-            echo "### macOS 0.1.0 Apple Silicon bundle"
+            echo "### macOS $EXPECTED_VERSION Apple Silicon bundle"
             echo ""
             echo "Runner: $RUNNER_OS $RUNNER_ARCH (\`uname -m\` is arm64)."
             echo ""
@@ -182,8 +195,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AureliaCode-0.1.0-macos-arm64-adhoc
-          path: ${{ runner.temp }}/AureliaCode-0.1.0-macos-arm64-adhoc.zip
+          name: AureliaCode-${{ inputs.version || '0.1.0-beta' }}-macos-arm64-adhoc
+          path: ${{ runner.temp }}/AureliaCode-${{ inputs.version || '0.1.0-beta' }}-macos-arm64-adhoc.zip
           if-no-files-found: error
           retention-days: 14
           compression-level: 0

@@ -1,6 +1,6 @@
 [package]
 name = "aurelia-space"
-version = "0.1.0"
+version = "0.1.0-beta"
 description = "AureliaCode — a chat-first app for running Claude Code accounts side by side"
 edition = "2021"
 
