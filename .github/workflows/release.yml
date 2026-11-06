@@ -6,9 +6,6 @@ name: macos release
 # This replaces the macos-15-intel job. There is no x86_64 release leg.
 on:
   workflow_dispatch:
-  # Temporary, so this branch can compile before the file is on main. Removed after the arm64 run.
-  push:
-    branches: [cursor/macos-arm64-release-f896]
 
 permissions:
   contents: read
