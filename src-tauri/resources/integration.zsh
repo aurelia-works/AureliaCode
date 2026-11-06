@@ -40,13 +40,28 @@ precmd_functions+=(_aurelia_install)
 # Route every `claude` started in this pane through the AureliaSpace hook settings,
 # so the agent panel can track its status, and give it the app's MCP server
 # (DeepSeek subagents). `--mcp-config=` keeps the variadic flag from swallowing
-# the arguments after it.
+# the arguments after it. A thread stamped for long-session compression never falls
+# through to plain `claude`: it runs `bili claude --bin`, or it stops.
 if [[ -n "$AURELIA_CLAUDE_SETTINGS" ]]; then
   claude() {
+    local -a settings
+    settings=(--settings "$AURELIA_CLAUDE_SETTINGS")
     if [[ -r "$AURELIA_CLAUDE_MCP" ]]; then
-      command claude --settings "$AURELIA_CLAUDE_SETTINGS" --mcp-config="$AURELIA_CLAUDE_MCP" "$@"
-    else
-      command claude --settings "$AURELIA_CLAUDE_SETTINGS" "$@"
+      settings+=(--mcp-config="$AURELIA_CLAUDE_MCP")
     fi
+    if [[ -n "$AURELIA_CONTEXT_COMPRESSION" ]]; then
+      if [[ -n "$AURELIA_COMPRESSION_BLOCK" ]]; then
+        builtin print -u2 -- "AureliaCode: $AURELIA_COMPRESSION_BLOCK"
+        return 1
+      fi
+      if [[ ! -x "$AURELIA_BILI_WRAP" || ! -x "$AURELIA_BILI" || ! -x "$AURELIA_CLAUDE_BIN" ]]; then
+        builtin print -u2 -- "AureliaCode: long-session compression is on for this thread, but billion-context isn't available. Install it in Settings → Accounts, or start a thread with compression off. Claude was not started."
+        return 1
+      fi
+      builtin print -u2 -- "AureliaCode: long-session compression is on. This session is forwarded to your existing Claude provider; compressed context stays on this Mac."
+      command "$AURELIA_BILI_WRAP" "$AURELIA_BILI" --host 127.0.0.1 --no-auto-update --bin "$AURELIA_CLAUDE_BIN" claude -- "${settings[@]}" "$@"
+      return
+    fi
+    command claude "${settings[@]}" "$@"
   }
 fi

@@ -436,6 +436,7 @@ pub fn chat_spawn(
     effort: Option<String>,
     permission_mode: Option<String>,
     provider: Option<String>,
+    context_compression: Option<bool>,
     on_event: Channel<ChatEvent>,
 ) -> Result<ChatSpawned, String> {
     // A webview reload opens existing panes again: stop the old process.
@@ -452,7 +453,7 @@ pub fn chat_spawn(
     let resume = resume.filter(|r| !r.is_empty());
     if provider.as_deref() == Some("opencode") {
         // OpenCode signs in with its own store; no Claude account or proxy.
-        let vars = crate::pty::pane_env(&cfg, &pane_id, None, env, secret_env)?;
+        let vars = crate::pty::pane_env(&cfg, &pane_id, None, env, secret_env, false)?;
         let bin = crate::which::locate("opencode").map_or("opencode".into(), |p| p.to_string_lossy().into_owned());
         let prefix = vec![crate::pty::default_shell(&cfg), "-l".into(), "-c".into(), "exec \"$0\" \"$@\"".into(), bin];
         let model = model.filter(|m| !m.is_empty() && m != "default");
@@ -462,8 +463,17 @@ pub fn chat_spawn(
         state.oc.lock().unwrap().insert(pane_id, chat);
         return Ok(ChatSpawned { missing_cwd });
     }
-    let vars = crate::pty::pane_env(&cfg, &pane_id, account, env, secret_env)?;
-    let argv = command(&cfg, resume.as_deref(), resume_at.as_deref().filter(|a| !a.is_empty()), fork.unwrap_or(false), model.as_deref(), effort.as_deref(), permission_mode.as_deref());
+    let compress = context_compression.unwrap_or(false);
+    let vars = crate::pty::pane_env(&cfg, &pane_id, account, env, secret_env, compress)?;
+    if let Some(reason) = vars.get(crate::context_compression::BLOCK_KEY) {
+        return Err(reason.clone());
+    }
+    let mut argv = command(&cfg, resume.as_deref(), resume_at.as_deref().filter(|a| !a.is_empty()), fork.unwrap_or(false), model.as_deref(), effort.as_deref(), permission_mode.as_deref());
+    if compress {
+        let home = crate::context_compression::Home::production();
+        let claude = vars.get("AURELIA_CLAUDE_BIN").ok_or("compression refused to start Claude without its executable")?.clone();
+        argv = crate::context_compression::wrap_chat_argv(&argv, &home.wrapper(), &home.bili(), Path::new(&claude))?;
+    }
     let mut child: Child = Command::new(&argv[0])
         .args(&argv[1..])
         .current_dir(&dir)
@@ -1030,7 +1040,7 @@ mod tests {
     fn live_claude_turn() {
         let cfg = config::Config::default();
         let argv = command(&cfg, None, None, false, None, None, None);
-        let mut vars = crate::pty::pane_env(&cfg, "pane-smoke", None, None, None).unwrap();
+        let mut vars = crate::pty::pane_env(&cfg, "pane-smoke", None, None, None, false).unwrap();
         // Launched from Finder, the app only has launchd's PATH; the login shell must fix it.
         vars.insert("PATH".into(), "/usr/bin:/bin:/usr/sbin:/sbin".into());
         // Keep the running app's alerts out of it.

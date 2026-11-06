@@ -5,6 +5,7 @@ mod chat;
 mod checkpoints;
 mod computer;
 mod config;
+mod context_compression;
 mod control;
 mod delegate;
 mod devserver;
@@ -310,6 +311,9 @@ pub fn run() {
             proxy::proxy_status,
             proxy::proxy_apply,
             proxy::proxy_login,
+            context_compression::context_compression_status,
+            context_compression::context_compression_install,
+            context_compression::context_compression_dismiss,
             tray::tray_set_icon,
             tray::tray_visible,
             tray::tray_resize,

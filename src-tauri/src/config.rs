@@ -255,6 +255,19 @@ impl Default for ProxyConfig {
     }
 }
 
+/// Accounts whose *new* Claude threads launch through billion-context. Empty by default.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ContextCompressionConfig {
+    pub accounts: Vec<String>,
+}
+
+impl Default for ContextCompressionConfig {
+    fn default() -> Self {
+        Self { accounts: Vec::new() }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct TrayConfig {
@@ -427,6 +440,8 @@ pub struct Config {
     pub hud: HudConfig,
     pub tray: TrayConfig,
     pub proxy: ProxyConfig,
+    /// Opt-in billion-context compression. Off until an account is listed (context_compression.rs).
+    pub context_compression: ContextCompressionConfig,
     pub discord: DiscordConfig,
     /// Account new Claude panes use when none is chosen; empty = ask.
     pub default_account: String,
@@ -487,6 +502,7 @@ impl Default for Config {
             hud: HudConfig::default(),
             tray: TrayConfig::default(),
             proxy: ProxyConfig::default(),
+            context_compression: ContextCompressionConfig::default(),
             discord: DiscordConfig::default(),
             default_account: String::new(),
             workspace_accounts: Default::default(),
