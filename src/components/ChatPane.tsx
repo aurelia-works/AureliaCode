@@ -21,7 +21,7 @@ import { CHAT_FIND, GOAL_OPEN } from "../lib/shortcuts";
 import { GoalBanner, GoalDialog } from "./GoalBar";
 import { focusedPaneId, paneIds, tabOfPane, useLayout } from "../store/layout";
 import { PaneBrief } from "./PaneBrief";
-import { useThreadSummary } from "./ThreadCard";
+import { useThreadSummary, type ThreadSummary } from "./ThreadCard";
 import { useAgents } from "../store/agents";
 import { expandSkillRefs, skillQuery } from "../lib/skillRefs";
 import { chatCan, freshChat } from "../lib/chatStart";
@@ -247,7 +247,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
             </button>
           </div>
         ) : (
-          <ChatComposer paneId={paneId} busy={busy} steering={runningHook && !busy} expanded={composing} onExpand={setComposing} />
+          <ChatComposer paneId={paneId} busy={busy} steering={runningHook && !busy} visual={summary.v} expanded={composing} onExpand={setComposing} />
         )}
       </div>
     </div>
@@ -1248,7 +1248,7 @@ function modelName(id?: string): string | undefined {
 
 const cap = (s?: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-function ChatComposer({ paneId, busy, steering, expanded, onExpand }: { paneId: string; busy: boolean; steering: boolean; expanded: boolean; onExpand: (on: boolean) => void }) {
+function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { paneId: string; busy: boolean; steering: boolean; visual: ThreadSummary["v"]; expanded: boolean; onExpand: (on: boolean) => void }) {
   const setExpanded = onExpand;
   const prefs = useUi((s) => s.prefs);
   const [text, setText] = useState(() => drafts.get(paneId)?.text ?? "");
@@ -1568,7 +1568,17 @@ function ChatComposer({ paneId, busy, steering, expanded, onExpand }: { paneId: 
           rows={narrowBar && !text ? 1 : 2}
           value={text}
           data-chat-input={paneId}
-          placeholder={busy ? `${agentName(pane)} is working. Your next message sends after this turn` : steering ? `${agentName(pane)} is working. Reply here to steer it` : oc ? "Ask anything. @ files" : "Ask anything. @ files, / commands"}
+          placeholder={
+            visual === "needs_input"
+              ? `${agentName(pane)} needs an answer. Reply here`
+              : busy
+                ? `${agentName(pane)} is working. Your next message sends after this turn`
+                : steering
+                  ? `${agentName(pane)} is working. Reply here to steer it`
+                  : oc
+                    ? "Ask anything. @ files"
+                    : "Ask anything. @ files, / commands"
+          }
           onChange={(e) => {
             setText(cleanTextarea(e.target));
             setCaret(e.target.selectionStart);

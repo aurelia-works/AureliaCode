@@ -2731,7 +2731,8 @@ body.resizing-row .rail-grip {
   background: var(--hover);
   color: var(--text);
 }
-.chat.composing .chat-log {
+/* A reading column hides while the composer is expanded. A brief card stays, and scrolls. */
+.chat.composing:not(.brief) .chat-log {
   display: none;
 }
 .chat.composing .chat-dock,
@@ -3145,6 +3146,13 @@ button.primary:disabled,
   white-space: normal;
   overflow: hidden;
   font-weight: 600;
+}
+/* Pin, Snooze and Settle sit on the row. While they show, the title keeps their width
+   so a two-line name wraps beside them instead of running underneath. */
+.nav-thread:hover .th-t,
+.nav-thread:focus-within .th-t,
+.nav-thread:has(.nav-thread-actions.open) .th-t {
+  padding-right: 88px;
 }
 .th-m {
   flex-wrap: wrap;

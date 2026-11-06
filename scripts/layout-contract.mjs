@@ -168,6 +168,7 @@ async function readGrid(page) {
         metaH: mb ? Math.round(mb.height) : 0,
         metaInside: mb ? mb.top >= pb.top - 1 && mb.bottom <= pb.bottom + 1 && mb.height > 8 : false,
         feedH: feedShown && fb ? Math.round(fb.height) : 0,
+        feedScroll: feedShown && feed ? feed.scrollHeight : 0,
         feedItems: feedShown ? feed.querySelectorAll("li").length : 0,
         dockShown,
         dockInside: dockShown && db ? db.top >= pb.top - 1 && db.bottom <= pb.bottom + 1 && db.height > 20 : false,
@@ -220,6 +221,231 @@ async function reach(page, selector) {
   }, selector);
 }
 
+async function cardScroll(page) {
+  const sel = ".tab-content:not(.hidden) .pane.focused";
+  const read = () => page.evaluate(() => {
+    const pane = document.querySelector(".tab-content:not(.hidden) .pane.focused");
+    const brief = pane?.querySelector(".pane-brief");
+    const dock = pane?.querySelector(".chat-dock");
+    const goal = [...(pane?.querySelectorAll(".pane-brief-goal-acts button") ?? [])].filter((b) => !b.disabled).at(-1)
+      ?? pane?.querySelector(".pane-brief-goal-acts button");
+    const meta = pane?.querySelector(".tc-meta");
+    const send = pane?.querySelector(".chat-send");
+    const rect = (el) => (el ? el.getBoundingClientRect() : null);
+    const over = (a, b) => (a && b ? Math.round(Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)) : null);
+    const visibleOver = (el, host, other) => {
+      const a = rect(el);
+      const h = rect(host);
+      const o = rect(other);
+      if (!a || !h || !o) return null;
+      const top = Math.max(a.top, h.top);
+      const bottom = Math.min(a.bottom, h.bottom);
+      if (bottom - top < 1) return 0;
+      return Math.round(Math.min(bottom, o.bottom) - Math.max(top, o.top));
+    };
+    const inside = (el, host) => {
+      const a = rect(el);
+      const h = rect(host);
+      return !!a && !!h && a.height > 8 && a.top >= h.top - 1 && a.bottom <= h.bottom + 1;
+    };
+    const goalRect = rect(goal);
+    const dockRect = rect(dock);
+    return {
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+      sh: brief?.scrollHeight ?? 0,
+      ch: brief?.clientHeight ?? 0,
+      oy: brief ? getComputedStyle(brief).overflowY : "",
+      boxOver: over(rect(brief), dockRect),
+      goalOver: over(goalRect, dockRect),
+      metaOver: over(rect(meta), dockRect),
+      goalVisOver: visibleOver(goal, brief, dock),
+      metaVisOver: visibleOver(meta, brief, dock),
+      goalIn: inside(goal, brief),
+      metaIn: inside(meta, brief),
+      sendIn: inside(send, dock) && inside(send, pane),
+      dockH: dockRect ? Math.round(dockRect.height) : 0,
+      briefH: rect(brief) ? Math.round(rect(brief).height) : 0,
+      goalBottom: goalRect ? Math.round(goalRect.bottom) : null,
+      dockTop: dockRect ? Math.round(dockRect.top) : null,
+    };
+  });
+  const stop = page.locator(`${sel} .pane-brief-goal-acts button`, { hasText: "Stop goal" });
+  const field = page.locator(`${sel} textarea[data-chat-input]`);
+  const rest = await read();
+  await stop.focus();
+  const focused = await read();
+  await page.evaluate(() => {
+    const brief = document.querySelector(".tab-content:not(.hidden) .pane.focused .pane-brief");
+    if (brief) brief.scrollTop = brief.scrollHeight;
+  });
+  const end = await read();
+  await field.fill(`${"steer the running turn\n".repeat(6)}and one more line`);
+  await page.waitForTimeout(60);
+  const grown = await read();
+  await stop.focus();
+  const grownFocus = await read();
+  const expand = page.locator(`${sel} .chat-expand`);
+  await expand.click();
+  await page.waitForTimeout(60);
+  await stop.focus();
+  const expanded = await read();
+  await page.locator(`${sel} .chat-expand`).click();
+  await field.fill("");
+  await page.evaluate(() => {
+    const stage = document.querySelector(".tab-content:not(.hidden)");
+    for (const brief of stage?.querySelectorAll(".pane-brief") ?? []) brief.scrollTop = 0;
+  });
+  const others = await page.evaluate(() => {
+    const stage = document.querySelector(".tab-content:not(.hidden)");
+    return [...stage.querySelectorAll(".pane")].flatMap((pane) => {
+      const brief = pane.querySelector(".pane-brief");
+      if (!brief || pane.getBoundingClientRect().width < 20) return [];
+      const dock = pane.querySelector(".chat-dock");
+      const shown = !!dock && getComputedStyle(dock).display !== "none";
+      const meta = pane.querySelector(".tc-meta");
+      const paneBox = pane.getBoundingClientRect();
+      const card = brief.getBoundingClientRect();
+      const dockBox = shown ? dock.getBoundingClientRect() : null;
+      brief.scrollTop = brief.scrollHeight;
+      const foot = meta?.getBoundingClientRect();
+      const metaIn = !!foot && foot.height > 8 && foot.top >= card.top - 1 && foot.bottom <= card.bottom + 1;
+      const metaOver = dockBox && foot ? Math.round(Math.min(foot.bottom, dockBox.bottom) - Math.max(foot.top, dockBox.top)) : 0;
+      brief.scrollTop = 0;
+      return [{
+        id: pane.dataset.paneId,
+        state: pane.dataset.state ?? "",
+        focused: pane.classList.contains("focused"),
+        oy: getComputedStyle(brief).overflowY,
+        sh: brief.scrollHeight,
+        ch: brief.clientHeight,
+        past: Math.round(card.bottom - paneBox.bottom),
+        boxOver: dockBox ? Math.round(Math.min(card.bottom, dockBox.bottom) - Math.max(card.top, dockBox.top)) : 0,
+        metaIn,
+        metaOver,
+      }];
+    });
+  });
+  return { rest, focused, end, grown, grownFocus, expanded, others };
+}
+
+function assertCardScroll(vp, card) {
+  const { rest, focused, end, grown, grownFocus, expanded, others } = card;
+  if (rest.vw !== vp.width || rest.vh !== vp.height) fail(`${vp.name} viewport is ${rest.vw}x${rest.vh}`);
+  if (rest.oy !== "auto" && rest.oy !== "scroll") fail(`${vp.name} focused card does not scroll (${rest.oy})`);
+  if (rest.boxOver > 1) fail(`${vp.name} composer covers the card by ${rest.boxOver}px`);
+  if (rest.goalVisOver > 1 || rest.metaVisOver > 1) fail(`${vp.name} composer covers visible goal or footer (${rest.goalVisOver}, ${rest.metaVisOver})`);
+  if (rest.briefH < 40 || rest.dockH < 20 || !rest.sendIn) fail(`${vp.name} focused card lost its composer or its scrollport`);
+  if (!focused.goalIn || focused.goalOver > 1) fail(`${vp.name} focusing Stop goal left it under the composer (goal ${focused.goalBottom}, composer ${focused.dockTop})`);
+  if (focused.dockH < 20) fail(`${vp.name} focusing the goal removed the composer`);
+  if (!end.metaIn || end.metaOver > 1) fail(`${vp.name} scrolling the card left the footer under the composer`);
+  if (grown.boxOver > 1 || grown.briefH < 40 || !grown.sendIn) fail(`${vp.name} a taller composer covers the card (${grown.briefH}px card, overlap ${grown.boxOver})`);
+  if (!grownFocus.goalIn || grownFocus.goalOver > 1) fail(`${vp.name} with a taller composer, Stop goal stays under it`);
+  if (expanded.briefH < 40 || expanded.boxOver > 1 || !expanded.goalIn || expanded.goalOver > 1 || !expanded.sendIn) {
+    fail(`${vp.name} expanding the composer covers the goal (card ${expanded.briefH}px, overlap ${expanded.boxOver})`);
+  }
+  for (const pane of others) {
+    if (pane.oy !== "auto" && pane.oy !== "scroll") fail(`${vp.name} ${pane.id} card does not scroll`);
+    if (pane.past > 1) fail(`${vp.name} ${pane.id} card passes the pane by ${pane.past}px`);
+    if (pane.boxOver > 1) fail(`${vp.name} ${pane.id} composer covers the card by ${pane.boxOver}px`);
+    if (!pane.metaIn || pane.metaOver > 1) fail(`${vp.name} ${pane.id} footer is not reachable above the composer`);
+  }
+}
+
+async function gridAccess(page, vp) {
+  const data = await page.evaluate(() => {
+    const stage = document.querySelector(".tab-content:not(.hidden)");
+    const focused = stage.querySelector(".pane.focused");
+    const bar = focused?.querySelector(".chat-card-bar");
+    const kids = [...(bar?.children ?? [])].filter((el) => el.getBoundingClientRect().height > 8);
+    const tops = kids.map((el) => el.getBoundingClientRect().top);
+    const send = focused?.querySelector(".chat-send");
+    const dock = focused?.querySelector(".chat-dock");
+    const inside = (el, host) => {
+      if (!el || !host) return false;
+      const a = el.getBoundingClientRect();
+      const h = host.getBoundingClientRect();
+      return a.height > 8 && a.top >= h.top - 1 && a.bottom <= h.bottom + 1 && a.left >= h.left - 1 && a.right <= h.right + 1;
+    };
+    const panes = [...stage.querySelectorAll(".pane")].flatMap((pane) => {
+      if (pane.getBoundingClientRect().width < 20) return [];
+      const card = pane.querySelector(".pane-brief");
+      const act = pane.querySelector(".pane-brief-act");
+      const meta = pane.querySelector(".tc-meta");
+      const name = pane.querySelector(".pane-header.one .pane-name");
+      const folder = pane.querySelector(".pane-header.one .pane-crumb-folder");
+      const detail = pane.querySelector(".pane-brief-detail");
+      const br = card?.getBoundingClientRect();
+      const ar = act?.getBoundingClientRect();
+      const mr = meta?.getBoundingClientRect();
+      const prev = meta?.previousElementSibling?.getBoundingClientRect();
+      const shown = dockEl => !!dockEl && getComputedStyle(dockEl).display !== "none";
+      const dockEl = pane.querySelector(".chat-dock");
+      return [{
+        id: pane.dataset.paneId,
+        state: pane.dataset.state || "idle",
+        focused: pane.classList.contains("focused"),
+        paneH: Math.round(pane.getBoundingClientRect().height),
+        dockH: shown(dockEl) ? Math.round(dockEl.getBoundingClientRect().height) : 0,
+        briefCh: card?.clientHeight ?? 0,
+        act: (act?.textContent ?? "").replace(/\s+/g, " ").trim(),
+        actIn: !!(ar && br && ar.height > 8 && ar.top >= br.top - 1 && ar.bottom <= br.bottom + 1),
+        hole: mr && prev ? Math.round(mr.top - prev.bottom) : 0,
+        name: (name?.textContent ?? "").trim(),
+        nameCut: !!(name && (name.scrollWidth > name.clientWidth + 1 || name.scrollHeight > name.clientHeight + 2)),
+        folderShown: !!(folder && getComputedStyle(folder).display !== "none" && name),
+        ph: pane.querySelector("textarea[data-chat-input]")?.getAttribute("placeholder") ?? "",
+        detailWeight: detail ? parseInt(getComputedStyle(detail).fontWeight, 10) : 0,
+        detailSize: detail ? parseFloat(getComputedStyle(detail).fontSize) : 0,
+      }];
+    });
+    return {
+      oneRow: tops.length > 1 && Math.max(...tops) - Math.min(...tops) <= 4,
+      barH: bar ? Math.round(bar.getBoundingClientRect().height) : 0,
+      sendIn: inside(send, dock) && inside(send, focused),
+      briefCh: focused?.querySelector(".pane-brief")?.clientHeight ?? 0,
+      dockH: dock ? Math.round(dock.getBoundingClientRect().height) : 0,
+      panes,
+    };
+  });
+  if (!data.oneRow || data.barH > 40 || !data.sendIn) fail(`${vp.name} composer bar is ${data.barH}px and not one row`);
+  if (vp.name === "1100x700" && (data.briefCh < 100 || data.dockH > 140)) fail(`${vp.name} dock is ${data.dockH}px and the card is ${data.briefCh}px`);
+  for (const pane of data.panes) {
+    if (pane.hole > 24) fail(`${vp.name} ${pane.id} leaves ${pane.hole}px under its actions`);
+    if (pane.act && !pane.actIn) fail(`${vp.name} ${pane.id} ${pane.act} is clipped`);
+    if (pane.name && pane.nameCut) fail(`${vp.name} ${pane.id} title is cut: ${pane.name}`);
+    if (pane.folderShown) fail(`${vp.name} ${pane.id} header repeats the folder`);
+    if (pane.state === "needs_input" && (pane.ph.includes("working") || !pane.ph.toLowerCase().includes("answer"))) fail(`${vp.name} ${pane.id} composer says "${pane.ph}"`);
+    if (pane.state === "working" && pane.focused && !pane.ph.includes("steer")) fail(`${vp.name} working composer lost the steer line`);
+    if ((pane.state === "idle" || pane.state === "done") && pane.detailWeight >= 600) fail(`${vp.name} ${pane.id} status weighs the same as the question`);
+    if ((pane.state === "needs_input" || pane.state === "working") && pane.detailSize > 0 && pane.detailWeight < 600) fail(`${vp.name} ${pane.id} question lost its weight`);
+  }
+  const title = page.locator(".nav-thread .th-title", { hasText: "Keyboard-accessible settings nav" }).first();
+  await title.hover();
+  const hover = await page.evaluate(() => {
+    const thread = [...document.querySelectorAll(".nav-thread")].find((t) => (t.querySelector(".th-title")?.textContent ?? "").includes("Keyboard-accessible settings nav"));
+    const el = thread?.querySelector(".th-title");
+    const acts = thread?.querySelector(".nav-thread-actions");
+    if (!el || !acts) return { missing: true };
+    const tr = el.getBoundingClientRect();
+    const ar = acts.getBoundingClientRect();
+    const over = Math.min(tr.right, ar.right) - Math.max(tr.left, ar.left);
+    const vert = Math.min(tr.bottom, ar.bottom) - Math.max(tr.top, ar.top);
+    return {
+      missing: false,
+      title: el.textContent.trim(),
+      over: over > 0 && vert > 0 ? Math.round(over) : 0,
+      cut: el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 1,
+      shown: getComputedStyle(acts).display,
+    };
+  });
+  await page.mouse.move(0, 0);
+  if (hover.missing || hover.shown === "none") fail(`${vp.name} hover actions did not show`);
+  else if (hover.over > 1) fail(`${vp.name} hover actions cover ${hover.over}px of the title`);
+  else if (hover.cut || hover.title !== "Keyboard-accessible settings nav") fail(`${vp.name} hover cuts the title (${hover.title})`);
+  return { barH: data.barH, briefCh: data.briefCh, dockH: data.dockH, panes: data.panes.map((p) => ({ id: p.id, state: p.state, hole: p.hole, actIn: p.actIn, nameCut: p.nameCut, ph: p.ph, detailWeight: p.detailWeight, detailSize: p.detailSize })) };
+}
+
 async function shot(page, name) {
   if (!outDir) return;
   mkdirSync(outDir, { recursive: true });
@@ -253,7 +479,7 @@ function assertSidebar(grid) {
 
 function assertOverflow(label, grid) {
   for (const pane of grid.panes) {
-    if (pane.feedItems >= 2 && pane.feedH > 0 && pane.feedH < 48) fail(`${label} ${pane.id} step list is ${pane.feedH}px`);
+    if (pane.feedItems >= 2 && pane.feedH > 0 && pane.feedH < 48 && pane.feedScroll <= pane.feedH + 1) fail(`${label} ${pane.id} step list is ${pane.feedH}px and does not scroll`);
     if (pane.dockShown && !pane.dockInside) fail(`${label} ${pane.id} composer is outside the pane`);
     if (pane.cardPast != null && pane.cardPast > 1) fail(`${label} ${pane.id} card passes the pane by ${pane.cardPast}px`);
     if (!pane.focused && pane.sideInset != null && Math.abs(pane.sideInset - 12) > 2) fail(`${label} ${pane.id} side inset ${pane.sideInset}px`);
@@ -286,6 +512,19 @@ try {
       }
     }
     if (checks.has("overflow")) {
+      const card = await cardScroll(page);
+      report.cardScroll = report.cardScroll ?? {};
+      report.cardScroll[vp.name] = {
+        viewport: `${card.rest.vw}x${card.rest.vh}`,
+        rest: { sh: card.rest.sh, ch: card.rest.ch, boxOver: card.rest.boxOver, goal: card.rest.goalBottom, dock: card.rest.dockTop },
+        focused: { sh: card.focused.sh, ch: card.focused.ch, goal: card.focused.goalBottom, dock: card.focused.dockTop, goalOver: card.focused.goalOver },
+        end: { sh: card.end.sh, ch: card.end.ch, metaOver: card.end.metaOver },
+        grown: { sh: card.grown.sh, ch: card.grown.ch, briefH: card.grown.briefH, boxOver: card.grown.boxOver },
+        expanded: { sh: card.expanded.sh, ch: card.expanded.ch, briefH: card.expanded.briefH, boxOver: card.expanded.boxOver, goalOver: card.expanded.goalOver },
+        others: card.others.map((p) => ({ id: p.id, state: p.state, sh: p.sh, ch: p.ch, metaIn: p.metaIn })),
+      };
+      assertCardScroll(vp, card);
+      report.cardScroll[vp.name].access = await gridAccess(page, vp);
       assertOverflow(vp.name, grid);
       for (const pane of grid.panes) {
         const meta = await reach(page, `.pane[data-pane-id="${pane.id}"] .tc-meta`);
@@ -441,6 +680,6 @@ for (const [name, grid] of Object.entries(report.viewports)) {
     panes: grid.panes.map((p) => ({ id: p.id, state: p.state, focused: p.focused, paneH: p.paneH, sideInset: p.sideInset, cardPast: p.cardPast, metaInside: p.metaInside, metaGap: p.metaGap, feedH: p.feedH, feedItems: p.feedItems, dockInside: p.dockInside, dockShown: p.dockShown })),
   };
 }
-console.log(JSON.stringify({ brief, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions }, null, 2));
+console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions }, null, 2));
 console.log(failures.length ? `layout-contract: ${failures.length} failed` : "layout-contract: ok");
 process.exit(failures.length ? 1 : 0);
