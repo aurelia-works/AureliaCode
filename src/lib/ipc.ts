@@ -95,6 +95,11 @@ export interface Config {
   tray: { enabled: boolean; animate: boolean; size: number; color: string; streamer: boolean };
   /** Route chats through a local CLIProxyAPI hub. */
   proxy: { enabled: boolean; port: number };
+  /**
+   * Accounts whose new Claude threads are stamped for billion-context.
+   * Threads opened before they were listed stay uncompressed.
+   */
+  contextCompression: { accounts: string[] };
   discord: { enabled: boolean; clientId: string; hideProject: boolean };
   /** Account new Claude panes use when none is chosen; empty = ask. */
   defaultAccount: string;
@@ -440,6 +445,8 @@ export const ipc = {
     env?: Record<string, string>;
     /** Env var name -> Keychain key id; Rust injects the secret at spawn. */
     secretEnv?: Record<string, string>;
+    /** This thread was stamped at creation. Existing threads omit it and stay uncompressed. */
+    contextCompression?: boolean;
     cols: number;
     rows: number;
     /** Start a new shell even if the terminal host still runs one for this pane. */
@@ -468,6 +475,8 @@ export const ipc = {
     permissionMode?: string;
     /** "opencode" runs an OpenCode chat; unset runs Claude Code. */
     provider?: string;
+    /** This thread was stamped at creation. Existing threads omit it and stay uncompressed. */
+    contextCompression?: boolean;
     onEvent: Channel<ChatEvent>;
   }) {
     return invoke<{ missingCwd?: string | null }>("chat_spawn", args);
@@ -631,6 +640,18 @@ export const ipc = {
   proxyStatus: () => invoke<{ installed: boolean; running: boolean; signedIn: boolean }>("proxy_status"),
   proxyApply: () => invoke<void>("proxy_apply"),
   proxyLogin: () => invoke<void>("proxy_login"),
+  contextCompressionStatus: () =>
+    invoke<{
+      phase: "absent" | "unavailable" | "ready";
+      version: string | null;
+      reason: string | null;
+      claude: boolean;
+      active: { paneId: string; account: string }[];
+      failures: { paneId: string; account: string; code: number }[];
+    }>("context_compression_status"),
+  /** Resolves the current billion-context release and installs that exact version with corepack pnpm. */
+  contextCompressionInstall: () => invoke<string>("context_compression_install"),
+  contextCompressionDismiss: () => invoke<void>("context_compression_dismiss"),
   trayAccounts: () => invoke<Identity[]>("tray_accounts"),
   ledgerSummary: () => invoke<LedgerSummary>("ledger_summary"),
   realSpend: () => invoke<RealSpend[]>("real_spend"),

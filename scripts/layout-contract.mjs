@@ -11,6 +11,7 @@ import { createServer } from "node:net";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "playwright";
+import { ratio } from "../src/lib/contrast.ts";
 
 const args = process.argv.slice(2);
 const opt = (name, fallback) => {
@@ -1063,6 +1064,88 @@ async function narrowMenus(browser, base) {
   }
 }
 
+const LAUNCH = "bili --host 127.0.0.1 --no-auto-update --bin <claude> claude";
+const COMPRESSION_STATES = [
+  ["", "Not installed"],
+  ["on", "No active compression proxy"],
+  ["unavailable", "Installed, but unavailable"],
+  ["active", "Compressing 1 new thread for work"],
+  ["failed", "was not left on plain Claude"],
+];
+
+function hexOf(color) {
+  const m = String(color).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (!m) return "";
+  return `#${[m[1], m[2], m[3]].map((n) => Number(n).toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Real Settings → Accounts, including the bundled untangle skill and every compression state. */
+async function compressionMatrix(browser, base) {
+  report.compression = {};
+  const sizes = [
+    [1440, 900],
+    [1100, 700],
+    [800, 900],
+  ];
+  for (const theme of ["dark", "light"]) {
+    for (const [w, h] of sizes) {
+      const context = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: theme });
+      const page = await context.newPage();
+      for (const [mode, expectStatus] of COMPRESSION_STATES) {
+        const label = `${theme} ${w}x${h} ${mode || "absent"}`;
+        const query = `theme=${theme}&view=settings&section=accounts${mode ? `&compress=${mode}` : ""}`;
+        await prepare(page, base, query);
+        await page.waitForFunction(() => [...document.querySelectorAll("h3")].some((el) => el.textContent === "Long-session compression"));
+        const measured = await page.evaluate(() => {
+          const opaque = (node) => {
+            let el = node;
+            while (el) {
+              const c = getComputedStyle(el).backgroundColor;
+              const m = c.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+              if (m && (m[4] === undefined || Number(m[4]) >= 0.99)) return c;
+              el = el.parentElement;
+            }
+            return getComputedStyle(document.body).backgroundColor;
+          };
+          const content = document.querySelector(".settings-content");
+          const group = [...document.querySelectorAll(".set-group")].find((el) => el.querySelector("h3")?.textContent === "Long-session compression");
+          const untangle = [...document.querySelectorAll("h3")].some((el) => el.textContent === "Untangle codebase");
+          const status = group?.querySelector("[role=status]");
+          const code = group?.querySelector("code");
+          group?.scrollIntoView({ block: "nearest" });
+          const cr = content.getBoundingClientRect();
+          const gr = group.getBoundingClientRect();
+          return {
+            untangle,
+            command: code?.textContent?.trim() ?? "",
+            status: status?.textContent?.replace(/\s+/g, " ").trim() ?? "",
+            overflowX: content.scrollWidth - content.clientWidth,
+            sticksOut: gr.right > cr.right + 1 || gr.left < cr.left - 1,
+            width: Math.round(gr.width),
+            height: Math.round(gr.height),
+            fg: getComputedStyle(status).color,
+            bg: opaque(status),
+            codeFg: getComputedStyle(code).color,
+            codeBg: opaque(code),
+          };
+        });
+        report.compression[label] = { ...measured, fg: hexOf(measured.fg), bg: hexOf(measured.bg), codeFg: hexOf(measured.codeFg), codeBg: hexOf(measured.codeBg) };
+        if (!measured.untangle) fail(`${label} is missing the untangle skill`);
+        if (measured.command !== LAUNCH) fail(`${label} launch wording is "${measured.command}"`);
+        if (!measured.status.includes(expectStatus)) fail(`${label} status is "${measured.status}"`);
+        if (measured.overflowX > 1 || measured.sticksOut) fail(`${label} compression group overflows (${measured.overflowX}px, sticks ${measured.sticksOut})`);
+        const statusRatio = ratio(report.compression[label].fg, report.compression[label].bg);
+        const codeRatio = ratio(report.compression[label].codeFg, report.compression[label].codeBg);
+        report.compression[label].statusRatio = Math.round(statusRatio * 100) / 100;
+        report.compression[label].codeRatio = Math.round(codeRatio * 100) / 100;
+        if (statusRatio < 4.5) fail(`${label} status contrast is ${statusRatio.toFixed(2)}:1`);
+        if (codeRatio < 4.5) fail(`${label} command contrast is ${codeRatio.toFixed(2)}:1`);
+      }
+      await context.close();
+    }
+  }
+}
+
 const report = { viewports: {}, interactions: {}, goalCards: {}, picker: {} };
 
 const base = await serve();
@@ -1237,6 +1320,7 @@ try {
   await goalMatrix(browser, base);
   await pickerMatrix(browser, base);
   await narrowMenus(browser, base);
+  await compressionMatrix(browser, base);
 } finally {
   await browser.close();
   vite?.kill();
@@ -1260,6 +1344,6 @@ for (const [name, grid] of Object.entries(report.viewports)) {
     panes: grid.panes.map((p) => ({ id: p.id, state: p.state, focused: p.focused, paneH: p.paneH, sideInset: p.sideInset, cardPast: p.cardPast, metaInside: p.metaInside, metaGap: p.metaGap, feedH: p.feedH, feedItems: p.feedItems, dockInside: p.dockInside, dockShown: p.dockShown })),
   };
 }
-console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions, goalCards: report.goalCards, picker: report.picker }, null, 2));
+console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions, goalCards: report.goalCards, picker: report.picker, compression: report.compression }, null, 2));
 console.log(failures.length ? `layout-contract: ${failures.length} failed` : "layout-contract: ok");
 process.exit(failures.length ? 1 : 0);

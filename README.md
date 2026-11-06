@@ -60,6 +60,13 @@ they survive rebuilds instead of being asked for again on every launch.
   running your existing `~/.claude/fetch-usage.sh` and reading its
   `/tmp/.claude_usage_cache_*` file. The app never reads credentials itself.
   Accounts are only ever chosen manually.
+- **Long-session compression** (optional, off by default): Settings → Accounts can
+  install [billion-context](https://github.com/ranxianglei/billion-context) and enable
+  it per Claude account. Only a thread created while that account is enabled launches
+  through `bili --host 127.0.0.1 --no-auto-update --bin <claude> claude`. The proxy listens on 127.0.0.1, forwards to the existing
+  Claude provider, and stores compressed summaries on this Mac. It is not a local model,
+  not an infinite window, and recall of older turns is not exact. See
+  [docs/context-compression.md](docs/context-compression.md).
 - **Agent panel**: inside panes, `claude` is a shell function that adds
   `--settings …/hooks/claude-settings.json`. Those hooks (SessionStart,
   UserPromptSubmit, Pre/PostToolUse, Notification, Stop, SessionEnd) append one JSON
