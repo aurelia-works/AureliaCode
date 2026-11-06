@@ -429,7 +429,8 @@ button.chip:hover,
 }
 .glyph.working {
   color: var(--s-work);
-  animation: glyph-spin 2.4s linear infinite;
+  /* One turn in 0.8s. 2.4s read as idle. Linear, because an ease would slow every loop. Rotate only. */
+  animation: glyph-spin 0.8s linear infinite;
 }
 .glyph.done {
   color: var(--s-done);
