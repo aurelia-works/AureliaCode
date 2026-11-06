@@ -63,6 +63,7 @@ export function GoalBanner({ paneId }: { paneId: string }) {
           </span>
           <span>{took}</span>
           {checking ? <span className="chat-goal-checking">Checking…</span> : last && <span title={goal.last?.tail.slice(-400)}>{last}</span>}
+          {working && !checking && <span>Next check runs when this turn ends.</span>}
         </div>
       </div>
       <div className="chat-goal-actions">

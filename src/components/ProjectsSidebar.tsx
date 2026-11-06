@@ -785,7 +785,7 @@ export function ProjectsSidebar() {
             {settledIds.map(row)}
           </section>
         )}
-        {visible.length === 0 && <p className="side-empty">{filter.trim() ? "No thread matches." : "No threads yet. Start one with ⌘N."}</p>}
+        {visible.length === 0 && <p className="side-empty">{filter.trim() ? `No thread matches “${filter.trim()}”.` : "No threads yet. Start one with ⌘N."}</p>}
       </div>
       <div className="side-foot">
         <button className={`bk${away === "snoozed" ? " on" : ""}`} onClick={() => setAway(away === "snoozed" ? null : "snoozed")} aria-pressed={away === "snoozed"}>
