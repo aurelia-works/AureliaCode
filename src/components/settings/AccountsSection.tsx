@@ -4,6 +4,7 @@ import { shortenPath } from "../../lib/format";
 import { useConfig } from "../../store/config";
 import { useLayout } from "../../store/layout";
 import type { SectionProps } from "./registry";
+import { UntangleAccounts } from "./UntangleAccounts";
 
 /** Account edits commit straight to config.json (not the page's draft): names are referenced by open panes. */
 interface Edit {
@@ -184,6 +185,7 @@ function AccountsList(props: SectionProps) {
       )}
       {!edit && error && <p className="set-error">{error}</p>}
     </section>
+    <UntangleAccounts />
     <AccountDefaults {...props} />
     </>
   );

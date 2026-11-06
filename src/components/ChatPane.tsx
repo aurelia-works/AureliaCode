@@ -25,6 +25,8 @@ import { PaneBrief } from "./PaneBrief";
 import { useThreadSummary, type ThreadSummary } from "./ThreadCard";
 import { useAgents } from "../store/agents";
 import { expandSkillRefs, skillQuery } from "../lib/skillRefs";
+import { parseUntangleCommand, UNTANGLE_NAME, UNTANGLE_OPEN } from "../lib/untangle";
+import { UntangleDialog } from "./UntangleDialog";
 import { chatCan, freshChat } from "../lib/chatStart";
 import { ChatStart, sendFirst } from "./ChatStart";
 import { loadProviders, useProviders } from "../store/providers";
@@ -1286,6 +1288,17 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
     return true;
   };
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [untangleOpen, setUntangleOpen] = useState(false);
+  const [untangleArea, setUntangleArea] = useState("");
+  useEffect(() => {
+    const open = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== paneId) return;
+      setUntangleArea("");
+      setUntangleOpen(true);
+    };
+    window.addEventListener(UNTANGLE_OPEN, open);
+    return () => window.removeEventListener(UNTANGLE_OPEN, open);
+  }, [paneId]);
   // T3's composer layout: below 620px the bar folds permissions, provider and style into one "…" menu.
   const barRef = useRef<HTMLDivElement>(null);
   const [narrowBar, setNarrowBar] = useState(false);
@@ -1384,7 +1397,15 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
     });
     ref.current?.focus();
   };
+  const openUntangle = (area: string) => {
+    setUntangleArea(area);
+    setUntangleOpen(true);
+  };
   const pick = (c: SlashCommand, run: boolean) => {
+    if (c.name === UNTANGLE_NAME) {
+      openUntangle(parseUntangleCommand(text)?.area ?? "");
+      return;
+    }
     if (run && !c.argumentHint) {
       setText("");
       sendChat(paneId, `/${c.name}`);
@@ -1431,15 +1452,18 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
     el.style.height = `${Math.min(el.scrollHeight, line * MAX_ROWS + 8)}px`;
   }, [text, expanded, narrowBar]);
 
-  /** Enter sends; ⌘Enter does the opposite of the Queue/Steer mode for this one message. */
-  const send = (opposite = false) => {
-    const typed = text.trim();
+  /** One composer send. Returns false when nothing went out, so the caller can keep a dialog open. */
+  const deliverText = (raw: string, opposite = false) => {
+    const typed = raw.trim();
     const t = oc ? typed : expandSkillRefs(typed, skillNames.map((c) => c.name));
     const problem = sendProblem(atts);
-    if (problem) return toast(problem, true);
+    if (problem) {
+      toast(problem, true);
+      return false;
+    }
     const { images, documents, refs } = forSend(atts);
     const body = [t, refs].filter(Boolean).join(t && refs ? "\n\n" : "");
-    if (!body && !images.length && !documents.length) return;
+    if (!body && !images.length && !documents.length) return false;
     // Steer: stop the running turn and send once it has ended, so the new message is a normal turn.
     const steer = followUpAction(busy, prefs.followUp, opposite) === "steer";
     setText("");
@@ -1447,12 +1471,22 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
     setHist(null);
     setExpanded(false);
     void (steer ? steerChat(paneId, body, { images, documents }) : sendFirst(paneId, body, { images, documents }));
+    return true;
+  };
+  /** Enter sends; ⌘Enter does the opposite of the Queue/Steer mode for this one message. */
+  const send = (opposite = false) => {
+    const parsed = parseUntangleCommand(text);
+    if (parsed) {
+      openUntangle(parsed.area);
+      return false;
+    }
+    return deliverText(text, opposite);
   };
   const empty = !text.trim() && !atts.some((a) => a.status !== "error");
   /** ⌘⌥Enter: send, then open a fresh start tab in the same folder so the next task can begin while this one runs. */
   const sendBackground = () => {
     if (empty) return;
-    send();
+    if (!send()) return;
     useLayout.getState().newTab({ cwd: pane?.cwd, launcher: true });
   };
   /** ⌘S: set the draft aside, or bring the last one back into an empty box. */
@@ -1509,6 +1543,17 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
   return (
     <div className="chat-compose">
       {rulesOpen && <RulesDialog cwd={pane?.cwd ?? "~"} account={pane?.account ?? null} onClose={() => setRulesOpen(false)} />}
+      {untangleOpen && (
+        <UntangleDialog
+          paneId={paneId}
+          initialArea={untangleArea}
+          withAttachments={atts.some((a) => a.status !== "error")}
+          onClose={() => setUntangleOpen(false)}
+          onSend={(message) => {
+            if (deliverText(message)) setUntangleOpen(false);
+          }}
+        />
+      )}
       {mentions.length > 0 && <FileMenu items={mentions} sel={Math.min(slashSel, mentions.length - 1)} onHover={setSlashSel} onPick={mention} />}
       {slash.length > 0 && <SlashMenu items={slash} sel={Math.min(slashSel, slash.length - 1)} onHover={setSlashSel} onPick={(c) => pick(c, true)} />}
       {skills.length > 0 && <SlashMenu sigil="$" items={skills} sel={Math.min(slashSel, skills.length - 1)} onHover={setSlashSel} onPick={pickSkill} />}
