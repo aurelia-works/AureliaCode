@@ -90,6 +90,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* A short window gives the thread list the crew's second line, so another thread fits. */
+@media (max-height: 760px) {
+  .crew {
+    padding-bottom: 4px;
+  }
+  .crew-meta {
+    display: none;
+  }
+}
 
 .crew-state {
   display: inline-flex;

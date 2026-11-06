@@ -229,7 +229,7 @@ async function shot(page, name) {
 function assertSidebar(grid) {
   if (Math.abs(grid.navW - 288) > 2) fail(`navigator width ${grid.navW}, expected 288`);
   if (grid.rows.some((r) => r.navOverflow)) fail("a sidebar row paints past the navigator");
-  if (grid.visibleRows < 5) fail(`only ${grid.visibleRows} sidebar rows visible; need at least 5`);
+  if (grid.visibleRows < 7) fail(`only ${grid.visibleRows} sidebar rows visible at 1440; need at least 7`);
   for (const title of ["Add idempotency keys to refunds", "Keyboard-accessible settings nav"]) {
     const row = grid.rows.find((r) => r.title === title);
     if (!row) fail(`missing sidebar title ${title}`);
@@ -278,6 +278,13 @@ try {
     report.viewports[vp.name] = grid;
     await shot(page, `threads-${vp.name}`);
     if (checks.has("sidebar") && vp.name === "1440x900") assertSidebar(grid);
+    if (checks.has("sidebar") && vp.name === "1100x700" && grid.visibleRows < 4) fail(`only ${grid.visibleRows} sidebar rows visible at 1100x700; need at least 4`);
+    if (checks.has("sidebar")) {
+      for (const row of grid.rows) {
+        if (row.visible && row.titleCut) fail(`${vp.name} visible title cut: ${row.title}`);
+        if (row.visible && row.branchCut) fail(`${vp.name} visible branch cut: ${row.branch}`);
+      }
+    }
     if (checks.has("overflow")) {
       assertOverflow(vp.name, grid);
       for (const pane of grid.panes) {
@@ -350,6 +357,10 @@ try {
       const titles = await page.evaluate(() => [...document.querySelectorAll(".thread-head h1, .pane.focused .pane-name")].map((el) => (el.textContent ?? "").trim()).filter(Boolean));
       report.single.titles = titles;
       if (titles.filter((t) => t === "Keyboard-accessible settings nav").length !== 1) fail(`expected one location title, saw ${JSON.stringify(titles)}`);
+      const body = await page.evaluate(() => document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-empty")?.innerText ?? "");
+      report.single.body = body.replace(/\s+/g, " ").trim();
+      if (body.includes("What should")) fail(`a running thread still asks what to do`);
+      if (!body.includes("already running") && !body.includes("Answer in the composer")) fail(`running thread has no guidance: ${body.slice(0, 120)}`);
     }
     await context.close();
   }

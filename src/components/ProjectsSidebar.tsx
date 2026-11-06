@@ -333,21 +333,6 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
           <Lead state={shown} pane={pane} running={!!running} decorative={!!shown} />
           <span className="th-title" title={label}>{label}</span>
           {pane?.pinned !== undefined && <span className="th-pin" title="Pinned" aria-label="Pinned"><PinIcon width={12} height={12} /></span>}
-          {pane?.goal && !pane.goal.ended && (
-            <span className="th-goal num" title={`Goal: ${pane.goal.text} (round ${pane.goal.rounds + 1} of ${pane.goal.maxRounds})`}>
-              Goal {pane.goal.rounds + 1}/{pane.goal.maxRounds}
-            </span>
-          )}
-          {grown && (
-            <span className="th-trip num" title={`The diff grew from ${grown.from} to ${grown.to} lines since this thread started. Running in circles? Open it to stop or keep going.`}>
-              {grown.factor}×
-            </span>
-          )}
-          {queue && queue.stage !== "merged" && (
-            <span className={`th-queue num${queue.stage === "bounced" ? " out" : ""}`} title={queue.stage === "bounced" ? `Left the merge queue: ${queue.reason}` : `Merge queue: ${QUEUE_WORD[queue.stage]}`}>
-              {queue.stage === "bounced" ? "Bounced" : QUEUE_WORD[queue.stage]}
-            </span>
-          )}
           {devPort && (
             <span
               className="th-dev num"
@@ -384,6 +369,21 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
             )}
           </span>
           <span className="th-tail">
+            {pane?.goal && !pane.goal.ended && (
+              <span className="th-goal num" title={`Goal: ${pane.goal.text} (round ${pane.goal.rounds + 1} of ${pane.goal.maxRounds})`}>
+                Goal {pane.goal.rounds + 1}/{pane.goal.maxRounds}
+              </span>
+            )}
+            {grown && (
+              <span className="th-trip num" title={`The diff grew from ${grown.from} to ${grown.to} lines since this thread started. Running in circles? Open it to stop or keep going.`}>
+                {grown.factor}× diff
+              </span>
+            )}
+            {queue && queue.stage !== "merged" && (
+              <span className={`th-queue num${queue.stage === "bounced" ? " out" : ""}`} title={queue.stage === "bounced" ? `Left the merge queue: ${queue.reason}` : `Merge queue: ${QUEUE_WORD[queue.stage]}`}>
+                {queue.stage === "bounced" ? "Bounced" : QUEUE_WORD[queue.stage]}
+              </span>
+            )}
             {(git?.worktree || (shown && shown !== "idle")) && <DiffStat stat={stat} files={false} />}
             {pr && <PrBadge pr={pr} attention={attention} onOpen={() => update(paneId, { prSeenFeedback: pr.feedback })} />}
             {when && <time>{when}</time>}

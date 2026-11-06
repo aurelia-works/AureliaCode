@@ -21,6 +21,8 @@ import { CHAT_FIND, GOAL_OPEN } from "../lib/shortcuts";
 import { GoalBanner, GoalDialog } from "./GoalBar";
 import { focusedPaneId, paneIds, tabOfPane, useLayout } from "../store/layout";
 import { PaneBrief } from "./PaneBrief";
+import { useThreadSummary } from "./ThreadCard";
+import { useAgents } from "../store/agents";
 import { expandSkillRefs, skillQuery } from "../lib/skillRefs";
 import { chatCan, freshChat } from "../lib/chatStart";
 import { ChatStart, sendFirst } from "./ChatStart";
@@ -58,6 +60,9 @@ export function ChatPane({ paneId }: { paneId: string }) {
   const cwd = useLayout((s) => s.panes[paneId]?.cwd);
   const items = session?.transcript.items ?? [];
   const fresh = useLayout((s) => freshChat(s.panes[paneId], items.length));
+  const hook = useAgents((s) => s.sessions[paneId]);
+  const summary = useThreadSummary(paneId, cwd);
+  const runningHook = !!hook && summary.v !== "idle";
   const logRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   // Scrolled up from the latest: shows the jump-back button.
@@ -173,7 +178,16 @@ export function ChatPane({ paneId }: { paneId: string }) {
       >
         <div className="chat-col">
           {items.length === 0 && fresh && brief && <PaneBrief paneId={paneId} cwd={cwd} />}
-          {items.length === 0 && fresh && !brief && <ChatStart paneId={paneId} starting={status === "starting"} />}
+          {items.length === 0 && fresh && !brief && runningHook && (
+            <div className="chat-empty">
+              <AureliaMark width={34} height={34} />
+              <p>{summary.detail}</p>
+              <p className="chat-empty-hint">
+                {summary.v === "needs_input" ? "Answer in the composer below." : summary.v === "done" ? "Read the result, then reply below." : "This thread is already running. Reply below to steer it."}
+              </p>
+            </div>
+          )}
+          {items.length === 0 && fresh && !brief && !runningHook && <ChatStart paneId={paneId} starting={status === "starting"} />}
           {items.length === 0 && !fresh && brief && <PaneBrief paneId={paneId} cwd={cwd} />}
           {items.length === 0 && !fresh && !brief && (
             <div className="chat-empty">
