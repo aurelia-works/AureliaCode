@@ -41,7 +41,8 @@ precmd_functions+=(_aurelia_install)
 # so the agent panel can track its status, and give it the app's MCP server
 # (DeepSeek subagents). `--mcp-config=` keeps the variadic flag from swallowing
 # the arguments after it. A thread stamped for long-session compression never falls
-# through to plain `claude`: it runs `bili claude --bin`, or it stops.
+# through to plain `claude`: it runs `bili --bin <claude> claude`, or it stops.
+# `--bin` has to precede `claude`. After the name, billion-context passes it to Claude.
 if [[ -n "$AURELIA_CLAUDE_SETTINGS" ]]; then
   claude() {
     local -a settings

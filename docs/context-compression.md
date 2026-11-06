@@ -2,7 +2,7 @@
 
 Optional. Off until you install it and turn it on for a Claude account.
 
-AureliaCode can start a **new** Claude Code thread through [billion-context](https://github.com/ranxianglei/billion-context). That program runs a proxy on `127.0.0.1` and launches Claude with `bili claude --bin <the Claude executable this app already found>`. The proxy forwards the thread to the same Claude provider that account already uses, and it stores compressed summaries on this Mac. The model is still Claude. This is not a local model, not an infinite token window, and not exact recall of older turns: those turns are summaries. Figures published by billion-context (cache hit rate, session length) were not measured here.
+AureliaCode can start a **new** Claude Code thread through [billion-context](https://github.com/ranxianglei/billion-context). That program runs a proxy on `127.0.0.1` and launches Claude with `bili --host 127.0.0.1 --no-auto-update --bin <the Claude executable this app already found> claude`. The `--bin` flag has to come before `claude`. Putting it after the name does not select that executable: the installed command passes those words to whatever `claude` is on `PATH`. The proxy forwards the thread to the same Claude provider that account already uses, and it stores compressed summaries on this Mac. The model is still Claude. This is not a local model, not an infinite token window, and not exact recall of older turns: those turns are summaries. Figures published by billion-context (cache hit rate, session length) were not measured here.
 
 ## What you turn on
 
@@ -15,11 +15,11 @@ Settings → Accounts → Long-session compression.
 
 ## What the launch does
 
-For a stamped thread the app sets a private config and sessions directory for that account, turns billion-context's auto-update and advisory force-install off, and does not install billion-context's native Claude plugin (that plugin writes shared Claude settings). Certificate interception is not enabled. The documented Claude launcher rewrites the API address to a `/bili/` path on the loopback proxy; this app does not set `HTTPS_PROXY` or a CA for it.
+For a stamped thread the app sets a private config and sessions directory for that account, turns billion-context's auto-update, advisory force-install, and release-notes poll off, and does not install billion-context's native Claude plugin (that plugin writes shared Claude settings). The installed Claude lane rewrites `ANTHROPIC_BASE_URL` to `http://127.0.0.1:<port>/bili/https://api.anthropic.com` and does not put `HTTPS_PROXY` or a CA into Claude's environment. The proxy's own default still starts a certificate listener unless MITM is turned off, so the app sets `BILI_MITM=0` and `mitm.enabled: false`. It does not set `HTTPS_PROXY` or hand Claude a CA.
 
 `CLAUDE_CONFIG_DIR` is unchanged: each account still uses its own Claude config directory, and the default `~/.claude` account still leaves that variable unset.
 
-The proxy listens on `127.0.0.1` only. One proxy is **not** shared across threads or accounts. billion-context 0.1.212 keys its store by the verbatim `x-claude-code-session-id` header, and adds a subagent suffix only when an agent-id header is present. Clients that omit those headers are not separated, and the store key has no account dimension, so a shared proxy would mix histories. Each stamped launch starts its own proxy and stops it when Claude exits. Summaries for one account stay in that account's directory.
+The proxy listens on `127.0.0.1` only. One proxy is **not** shared across threads or accounts. On the installed release, a request carrying `x-claude-code-session-id` is stored under that value verbatim, and a different value is a different key. An `x-claude-code-agent-id` header adds `|sub:<agent>` only when the system prompt is not the main Claude Code prompt; the same header on a main prompt stays on the parent id. Requests with neither header are not given an id by this app. The key has no account dimension, so a shared proxy would mix histories. Each stamped launch starts its own proxy and stops it when Claude exits. Summaries for one account stay in that account's directory.
 
 ## When it refuses
 

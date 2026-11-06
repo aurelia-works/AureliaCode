@@ -63,7 +63,7 @@ they survive rebuilds instead of being asked for again on every launch.
 - **Long-session compression** (optional, off by default): Settings → Accounts can
   install [billion-context](https://github.com/ranxianglei/billion-context) and enable
   it per Claude account. Only a thread created while that account is enabled launches
-  through `bili claude --bin`. The proxy listens on 127.0.0.1, forwards to the existing
+  through `bili --bin <claude> claude`. The proxy listens on 127.0.0.1, forwards to the existing
   Claude provider, and stores compressed summaries on this Mac. It is not a local model,
   not an infinite window, and recall of older turns is not exact. See
   [docs/context-compression.md](docs/context-compression.md).

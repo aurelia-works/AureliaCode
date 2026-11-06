@@ -1,14 +1,22 @@
 //! Opt-in long-session compression for new Claude Code threads, via billion-context's
-//! file-free launcher (`bili claude --bin`). Off until an account is enabled and a new
+//! file-free launcher (`bili --bin <claude> claude`). Off until an account is enabled and a new
 //! thread is stamped. Each stamped thread gets its own loopback proxy, which the launcher
 //! stops when Claude exits. This module never installs the native Claude plugin (that
 //! writes shared Claude settings) and never turns on certificate MITM.
 //!
-//! Session separation was checked in billion-context 0.1.212 `dist/index.js`: the store
-//! key is the verbatim `x-claude-code-session-id`, with `|sub:<agent>` only when
-//! `x-claude-code-agent-id` or `x-claude-code-parent-agent-id` is present. The native
-//! subagent lane-token hook is a different install, which we do not use. Header-less
-//! subagents are therefore not treated as isolated, so proxies are not shared across
+//! `--bin` and session keys were checked on the npm `latest` release installed with
+//! corepack pnpm (0.1.212 when this was written). `bili --help` does not list `--bin`.
+//! The flag is accepted only before the client name, where it sets `BILI_CLIENT_BIN`.
+//! `bili claude --bin <path>` does not select that binary: `--bin` is passed to whatever
+//! `claude` is on `PATH`. The Claude child is given
+//! `ANTHROPIC_BASE_URL=http://127.0.0.1:<port>/bili/https://api.anthropic.com` and is not
+//! given `HTTPS_PROXY` or a CA. The proxy process still enables its certificate listener
+//! unless `BILI_MITM=0` or `mitm.enabled` is false, so this app sets both.
+//!
+//! A live proxy keyed `x-claude-code-session-id` verbatim. A second id was a second key.
+//! `x-claude-code-agent-id` added `|sub:<agent>` only when the system prompt was not the
+//! main Claude Code prompt; the same header on "You are Claude Code…" stayed on the
+//! parent id. The key has no account dimension. Proxies are therefore not shared across
 //! threads or accounts. Summaries for one account live in that account's sessions dir.
 
 use crate::config::{self, Config};
@@ -127,10 +135,11 @@ fn files_of(home: &Home, claude: bool) -> Files {
     }
 }
 
-/// Managed proxy config. No listen address: the launch flag pins loopback, and this file
-/// only turns off the updater and the advisory force-install.
+/// Managed proxy config. No listen address: the launch flag pins loopback. The file
+/// turns off the updater, the advisory force-install, the release-notes poll, and the
+/// certificate listener. The Claude child still uses the `/bili/` address rewrite.
 pub fn managed_config_json() -> &'static str {
-    "{\n  \"autoUpdate\": false,\n  \"advisoryCheck\": false\n}\n"
+    "{\n  \"autoUpdate\": false,\n  \"advisoryCheck\": false,\n  \"releaseNotesCheck\": false,\n  \"mitm\": { \"enabled\": false }\n}\n"
 }
 
 fn write_managed_config(path: &Path) -> Result<(), String> {
@@ -285,6 +294,8 @@ fn apply_with(home: &Home, cfg: &Config, pane_id: &str, account: Option<&str>, r
             set(vars, "AURELIA_COMPRESSION_RECORD", &record.to_string_lossy());
             set(vars, "ACP_AUTO_UPDATE", "0");
             set(vars, "BILI_ADVISORY_CHECK", "0");
+            set(vars, "BILI_RELEASE_NOTES_CHECK", "0");
+            set(vars, "BILI_MITM", "0");
             set(vars, "BILI_LAUNCHER_PLUGIN", "0");
             set(vars, "BILI_CONFIG_FILE", &home.bili_config().to_string_lossy());
             set(vars, "BILI_SESSIONS_DIR", &sessions.to_string_lossy());
@@ -303,7 +314,7 @@ fn safe_pane(id: &str) -> bool {
     !id.is_empty() && id.len() < 80 && id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-')
 }
 
-/// Replaces the Claude executable in the chat command with the wrapper and `bili claude --bin`.
+/// Replaces the Claude executable in the chat command with the wrapper and `bili --bin <claude> claude`.
 /// Flags before `claude` belong to bili. Flags after `--` belong to Claude.
 pub fn wrap_chat_argv(argv: &[String], wrapper: &Path, bili: &Path, claude_bin: &Path) -> Result<Vec<String>, String> {
     if argv.len() < 5 || argv.get(3).map(String::as_str) != Some("exec \"$0\" \"$@\"") {
@@ -512,6 +523,8 @@ mod tests {
         let v: serde_json::Value = serde_json::from_str(body).unwrap();
         assert_eq!(v["autoUpdate"], false);
         assert_eq!(v["advisoryCheck"], false);
+        assert_eq!(v["releaseNotesCheck"], false);
+        assert_eq!(v["mitm"]["enabled"], false);
         assert!(!body.contains("0.0.0.0"));
         assert!(!body.contains("HTTPS_PROXY"));
     }
@@ -568,6 +581,8 @@ mod tests {
         }
         assert_eq!(vars.get("ACP_AUTO_UPDATE").map(String::as_str), Some("0"));
         assert_eq!(vars.get("BILI_ADVISORY_CHECK").map(String::as_str), Some("0"));
+        assert_eq!(vars.get("BILI_RELEASE_NOTES_CHECK").map(String::as_str), Some("0"));
+        assert_eq!(vars.get("BILI_MITM").map(String::as_str), Some("0"));
         assert_eq!(vars.get("BILI_LAUNCHER_PLUGIN").map(String::as_str), Some("0"));
         assert_eq!(vars.get("AURELIA_CLAUDE_BIN").map(String::as_str), Some(claude.to_str().unwrap()));
         assert_eq!(vars.get("CLAUDE_CONFIG_DIR").map(String::as_str), Some("/tmp/claude-work"));
@@ -575,6 +590,8 @@ mod tests {
         let cfg: serde_json::Value = serde_json::from_str(&fs::read_to_string(home.bili_config()).unwrap()).unwrap();
         assert_eq!(cfg["autoUpdate"], false);
         assert_eq!(cfg["advisoryCheck"], false);
+        assert_eq!(cfg["releaseNotesCheck"], false);
+        assert_eq!(cfg["mitm"]["enabled"], false);
     }
 
     #[test]
