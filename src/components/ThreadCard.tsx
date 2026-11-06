@@ -83,8 +83,8 @@ export function useThreadSummary(paneId: string, cwd?: string): ThreadSummary {
           : v === "starting"
             ? "Starting Claude…"
             : named
-              ? `Not started. Type below to start it in ${folder}.`
-              : `No task yet. Type one below to start in ${folder}.`;
+              ? `Not started in ${folder}.`
+              : `No task yet in ${folder}.`;
   return {
     v,
     title: named ?? (v === "idle" ? "New thread" : folder),
