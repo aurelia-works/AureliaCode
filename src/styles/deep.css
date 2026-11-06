@@ -3131,24 +3131,72 @@ button.primary:disabled,
 .th-m .diffstat {
   gap: 4px;
 }
-/* Sidebar rows, T3-style: one line for the title, one for the meta, both on the type scale.
-   The full title and path are in the row's tooltip, and the time never wraps onto a line of its own. */
+/* Sidebar rows stay inside the navigator. A long title takes a second line.
+   A long branch wraps under the folder instead of shrinking to a few letters.
+   The state is a word, so the icon is not the only way to tell. */
 .th-t {
   font-size: var(--fs-body);
+  white-space: normal;
+  align-items: flex-start;
 }
 .th-title {
-  display: block;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  -webkit-line-clamp: unset;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow: hidden;
 }
 .th-m {
-  flex-wrap: nowrap;
-  white-space: nowrap;
+  flex-wrap: wrap;
+  align-items: baseline;
+  white-space: normal;
   font-size: var(--fs-meta);
 }
+.th-state {
+  flex: none;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.th-state.needs_input {
+  color: var(--attn);
+}
+.th-state.working,
+.th-state.starting {
+  color: var(--work);
+}
+.th-state.done {
+  color: var(--ok);
+}
+.th-state.idle {
+  color: var(--text-dim);
+}
+.th-place {
+  display: inline-flex;
+  flex-wrap: wrap;
+  column-gap: 6px;
+  flex: 1 1 8em;
+  min-width: 0;
+  max-width: 100%;
+  align-items: baseline;
+}
+.th-place i {
+  flex: none;
+}
 .th-m .th-br {
-  flex: 0 1 auto;
+  flex: 1 1 auto;
+  min-width: min(100%, 12ch);
+  max-width: 100%;
+  overflow: visible;
+  text-overflow: unset;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.th-tail {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+  margin-left: auto;
 }
 .th-m .diffstat,
 .th-m .prb {
