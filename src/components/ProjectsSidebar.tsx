@@ -28,7 +28,7 @@ import { toast, useUi } from "../store/ui";
 import { useRemote } from "../lib/remote";
 import { usePaneAgent } from "./AgentChip";
 import { CrewSection } from "./CrewSection";
-import { StatusGlyph, stateLabel, visualOf, type Visual } from "./StatusGlyph";
+import { StatusGlyph, stateLabel, stateWord, visualOf, type Visual } from "./StatusGlyph";
 import { ArrowUpIcon, CheckIcon, CloseIcon, FolderIcon, GearIcon, GlobeIcon, JellyIcon, LogIcon, PhoneIcon, PinIcon, PlusIcon, PrIcon, SearchIcon, TerminalIcon, TimerIcon, TrashIcon } from "./Icons";
 
 
@@ -136,24 +136,13 @@ function ago(at: number | undefined, now: number) {
   return h < 24 ? `${h}h` : `${Math.floor(h / 24)}d`;
 }
 
-function Lead({ v, pane, running }: { v: Visual | undefined; pane: PaneMeta | undefined; running: boolean }) {
-  // Chat panes have their own live status even when no hook session is attached.
-  const chat = useChat((s) => (pane ? s.byPane[pane.id] : undefined));
-  const cv: Visual | undefined = chat
-    ? chat.status === "waiting"
-      ? "needs_input"
-      : chat.status === "working"
-        ? "working"
-        : chat.status === "idle"
-          ? "idle"
-          : undefined
-    : undefined;
-  const state = v ?? cv;
+function Lead({ state, pane, running, decorative }: { state: Visual | undefined; pane: PaneMeta | undefined; running: boolean; decorative?: boolean }) {
   const jelly = useUi((s) => s.prefs.jellyIcons);
   // One status icon set everywhere (StatusGlyph); the jellyfish are a switch in Threads & keys.
-  if (state && !jelly) return <StatusGlyph state={state} />;
-  if (state === "needs_input") return <span className="dot-needs" aria-label="needs you" />;
-  if (state) return <JellyIcon className={state === "working" || state === "starting" ? "working" : state === "done" ? "done" : "idle"} aria-label={stateLabel[state]} />;
+  // The row already says the word, so the icon does not repeat it for assistive tech.
+  if (state && !jelly) return <StatusGlyph state={state} decorative={decorative} />;
+  if (state === "needs_input") return <span className="dot-needs" aria-label={decorative ? undefined : "needs you"} aria-hidden={decorative || undefined} />;
+  if (state) return <JellyIcon className={state === "working" || state === "starting" ? "working" : state === "done" ? "done" : "idle"} aria-label={decorative ? undefined : stateLabel[state]} aria-hidden={decorative || undefined} />;
   if (pane?.browser) return <GlobeIcon className="th-ico" />;
   // Only real terminal panes (Legacy terminal panes switch) get the prompt icon.
   if (!pane || pane.mode === "chat" || pane.launcher || pane.editor) return <JellyIcon className="idle" aria-label="idle" />;
@@ -278,6 +267,8 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
   const itemCount = useChat((s) => s.byPane[paneId]?.transcript.items.length ?? 0);
   const isClaude = !oc && (!!agent || !!account);
   const v: Visual | undefined = asking && !agent ? "needs_input" : oc ? (ocWorking ? "working" : "idle") : agent ? visualOf(agent) : isClaude ? (freshChat(pane, itemCount) ? "idle" : "starting") : undefined;
+  const chatStatus = useChat((s) => s.byPane[paneId]?.status);
+  const shown: Visual | undefined = v ?? (chatStatus === "waiting" ? "needs_input" : chatStatus === "working" ? "working" : chatStatus === "idle" ? "idle" : undefined);
   const kind = pane?.browser ? "Browser" : pane?.editor ? (pane.editor.path.split("/").pop() ?? "Editor") : pane?.launcher || freshChat(pane, itemCount) ? "New thread" : custom ? custom.name : oc ? "OpenCode" : isClaude ? (account ?? "Claude") : (running?.split(/\s+/)[0] ?? "Terminal");
   const label = pane?.title ?? title ?? task?.title ?? kind;
   const dir = paneDir(paneId);
@@ -325,7 +316,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
       }}
     >
       <button
-        className={`th-row${v ? ` ${v}` : ""}`}
+        className={`th-row${shown ? ` ${shown}` : ""}`}
         onClick={(e) => onSelect(e) || showPane(paneId)}
         // Middle-click closes the thread (the same safe close as the Close button); mousedown is cancelled so the OS doesn't start autoscroll.
         onMouseDown={(e) => e.button === 1 && e.preventDefault()}
@@ -339,7 +330,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
         aria-selected={selected}
       >
         <span className="th-t">
-          <Lead v={v} pane={pane} running={!!running} />
+          <Lead state={shown} pane={pane} running={!!running} decorative={!!shown} />
           <span className="th-title" title={label}>{label}</span>
           {pane?.pinned !== undefined && <span className="th-pin" title="Pinned" aria-label="Pinned"><PinIcon width={12} height={12} /></span>}
           {pane?.goal && !pane.goal.ended && (
@@ -382,16 +373,21 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
           )}
         </span>
         <span className="th-m">
-          <span className="th-repo">{repo}</span>
-          {git && (
-            <>
-              <i>·</i>
-              <span className="th-br">{git.branch}</span>
-            </>
-          )}
-          {(git?.worktree || (v && v !== "idle")) && <DiffStat stat={stat} files={false} />}
-          {pr && <PrBadge pr={pr} attention={attention} onOpen={() => update(paneId, { prSeenFeedback: pr.feedback })} />}
-          {when && <time>{when}</time>}
+          {shown && <span className={`th-state ${shown}`}>{stateWord[shown]}</span>}
+          <span className="th-place">
+            <span className="th-repo">{repo}</span>
+            {git && (
+              <>
+                <i aria-hidden>·</i>
+                <span className="th-br">{git.branch}</span>
+              </>
+            )}
+          </span>
+          <span className="th-tail">
+            {(git?.worktree || (shown && shown !== "idle")) && <DiffStat stat={stat} files={false} />}
+            {pr && <PrBadge pr={pr} attention={attention} onOpen={() => update(paneId, { prSeenFeedback: pr.feedback })} />}
+            {when && <time>{when}</time>}
+          </span>
         </span>
       </button>
       <span className={`nav-thread-actions${menu ? " open" : ""}`}>

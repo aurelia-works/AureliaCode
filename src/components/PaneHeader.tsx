@@ -140,6 +140,7 @@ export function PaneHeader({ paneId }: { paneId: string }) {
   const dirty = useEditors((s) => !!s.dirty[paneId]);
   const queued = useOutbox((s) => s.byPane[paneId]?.length ?? 0);
   const headerMode = useUi((s) => s.prefs.headerModeChip);
+  const single = useUi((s) => s.single);
   const chatTitle = useChatTitle(paneId);
   if (!pane) return null;
 
@@ -188,8 +189,12 @@ export function PaneHeader({ paneId }: { paneId: string }) {
           <StatusGlyph state={v ?? "idle"} />
           <span className="pane-crumb" title={`${dir ?? ""}\n${name}`}>
             <span className="pane-crumb-folder">{folder}</span>
-            <span aria-hidden>/</span>
-            <span className="pane-name">{name}</span>
+            {!single && (
+              <>
+                <span aria-hidden>/</span>
+                <span className="pane-name">{name}</span>
+              </>
+            )}
           </span>
           {headerMode && account && (agent || pane.account ? <AccountSwitch paneId={paneId} account={account} /> : <span className="account-chip">{account}</span>)}
         </div>

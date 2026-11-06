@@ -15,6 +15,7 @@
     "ui-score": "node scripts/ui-score.mjs",
     "contrast": "node scripts/contrast.mjs",
     "e2e": "node scripts/e2e.mjs",
+    "layout-contract": "node scripts/layout-contract.mjs",
     "perf": "node scripts/perf.mjs"
   },
   "dependencies": {
