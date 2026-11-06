@@ -81,7 +81,8 @@ async function prepare(page, base, query) {
     tag();
     document.addEventListener("DOMContentLoaded", tag);
   }, injectCss);
-  await page.goto(`${base}/design/preview/?theme=dark&${query}`, { waitUntil: "domcontentloaded" });
+  const theme = query.includes("theme=") ? "" : "theme=dark&";
+  await page.goto(`${base}/design/preview/?${theme}${query}`, { waitUntil: "domcontentloaded" });
   await page.waitForFunction(
     () => [...document.querySelectorAll(".th-title")].some((el) => (el.textContent ?? "").includes("idempotency")),
     null,
@@ -486,7 +487,583 @@ function assertOverflow(label, grid) {
   }
 }
 
-const report = { viewports: {}, interactions: {} };
+const LONG_GOAL =
+  "Settings nav passes the keyboard test suite, including roving tabindex across every section, focus returning to the composer after Escape closes a picker, a visible focus ring on the active row, and a cold and warm settings-nav run";
+
+async function readGoalCards(page) {
+  return page.evaluate(() => {
+    const stage = document.querySelector(".tab-content:not(.hidden)") ?? document;
+    const nav = document.querySelector(".navigator");
+    const cards = [...stage.querySelectorAll(".pane")].flatMap((pane) => {
+      if (pane.getBoundingClientRect().width < 20) return [];
+      const brief = pane.querySelector(".pane-brief");
+      if (!brief) return [];
+      brief.scrollTop = 0;
+      const br = brief.getBoundingClientRect();
+      const dock = pane.querySelector(".chat-dock");
+      const dockOn = !!dock && getComputedStyle(dock).display !== "none";
+      const db = dockOn ? dock.getBoundingClientRect() : null;
+      const text = brief.querySelector(".pane-brief-goal-text");
+      const ts = text ? getComputedStyle(text) : null;
+      const lineH = ts ? parseFloat(ts.lineHeight) : 0;
+      const textH = text ? text.getBoundingClientRect().height : 0;
+      const feed = brief.querySelector(".pane-brief-feed");
+      const feedOn = !!feed && getComputedStyle(feed).display !== "none";
+      const fr = feedOn ? feed.getBoundingClientRect() : null;
+      const vis = (a, h) => (a && h ? Math.max(0, Math.min(a.bottom, h.bottom) - Math.max(a.top, h.top)) : 0);
+      const send = pane.querySelector(".chat-send");
+      const bar = pane.querySelector(".chat-card-bar");
+      const barKids = [...(bar?.children ?? [])].filter((el) => el.getBoundingClientRect().height > 8);
+      const tops = barKids.map((el) => el.getBoundingClientRect().top);
+      const pb = pane.getBoundingClientRect();
+      return [{
+        id: pane.dataset.paneId,
+        focused: pane.classList.contains("focused"),
+        paneW: Math.round(pb.width * 100) / 100,
+        paneH: Math.round(pb.height * 100) / 100,
+        ch: brief.clientHeight,
+        sh: brief.scrollHeight,
+        st: brief.scrollTop,
+        tab: brief.getAttribute("tabindex"),
+        role: brief.getAttribute("role"),
+        name: brief.getAttribute("aria-label"),
+        acts: [...brief.querySelectorAll(".pane-brief-goal-acts button")].map((b) => {
+          const r = b.getBoundingClientRect();
+          return {
+            name: b.textContent.trim(),
+            disabled: b.disabled,
+            inside: r.height > 8 && r.top >= br.top - 0.5 && r.bottom <= br.bottom + 0.5 && r.left >= br.left - 0.5 && r.right <= br.right + 0.5,
+            dockOver: db ? Math.round(Math.min(r.bottom, db.bottom) - Math.max(r.top, db.top)) : 0,
+            bottomGap: Math.round((br.bottom - r.bottom) * 10) / 10,
+          };
+        }),
+        lines: lineH ? Math.round((textH / lineH) * 100) / 100 : 0,
+        clamp: ts ? ts.getPropertyValue("-webkit-line-clamp") : "",
+        title: text?.getAttribute("title") ?? "",
+        feedCh: feedOn ? feed.clientHeight : null,
+        feedVis: feedOn ? Math.round(vis(fr, br) * 10) / 10 : null,
+        feedItems: feedOn ? feed.querySelectorAll("li").length : 0,
+        dockH: db ? Math.round(db.height) : 0,
+        sendIn: !!(send && db && send.getBoundingClientRect().height > 8 && send.getBoundingClientRect().top >= db.top - 1 && send.getBoundingClientRect().bottom <= db.bottom + 1 && send.getBoundingClientRect().bottom <= pb.bottom + 1),
+        oneRow: tops.length < 2 || Math.max(...tops) - Math.min(...tops) <= 4,
+      }];
+    });
+    return {
+      inner: [window.innerWidth, window.innerHeight],
+      theme: document.documentElement.getAttribute("data-theme"),
+      navW: nav ? Math.round(nav.getBoundingClientRect().width) : 0,
+      cards,
+    };
+  });
+}
+
+function assertGoalCards(label, data) {
+  for (const card of data.cards) {
+    for (const act of card.acts) {
+      if (!act.inside) fail(`${label} ${card.id} ${act.name} is outside the card at scrollTop 0 (gap ${act.bottomGap}px)`);
+      if (act.dockOver > 1) fail(`${label} ${card.id} ${act.name} overlaps the composer by ${act.dockOver}px`);
+    }
+    if (card.title) {
+      if (card.clamp !== "2") fail(`${label} ${card.id} goal text is not clamped to two lines (${card.clamp})`);
+      if (!(card.lines <= 2.2)) fail(`${label} ${card.id} goal text is ${card.lines} lines`);
+      if (!card.title.length) fail(`${label} ${card.id} goal text has no title`);
+    }
+    if (card.feedItems > 0) {
+      if (card.feedCh < 32) fail(`${label} ${card.id} step list is ${card.feedCh}px`);
+      if (card.feedVis < 32) fail(`${label} ${card.id} step list shows ${card.feedVis}px in the first viewport`);
+    }
+    const overflows = card.sh > card.ch + 1;
+    if (overflows) {
+      if (card.tab !== "0") fail(`${label} ${card.id} card scrolls but is not a tab stop`);
+      if (card.role !== "region" || !card.name) fail(`${label} ${card.id} scrolling card has no name (${card.role}, ${card.name})`);
+    } else if (card.tab !== null) {
+      fail(`${label} ${card.id} card does not scroll but is a tab stop`);
+    }
+    if (card.focused && card.dockH) {
+      if (card.dockH < 90 || card.dockH > 140) fail(`${label} composer dock is ${card.dockH}px`);
+      if (!card.sendIn) fail(`${label} send is outside the composer`);
+      if (!card.oneRow) fail(`${label} composer bar wrapped`);
+    }
+  }
+  const focused = data.cards.find((c) => c.focused);
+  if (label.startsWith("1100x700") && focused) {
+    if (Math.abs(focused.paneH - 302.5) > 8) fail(`${label} focused pane height ${focused.paneH}`);
+    if (data.navW > 0 && Math.abs(focused.paneW - 270) > 12) fail(`${label} focused pane width ${focused.paneW}`);
+    if (data.navW === 0 && Math.abs(focused.paneW - 366) > 16) fail(`${label} collapsed focused pane width ${focused.paneW}`);
+  }
+}
+
+async function scrollFromTop(page, selector, key) {
+  await page.locator(selector).focus();
+  await page.evaluate((sel) => {
+    document.querySelector(sel).scrollTop = 0;
+  }, selector);
+  await page.keyboard.press(key);
+  return page.evaluate((sel) => document.querySelector(sel).scrollTop, selector);
+}
+
+async function goalMatrix(browser, base) {
+  const shots = [];
+  const viewports = [
+    [1100, 700, "dark", "expanded"],
+    [1100, 700, "dark", "collapsed"],
+    [1100, 700, "light", "expanded"],
+    [1100, 700, "light", "collapsed"],
+    [1440, 900, "dark", "expanded"],
+    [1440, 900, "dark", "collapsed"],
+    [1440, 900, "light", "expanded"],
+    [1440, 900, "light", "collapsed"],
+  ];
+  for (const [w, h, theme, side] of viewports) {
+    const context = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: theme });
+    const page = await context.newPage();
+    await prepare(page, base, `theme=${theme}&view=threads`);
+    if (side === "collapsed") {
+      await page.getByRole("button", { name: "Sidebar", exact: true }).click();
+      await page.waitForFunction(() => !document.querySelector(".navigator"));
+    }
+    const label = `${w}x${h}-${theme}-grid-${side}`;
+    const data = await readGoalCards(page);
+    report.goalCards[label] = data;
+    if (data.inner[0] !== w || data.inner[1] !== h) fail(`${label} inner is ${data.inner.join("x")}`);
+    if (data.theme !== theme) fail(`${label} theme is ${data.theme}`);
+    assertGoalCards(label, data);
+    if (outDir) {
+      const path = resolve(outDir, `${label}.png`);
+      await page.screenshot({ path });
+      shots.push(path);
+    }
+    if (label === "1100x700-dark-grid-expanded") {
+      const brief = ".tab-content:not(.hidden) .pane.focused .pane-brief";
+      const stop = page.locator(`${brief} .pane-brief-goal-acts button`, { hasText: "Stop goal" });
+      await stop.focus();
+      const held = await page.evaluate(() => {
+        const el = document.querySelector(".tab-content:not(.hidden) .pane.focused .pane-brief");
+        const b = document.activeElement;
+        const er = el.getBoundingClientRect();
+        const br = b.getBoundingClientRect();
+        return { st: el.scrollTop, name: b.textContent.trim(), inside: br.top >= er.top - 0.5 && br.bottom <= er.bottom + 0.5 };
+      });
+      report.goalCards.stopFocus = held;
+      if (held.st !== 0 || held.name !== "Stop goal" || !held.inside) fail(`focusing Stop goal left the card at ${held.st} (${held.name})`);
+      for (const key of ["PageDown", "ArrowDown", "Space"]) {
+        const top = await scrollFromTop(page, brief, key);
+        report.goalCards[key] = top;
+        if (!(top > 0)) fail(`${key} left the card at scrollTop ${top}`);
+      }
+      const check = await page.evaluate(() => {
+        const b = document.querySelector(".tab-content:not(.hidden) .pane.focused .pane-brief-goal-acts button");
+        b.click();
+        return b.disabled;
+      });
+      if (!check) fail("Check now was enabled while the thread is working");
+    }
+    await context.close();
+  }
+
+  {
+    const context = await browser.newContext({ viewport: { width: 1100, height: 700 }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: "dark" });
+    const page = await context.newPage();
+    await prepare(page, base, "theme=dark&view=threads");
+    await page.evaluate(async (text) => {
+      const mod = await import("/src/store/layout.ts");
+      const cur = mod.useLayout.getState().panes.p2.goal;
+      mod.useLayout.getState().updatePane("p2", { goal: { ...cur, text } });
+      mod.useLayout.getState().focusPane("p1");
+    }, LONG_GOAL);
+    await page.waitForFunction(() => (document.querySelector('.pane[data-pane-id="p2"] .pane-brief-goal-text')?.getAttribute("title") ?? "").includes("cold and warm"));
+    const data = await readGoalCards(page);
+    report.goalCards.long = data.cards.find((c) => c.id === "p2");
+    const card = report.goalCards.long;
+    if (!card || card.focused) fail("long goal card was not the unfocused p2");
+    if (!card.title.includes("cold and warm") || card.lines > 2.2) fail(`long goal is ${card.lines} lines`);
+    if (card.feedCh < 32 || card.feedVis < 32) fail(`long goal feed is ${card.feedCh}px, ${card.feedVis}px visible`);
+    if (!card.acts.some((a) => a.name === "Stop goal" && a.inside)) fail("Stop goal is outside the long card at scrollTop 0");
+    const sel = '.pane[data-pane-id="p2"] .pane-brief';
+    const top = await scrollFromTop(page, sel, "PageDown");
+    report.goalCards.longPageDown = top;
+    if (!(top > 0)) fail(`PageDown on the long card left scrollTop ${top}`);
+    await page.locator(`${sel} .pane-brief-goal-acts button`, { hasText: "Stop goal" }).focus();
+    const back = await page.evaluate(() => {
+      const brief = document.querySelector('.pane[data-pane-id="p2"] .pane-brief');
+      const b = document.activeElement;
+      const er = brief.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+      return br.top >= er.top - 1 && br.bottom <= er.bottom + 1;
+    });
+    if (!back) fail("Stop goal was not reachable after PageDown");
+    if (outDir) await page.screenshot({ path: resolve(outDir, "1100x700-dark-grid-p2-long-goal-unfocused.png") });
+    await context.close();
+  }
+
+  {
+    const context = await browser.newContext({ viewport: { width: 1100, height: 700 }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: "dark" });
+    const page = await context.newPage();
+    await prepare(page, base, "theme=dark&view=threads");
+    await page.locator(".tab-content:not(.hidden) .pane.focused .pane-brief-goal-acts button", { hasText: "Stop goal" }).click();
+    await page.waitForFunction(() => !document.querySelector(".tab-content:not(.hidden) .pane.focused .pane-brief-goal-lead"));
+    const why = await page.evaluate(async () => {
+      const mod = await import("/src/store/layout.ts");
+      return mod.useLayout.getState().panes.p2.goal?.ended?.why ?? "";
+    });
+    report.goalCards.mouseStop = why;
+    if (why !== "stopped") fail(`clicking Stop goal ended the goal as "${why}"`);
+    await context.close();
+  }
+
+  {
+    const context = await browser.newContext({ viewport: { width: 1100, height: 700 }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: "dark" });
+    const page = await context.newPage();
+    await prepare(page, base, "theme=dark&view=threads");
+    const stop = page.locator(".tab-content:not(.hidden) .pane.focused .pane-brief-goal-acts button", { hasText: "Stop goal" });
+    await stop.focus();
+    const st = await page.evaluate(() => document.querySelector(".tab-content:not(.hidden) .pane.focused .pane-brief").scrollTop);
+    await page.keyboard.press("Enter");
+    await page.waitForFunction(() => !document.querySelector(".tab-content:not(.hidden) .pane.focused .pane-brief-goal-lead"));
+    const why = await page.evaluate(async () => {
+      const mod = await import("/src/store/layout.ts");
+      return mod.useLayout.getState().panes.p2.goal?.ended?.why ?? "";
+    });
+    report.goalCards.keyStop = { st, why };
+    if (st !== 0 || why !== "stopped") fail(`Enter on Stop goal (scroll ${st}) ended the goal as "${why}"`);
+    await context.close();
+  }
+
+  for (const [w, h] of [[1100, 700], [1440, 900]]) {
+    const context = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: "dark" });
+    const page = await context.newPage();
+    await prepare(page, base, "theme=dark&view=threads&single=1");
+    const single = await page.evaluate(() => {
+      const stage = document.querySelector(".tab-content:not(.hidden)");
+      const visible = [...stage.querySelectorAll(".pane")].filter((p) => p.getBoundingClientRect().width > 20 && p.getBoundingClientRect().height > 20);
+      const pane = visible.find((p) => p.classList.contains("focused")) ?? visible[0];
+      const pr = pane.getBoundingClientRect();
+      const field = pane.querySelector("textarea[data-chat-input]");
+      const fr = field?.getBoundingClientRect();
+      const stop = [...pane.querySelectorAll("button")].find((b) => b.textContent.trim() === "Stop" && b.getBoundingClientRect().height > 8);
+      const sr = stop?.getBoundingClientRect();
+      return {
+        panes: visible.length,
+        brief: !!pane.querySelector(".pane-brief"),
+        placeholder: field?.getAttribute("placeholder") ?? "",
+        fieldIn: !!fr && fr.height > 8 && fr.top >= pr.top - 1 && fr.bottom <= pr.bottom + 1,
+        stopIn: !stop || (!!sr && sr.top >= pr.top - 1 && sr.bottom <= pr.bottom + 1),
+        tall: pr.height > 500,
+      };
+    });
+    report.goalCards[`single-${w}x${h}`] = single;
+    if (single.panes !== 1) fail(`${w}x${h} single view shows ${single.panes} panes`);
+    if (single.brief) fail(`${w}x${h} single view rendered a grid card`);
+    if (!single.tall) fail(`${w}x${h} single pane is not the full column`);
+    if (!single.fieldIn) fail(`${w}x${h} single composer is outside the pane`);
+    if (!single.stopIn) fail(`${w}x${h} single view Stop is outside the pane`);
+    if (!single.placeholder) fail(`${w}x${h} single composer has no placeholder`);
+    if (outDir) await page.screenshot({ path: resolve(outDir, `${w}x${h}-dark-single-expanded.png`) });
+    await context.close();
+  }
+  return shots;
+}
+
+const LONG_MODEL = "Claude Opus 4.5 (1M context, extra thinking)";
+const LONG_DESC = "OpenCode Go · most capable, for the hardest long problems";
+
+async function readOpenPick(page, kind) {
+  return page.evaluate((kind) => {
+    const pane = document.querySelector(".tab-content:not(.hidden) .pane.focused");
+    const pick = kind === "fold" ? pane.querySelector(".chat-pick-fold") : pane.querySelector(".chat-card-end > .chat-pick");
+    const btn = pick.querySelector(".chat-pick-btn");
+    const menu = pick.querySelector(".chat-pick-menu");
+    const span = btn.querySelector(":scope > span");
+    const br = btn.getBoundingClientRect();
+    const mr = menu.getBoundingClientRect();
+    const pr = pane.getBoundingClientRect();
+    const fold = pane.querySelector(".chat-pick-fold .chat-pick-btn")?.getBoundingClientRect();
+    const plus = pane.querySelector(".chat-plus")?.getBoundingClientRect();
+    const over = (el) => !el || !el.textContent.trim() ? null : ({
+      text: el.textContent.trim(),
+      cut: el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1,
+    });
+    return {
+      label: span?.textContent?.trim() ?? "",
+      spanCut: !!span && span.scrollWidth > span.clientWidth + 1,
+      btnL: Math.round(br.left * 10) / 10,
+      btnW: Math.round(br.width * 10) / 10,
+      menuL: Math.round(mr.left * 10) / 10,
+      menuR: Math.round(mr.right * 10) / 10,
+      menuT: Math.round(mr.top * 10) / 10,
+      menuH: Math.round(mr.height * 10) / 10,
+      menuW: Math.round(mr.width * 10) / 10,
+      paneL: Math.round(pr.left * 10) / 10,
+      paneT: Math.round(pr.top * 10) / 10,
+      paneB: Math.round(pr.bottom * 10) / 10,
+      paneR: Math.round(pr.right * 10) / 10,
+      foldL: fold ? Math.round(fold.left * 10) / 10 : null,
+      plusL: plus ? Math.round(plus.left * 10) / 10 : null,
+      title: btn.getAttribute("title") ?? "",
+      aria: btn.getAttribute("aria-label"),
+      items: [...menu.querySelectorAll("[role=option]")].map((opt) => ({
+        name: over(opt.querySelector(".chat-pick-name")),
+        desc: over(opt.querySelector(".chat-pick-desc")),
+        title: opt.getAttribute("title"),
+        aria: opt.getAttribute("aria-label"),
+      })),
+    };
+  }, kind);
+}
+
+async function openPick(page, kind) {
+  const sel = kind === "fold"
+    ? ".tab-content:not(.hidden) .pane.focused .chat-pick-fold .chat-pick-btn"
+    : ".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-btn";
+  await page.locator(sel).click();
+  await page.waitForSelector(`${sel.split(" .chat-pick-btn")[0]} .chat-pick-menu`);
+}
+
+function assertAnchored(label, kind, data) {
+  const delta = Math.abs(data.menuL - data.btnL);
+  if (delta > 1) fail(`${label} ${kind} menu left ${data.menuL} is ${delta}px from its trigger ${data.btnL}`);
+  if (data.menuR > data.paneR + 1) fail(`${label} ${kind} menu passes the pane by ${Math.round((data.menuR - data.paneR) * 10) / 10}px`);
+  if (data.menuT < data.paneT - 1) fail(`${label} ${kind} menu starts ${data.menuT} above the pane ${data.paneT}`);
+  if (data.menuH < 80) fail(`${label} ${kind} menu is only ${data.menuH}px tall`);
+  if (kind === "model" && data.foldL != null && Math.abs(data.menuL - data.foldL) < 8) {
+    fail(`${label} model menu is on the account control (${data.menuL} vs ${data.foldL})`);
+  }
+  if (kind === "fold" && data.plusL != null && Math.abs(data.menuL - data.plusL) + 1 < Math.abs(data.menuL - data.btnL)) {
+    fail(`${label} provider menu is closer to the add button than its own trigger`);
+  }
+  for (const item of data.items) {
+    const name = item.name?.text ?? "";
+    const desc = item.desc?.text ?? "";
+    if (!item.name?.cut && !item.desc?.cut) continue;
+    if (name && !item.title?.includes(name)) fail(`${label} ${kind} cut row "${name}" title is "${item.title}"`);
+    if (desc && !item.title?.includes(desc)) fail(`${label} ${kind} cut row drops its subtitle "${desc}"`);
+    if (name && !item.aria?.includes(name)) fail(`${label} ${kind} cut row "${name}" has no accessible name`);
+    if (desc && !item.aria?.includes(desc)) fail(`${label} ${kind} accessible name misses "${desc}"`);
+  }
+}
+
+async function pickerMatrix(browser, base) {
+  const viewports = [
+    [1100, 700, "dark", "expanded"],
+    [1100, 700, "dark", "collapsed"],
+    [1100, 700, "light", "expanded"],
+    [1100, 700, "light", "collapsed"],
+    [1440, 900, "dark", "expanded"],
+    [1440, 900, "dark", "collapsed"],
+    [1440, 900, "light", "expanded"],
+    [1440, 900, "light", "collapsed"],
+  ];
+  for (const [w, h, theme, side] of viewports) {
+    const context = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: theme });
+    const page = await context.newPage();
+    await prepare(page, base, `theme=${theme}&view=threads`);
+    if (side === "collapsed") {
+      await page.getByRole("button", { name: "Sidebar", exact: true }).click();
+      await page.waitForFunction(() => !document.querySelector(".navigator"));
+    }
+    const label = `${w}x${h}-${theme}-grid-${side}`;
+    const modelBtn = page.locator(".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-btn");
+
+    await openPick(page, "model");
+    const before = await readOpenPick(page, "model");
+    await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
+    const first = await page.evaluate(() => document.activeElement?.querySelector(".chat-pick-name")?.textContent?.trim() ?? "");
+    await page.keyboard.press("ArrowDown");
+    const next = await page.evaluate(() => document.activeElement?.querySelector(".chat-pick-name")?.textContent?.trim() ?? "");
+    if (!first || !next || first === next) fail(`${label} ArrowDown stayed on "${first}"`);
+    await page.keyboard.press("Escape");
+    await page.waitForSelector(".tab-content:not(.hidden) .pane.focused .chat-card-end .chat-pick-menu", { state: "detached" });
+
+    await openPick(page, "model");
+    await page.evaluate(() => {
+      const menu = document.querySelector(".tab-content:not(.hidden) .chat-card-end .chat-pick-menu");
+      const el = [...menu.querySelectorAll(".chat-pick-name")].find((n) => n.textContent.trim() === "Auto");
+      el.closest("button").click();
+    });
+    await page.waitForFunction(() => document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end .chat-pick-btn span")?.textContent?.includes("Auto"));
+    await openPick(page, "model");
+    const short = await readOpenPick(page, "model");
+    await page.keyboard.press("Escape");
+
+    await page.waitForFunction(async () => {
+      const id = document.querySelector(".tab-content:not(.hidden) .pane.focused")?.dataset.paneId;
+      const { useChat } = await import("/src/lib/chat.ts");
+      return !!(id && useChat.getState().byPane[id]);
+    });
+    await page.evaluate(async ({ value, displayName, description }) => {
+      const id = document.querySelector(".tab-content:not(.hidden) .pane.focused")?.dataset.paneId;
+      const { useChat } = await import("/src/lib/chat.ts");
+      const cur = useChat.getState().byPane[id];
+      if (!cur) throw new Error(`no chat session for ${id}`);
+      useChat.setState({ byPane: { ...useChat.getState().byPane, [id]: { ...cur, models: [{ value, displayName, description }] } } });
+    }, { value: "opus-long", displayName: LONG_MODEL, description: LONG_DESC });
+    await openPick(page, "model");
+    await page.evaluate((name) => {
+      const menu = document.querySelector(".tab-content:not(.hidden) .chat-card-end .chat-pick-menu");
+      const el = [...menu.querySelectorAll(".chat-pick-name")].find((n) => n.textContent.trim() === name);
+      el.closest("button").click();
+    }, LONG_MODEL);
+    await page.waitForFunction((name) => document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end .chat-pick-btn span")?.textContent?.includes(name), LONG_MODEL);
+    await openPick(page, "model");
+    const long = await readOpenPick(page, "model");
+    if (outDir && label === "1100x700-dark-grid-expanded") {
+      await page.screenshot({ path: resolve(outDir, "1100x700-dark-model-menu.png") });
+    }
+    await page.keyboard.press("Escape");
+
+    await openPick(page, "fold");
+    const fold = await readOpenPick(page, "fold");
+    await page.keyboard.press("Escape");
+
+    report.picker[label] = {
+      before: { label: before.label, btnL: before.btnL, btnW: before.btnW, menuL: before.menuL, menuW: before.menuW, spanCut: before.spanCut },
+      short: { label: short.label, btnL: short.btnL, btnW: short.btnW, menuL: short.menuL, menuW: short.menuW, spanCut: short.spanCut },
+      long: { label: long.label, btnL: long.btnL, btnW: long.btnW, menuL: long.menuL, menuW: long.menuW, spanCut: long.spanCut, title: long.title, aria: long.aria },
+      fold: { btnL: fold.btnL, menuL: fold.menuL, menuW: fold.menuW, plusL: fold.plusL },
+    };
+    for (const snap of [before, short, long]) assertAnchored(label, "model", snap);
+    assertAnchored(label, "fold", fold);
+    if (Math.abs(before.menuL - short.menuL) > 2 || Math.abs(short.menuL - long.menuL) > 2) {
+      fail(`${label} menu left moved ${before.menuL} -> ${short.menuL} -> ${long.menuL}`);
+    }
+    if (before.label === short.label || short.label === long.label) fail(`${label} labels did not change (${before.label} / ${short.label} / ${long.label})`);
+    if (!long.label.includes(LONG_MODEL)) fail(`${label} long label is "${long.label}"`);
+    if (label.startsWith("1100x700") && !long.spanCut) fail(`${label} long model name is not truncated on the button`);
+    if (long.spanCut && (!long.title.includes(LONG_MODEL) || !long.aria?.includes(LONG_MODEL))) fail(`${label} long name is missing from the button title or name`);
+    const longRow = long.items.find((item) => item.name?.text === LONG_MODEL);
+    if (!longRow) fail(`${label} long model is not in the menu`);
+    else if (longRow.name.cut || longRow.desc?.cut) {
+      if (!longRow.title?.includes(LONG_MODEL) || !longRow.title.includes(LONG_DESC)) fail(`${label} cut menu row title is "${longRow.title}"`);
+      if (!longRow.aria?.includes(LONG_MODEL) || !longRow.aria.includes(LONG_DESC)) fail(`${label} cut menu row name is "${longRow.aria}"`);
+    }
+
+    if (long.spanCut) {
+      await page.evaluate(async (text) => {
+        const mod = await import("/src/store/layout.ts");
+        const id = document.querySelector(".tab-content:not(.hidden) .pane.focused")?.dataset.paneId;
+        const cur = mod.useLayout.getState().panes[id]?.goal;
+        if (cur) mod.useLayout.getState().updatePane(id, { goal: { ...cur, text } });
+      }, LONG_GOAL);
+      await modelBtn.hover();
+      await page.waitForFunction(() => {
+        const tip = document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-tip");
+        return !!tip?.classList.contains("on") && tip.getBoundingClientRect().height > 8;
+      });
+      const hover = await page.evaluate(() => {
+        const btn = document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-btn");
+        const tip = btn.querySelector(".chat-pick-tip");
+        const paneEl = btn.closest(".pane");
+        const pane = paneEl.getBoundingClientRect();
+        const r = tip.getBoundingClientRect();
+        const cs = getComputedStyle(tip);
+        const hit = (el) => {
+          if (!el) return false;
+          const b = el.getBoundingClientRect();
+          if (b.width < 1 || b.height < 1) return false;
+          return r.left < b.right - 0.5 && r.right > b.left + 0.5 && r.top < b.bottom - 0.5 && r.bottom > b.top + 0.5;
+        };
+        return {
+          on: tip.classList.contains("on"),
+          display: cs.display,
+          text: tip.textContent.trim(),
+          wrapped: tip.scrollHeight <= tip.clientHeight + 1 && tip.scrollWidth <= tip.clientWidth + 1,
+          inside: r.width > 40 && r.height > 8 && r.left >= pane.left - 1 && r.right <= pane.right + 1 && r.top >= pane.top - 1 && r.bottom <= pane.bottom + 1,
+          coversActs: [...paneEl.querySelectorAll(".pane-brief-goal-acts button")].some(hit),
+          coversGoal: hit(paneEl.querySelector(".pane-brief-goal-text")),
+          coversField: hit(paneEl.querySelector(".chat-card textarea")),
+          box: { l: Math.round(r.left), t: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) },
+        };
+      });
+      report.picker[label].hover = hover;
+      if (!hover.on || hover.display === "none" || !hover.text.includes(LONG_MODEL)) fail(`${label} hover tip is "${hover.text}"`);
+      if (!hover.wrapped) fail(`${label} hover tip clips the full label`);
+      if (!hover.inside) fail(`${label} hover tip is outside the pane ${JSON.stringify(hover.box)}`);
+      if (hover.coversActs || hover.coversGoal) fail(`${label} hover tip covers the goal actions ${JSON.stringify(hover.box)}`);
+      if (hover.coversField) fail(`${label} hover tip covers the composer field ${JSON.stringify(hover.box)}`);
+      await page.evaluate(() => {
+        const btn = document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-btn");
+        btn.focus({ focusVisible: true });
+      });
+      await page.waitForFunction(() => document.activeElement?.classList.contains("chat-pick-btn") && document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-tip")?.classList.contains("on"));
+      const focus = await page.evaluate(() => {
+        const btn = document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-card-end > .chat-pick .chat-pick-btn");
+        const tip = btn.querySelector(".chat-pick-tip");
+        return { on: tip.classList.contains("on"), text: tip.textContent.trim(), active: document.activeElement === btn };
+      });
+      report.picker[label].focus = focus;
+      if (!focus.active || !focus.on || !focus.text.includes(LONG_MODEL)) fail(`${label} keyboard tip is "${focus.text}" (active ${focus.active})`);
+    }
+    await context.close();
+  }
+}
+
+async function visibleMenuWords(page) {
+  return page.evaluate(() => {
+    const pane = document.querySelector(".tab-content:not(.hidden) .pane.focused");
+    const menu = pane?.querySelector(".chat-card-end .chat-pick-menu");
+    const button = pane?.querySelector(".chat-card-end .chat-pick-btn");
+    if (!menu || !button) return { missing: true };
+    const mr = menu.getBoundingClientRect();
+    const br = button.getBoundingClientRect();
+    const pr = pane.getBoundingClientRect();
+    const words = [...menu.querySelectorAll("button[role=option]")].flatMap((b) => {
+      const r = b.getBoundingClientRect();
+      const top = Math.max(r.top, mr.top);
+      const bot = Math.min(r.bottom, mr.bottom);
+      if (bot - top < 8) return [];
+      const x = Math.min(mr.right - 8, Math.max(mr.left + 8, r.left + 16));
+      const y = top + (bot - top) / 2;
+      const hit = document.elementFromPoint(x, y);
+      const name = b.querySelector(".chat-pick-name")?.textContent?.trim() ?? "";
+      return [{ name, owns: !!(hit && b.contains(hit)) }];
+    });
+    return {
+      paneW: Math.round(pr.width),
+      btnW: Math.round(br.width * 10) / 10,
+      menuW: Math.round(mr.width * 10) / 10,
+      menuL: Math.round(mr.left),
+      btnL: Math.round(br.left),
+      words,
+    };
+  });
+}
+
+/** One column (the grid folded) and two columns, sidebar open. A short model control must still have clickable menu words. */
+async function narrowMenus(browser, base) {
+  const cases = [
+    { w: 800, h: 900, note: "800 one-column" },
+    { w: 1100, h: 700, note: "1100 two-column", tab: "t2", focus: "p8" },
+    { w: 880, h: 700, note: "880 two-column", tab: "t2", focus: "p8" },
+  ];
+  for (const c of cases) {
+    const context = await browser.newContext({ viewport: { width: c.w, height: c.h }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: "dark" });
+    const page = await context.newPage();
+    await prepare(page, base, "theme=dark&view=threads");
+    if (!(await page.locator(".navigator").count())) fail(`${c.note} sidebar is closed`);
+    if (c.tab) {
+      await page.evaluate(async ({ tab, focus }) => {
+        const { useLayout } = await import("/src/store/layout.ts");
+        useLayout.getState().activateTab(tab);
+        if (focus) useLayout.getState().focusPane(focus);
+      }, c);
+      await page.waitForTimeout(200);
+    }
+    await openPick(page, "model");
+    const info = await visibleMenuWords(page);
+    report.picker[c.note] = info;
+    if (info.missing) fail(`${c.note} model menu did not open`);
+    else {
+      if (info.menuW < 48) fail(`${c.note} menu is ${info.menuW}px wide`);
+      const missed = info.words.filter((w) => !w.owns).map((w) => w.name);
+      if (!info.words.length) fail(`${c.note} menu has no visible words`);
+      if (missed.length) fail(`${c.note} menu words are not clickable: ${missed.join(", ")} (button ${info.btnW}px, menu ${info.menuW}px)`);
+      if (Math.abs(info.menuL - info.btnL) > 2) fail(`${c.note} menu left ${info.menuL} left its trigger ${info.btnL}`);
+    }
+    await context.close();
+  }
+}
+
+const report = { viewports: {}, interactions: {}, goalCards: {}, picker: {} };
 
 const base = await serve();
 const browser = await chromium.launch({ headless: !flag("headed") });
@@ -657,6 +1234,9 @@ try {
     if (checks.has("title") && h1 !== "New thread") fail(`a thread with no name says "${h1}"`);
     await context.close();
   }
+  await goalMatrix(browser, base);
+  await pickerMatrix(browser, base);
+  await narrowMenus(browser, base);
 } finally {
   await browser.close();
   vite?.kill();
@@ -680,6 +1260,6 @@ for (const [name, grid] of Object.entries(report.viewports)) {
     panes: grid.panes.map((p) => ({ id: p.id, state: p.state, focused: p.focused, paneH: p.paneH, sideInset: p.sideInset, cardPast: p.cardPast, metaInside: p.metaInside, metaGap: p.metaGap, feedH: p.feedH, feedItems: p.feedItems, dockInside: p.dockInside, dockShown: p.dockShown })),
   };
 }
-console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions }, null, 2));
+console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions, goalCards: report.goalCards, picker: report.picker }, null, 2));
 console.log(failures.length ? `layout-contract: ${failures.length} failed` : "layout-contract: ok");
 process.exit(failures.length ? 1 : 0);

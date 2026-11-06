@@ -2909,7 +2909,7 @@ textarea::placeholder {
 }
 .pane.focused .chat.brief .chat-dock {
   max-height: 70%;
-  overflow-y: auto;
+  overflow: visible;
 }
 .pane.focused .chat.brief.composing .chat-log {
   display: flex;
@@ -2932,11 +2932,34 @@ textarea::placeholder {
   font-size: var(--fs-meta);
   color: var(--text);
 }
-.pane-brief-goal-text {
+/* Goal text and its actions stay in the first viewport. The track max is two lines;
+   the buttons are the next row, so a long goal cannot push Check now or Stop goal down. */
+.pane-brief-goal-lead {
+  display: grid;
+  grid-template-rows: minmax(0, calc(2 * 1.35 * var(--fs-meta))) auto;
+  align-content: start;
+  gap: 2px;
+  min-width: 0;
+  flex: 0 0 auto;
+  font-size: var(--fs-meta);
   color: var(--text);
+}
+/* The focused card is the short one. A slightly tighter stack keeps the goal actions
+   in the first viewport when the composer takes its own height. */
+.pane.focused .chat.brief .pane-brief {
+  gap: 2px;
+}
+.pane-brief-goal-text {
+  min-width: 0;
+  min-height: 0;
+  color: var(--text);
+  font-weight: 600;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 /* The question or current activity is the title. Status is body. Goal guidance and the footer stay meta. */
 .pane-brief .state-text {
@@ -2966,18 +2989,20 @@ textarea::placeholder {
 .chat.brief .chat-dock .chat-goal {
   display: none;
 }
-/* The card box shrinks to the pane. The steps, the goal, and the footer keep their height and scroll. */
+/* The card box shrinks to the pane. The goal decision, the round, and the footer keep their height.
+   Only the step list gives height back, and never below two lines. */
 .pane:not(.focused) .pane-brief > *,
 .pane.focused .chat.brief .pane-brief > * {
   flex-shrink: 0;
 }
-/* Steps take the spare height and scroll. The action and the footer stay under them,
-   instead of a margin pushing the footer to the bottom and leaving a hole. */
+/* Steps take the spare height and scroll. Two lines stay readable when a neighbour's goal or
+   footer is tall. The action and the footer stay under them, instead of a margin pushing the
+   footer to the bottom and leaving a hole. */
 .pane:not(.focused) .pane-brief > .pane-brief-feed,
 .pane.focused .chat.brief .pane-brief > .pane-brief-feed {
   flex: 1 1 auto;
   flex-shrink: 1;
-  min-height: 0;
+  min-height: max(34px, calc(2 * 1lh + var(--sp-1) + var(--sp-2)));
   overflow-y: auto;
 }
 .pane-brief button.tc-family {
@@ -3045,15 +3070,16 @@ textarea::placeholder {
 }
 .pane-brief-goal-acts {
   display: flex;
+  flex-wrap: wrap;
   gap: 6px;
-  margin-top: 6px;
+  margin-top: 0;
+}
+.pane-brief:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 .pane-brief-goal .chat-goal-bar {
   height: 6px;
-}
-.pane-brief-goal-text {
-  font-weight: 600;
-  white-space: normal;
 }
 /* Grouped picker menus: effort under the model, and the narrow composer's "…" menu. */
 .chat-pick-group {
@@ -3077,6 +3103,51 @@ textarea::placeholder {
 .chat-card-end .chat-pick-menu {
   left: auto;
   right: 0;
+}
+/* A narrow grid card turns every picker static so its menu can use the pane's width.
+   That drops the menu on the pane's left edge, under the account control, while the
+   model button sits further right. These pickers stay the anchor. The width is set
+   from the trigger's left to the pane, so the label's length cannot slide the menu. */
+.chat.brief .chat-pick-fold,
+.chat.brief .chat-card-end > .chat-pick {
+  position: relative;
+}
+.chat.brief .chat-pick-fold > .chat-pick-menu,
+.chat.brief .chat-card-end > .chat-pick > .chat-pick-menu {
+  left: 0;
+  right: auto;
+  min-width: 0;
+  /* Above the notice stack (z 55), which otherwise sits on a two-column card's menu. */
+  z-index: 60;
+}
+.chat.brief .chat-pick-menu [role="option"] {
+  min-width: 0;
+}
+.chat.brief .chat-pick-name,
+.chat.brief .chat-pick-desc {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* A cut model or provider name. Hover and keyboard focus both reveal the whole string. */
+.chat-pick-tip {
+  display: none;
+  position: fixed;
+  z-index: 80;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-size: var(--fs-meta);
+  font-weight: 550;
+  line-height: 1.35;
+  white-space: normal;
+  text-align: left;
+  pointer-events: none;
+}
+.chat-pick-tip.on {
+  display: block;
 }
 .chat-pick-fold .chat-pick-btn {
   padding-inline: 8px;
@@ -3179,26 +3250,41 @@ textarea::placeholder {
 .pane.focused .chat.brief .chat-card-bar {
   flex-wrap: nowrap;
 }
+/* The model slot takes the room after the account control. Its size is that room,
+   not the label, so a longer name ellipsizes in place and the menu stays put. */
+.pane.focused .chat.brief .chat-card-gap {
+  display: none;
+}
 .pane.focused .chat.brief .chat-card-end {
   flex: 1 1 auto;
-  flex-shrink: 1;
   min-width: 0;
+  margin-left: 0;
 }
 .pane.focused .chat.brief .chat-card-end > :not(.chat-pick) {
   flex-shrink: 0;
 }
 .pane.focused .chat.brief .chat-card-end .chat-pick {
   min-width: 0;
-  flex: 1 1 auto;
+  flex: 1 1 0;
 }
 .pane.focused .chat.brief .chat-card-end .chat-pick-btn {
+  width: 100%;
   max-width: 100%;
   min-width: 0;
+  justify-content: flex-start;
 }
 .pane.focused .chat.brief .chat-card-end .chat-pick-btn > span {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+/* The tooltip is a span inside the button, so the label's nowrap and ellipsis would
+   clip it to one cut line. The tip shows the whole string and wraps. */
+.chat-pick-btn > span.chat-pick-tip,
+.pane.focused .chat.brief .chat-card-end .chat-pick-btn > span.chat-pick-tip {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 /* Grid card activity feed: the agent's last steps, newest last, so a glance says what it has been doing. */
 .pane-brief-feed {
