@@ -112,8 +112,11 @@ export function PaneBrief({ paneId, cwd }: { paneId: string; cwd?: string }) {
       {grown && (
         <div className="pane-brief-trip" role="alert">
           <span>
-            The diff grew {grown.factor}× since this thread started ({grown.from} → {grown.to} lines). Running in circles?
+            Changes expanded from {grown.from} to {grown.to} lines ({grown.factor}×). Review the diff before continuing.
           </span>
+          <button type="button" className="btn sm" onClick={() => useUi.getState().set({ agentPanelOpen: true, railTab: "changes" })}>
+            Review
+          </button>
           <button type="button" className="btn sm" onClick={() => noteBase(paneId, stat, true)}>
             Keep going
           </button>

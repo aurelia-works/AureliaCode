@@ -396,7 +396,7 @@ body {
   background: var(--s2);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 0.35s var(--ease);
+  transition: transform var(--t-fast) var(--ease);
 }
 .th-row:hover::before {
   transform: scaleX(1);
@@ -575,8 +575,8 @@ body {
   color: var(--text-dim);
   font-size: var(--fs-body);
   transition:
-    background 0.25s var(--ease),
-    color 0.25s var(--ease);
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 .bk:hover,
 .bk.on {
@@ -609,8 +609,8 @@ body {
   border-radius: 8px;
   color: var(--text-dim);
   transition:
-    background 0.25s var(--ease),
-    color 0.25s var(--ease);
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 .ib:hover {
   background: var(--s2);
@@ -659,7 +659,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 0 1 auto;
+  /* Don't shrink while a chip or the spacer can. The narrow band turns shrinking back on. */
+  flex: 1 0 auto;
   min-width: 0;
   overflow: hidden;
   color: var(--text-dim);
@@ -669,13 +670,16 @@ body {
 .crumb h1 {
   margin: 0;
   flex: 0 1 auto;
-  /* Was 2.5em, which is the 34px the title fell to at 800px. Chips shrink first. */
-  min-width: 9em;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--text);
   font-size: var(--fs-body);
   font-weight: 500;
+}
+.crumb h1:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 .crumb h1.fixed {
   flex: none;
@@ -700,7 +704,8 @@ body {
   font: 700 var(--fs-label) var(--font-ui);
 }
 .thread-head .chip {
-  flex: 0 1 auto;
+  /* Shrink long before the title does. A stub is still a chip; the next band hides them. */
+  flex: 0 100 auto;
   min-width: 0;
   max-width: 220px;
   background: none;
@@ -842,7 +847,7 @@ body {
   border-radius: 0;
   color: var(--text-faint);
   font-size: var(--fs-body);
-  transition: color 0.2s var(--ease);
+  transition: color var(--t-fast) var(--ease);
 }
 .chat-tools-line:hover,
 .chat-worked:hover {
@@ -994,8 +999,8 @@ body {
   border: 1px solid var(--line-2);
   font-weight: 400;
   transition:
-    border-color 0.25s var(--ease),
-    background 0.25s var(--ease);
+    border-color var(--t-fast) var(--ease),
+    background var(--t-fast) var(--ease);
 }
 .chat-approval-actions button:hover {
   background: var(--s2);
@@ -1066,7 +1071,7 @@ body {
   font: inherit;
   font-weight: 500;
   vertical-align: baseline;
-  transition: background 0.2s var(--ease);
+  transition: background var(--t-fast) var(--ease);
 }
 .hello-project:hover,
 .hello-project[aria-expanded="true"] {
@@ -1229,7 +1234,7 @@ body {
   color: var(--ink-2);
   font-size: var(--fs-body);
   white-space: nowrap;
-  transition: background 0.25s var(--ease);
+  transition: background var(--t-fast) var(--ease);
 }
 .opt:hover {
   background: var(--s2);
@@ -1258,7 +1263,7 @@ body {
   height: 12px;
   border-radius: 12px;
   background: var(--s3);
-  transition: background 0.25s var(--ease);
+  transition: background var(--t-fast) var(--ease);
 }
 .sw::after {
   content: "";
@@ -1270,8 +1275,8 @@ body {
   border-radius: 50%;
   background: var(--text-dim);
   transition:
-    translate 0.3s var(--ease),
-    background 0.25s;
+    translate var(--t-med) var(--ease),
+    background var(--t-fast) var(--ease);
 }
 .opt.tog[aria-pressed="true"] .sw {
   background: var(--accent);
@@ -1303,8 +1308,8 @@ body {
   color: var(--text-faint);
   font-size: var(--fs-meta);
   transition:
-    background 0.25s var(--ease),
-    color 0.25s var(--ease);
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 .start-chip:hover {
   background: var(--s2);
@@ -1394,7 +1399,7 @@ body {
   background: var(--s1);
   transform: scaleX(0);
   transform-origin: left;
-  transition: transform 0.4s var(--ease);
+  transition: transform var(--t-fast) var(--ease);
 }
 .rz:hover::before {
   transform: scaleX(1);
@@ -1443,8 +1448,8 @@ body {
   color: var(--text-faint);
   font: var(--fs-meta) var(--font-mono);
   transition:
-    translate 0.35s var(--ease),
-    color 0.25s;
+    translate var(--t-med) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 .rz:hover .go {
   translate: 4px 0;
@@ -1462,10 +1467,10 @@ body {
   font-size: var(--fs-body);
   white-space: nowrap;
   transition:
-    background 0.25s var(--ease),
-    border-color 0.25s var(--ease),
-    translate 0.3s var(--ease),
-    box-shadow 0.3s var(--ease);
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease),
+    translate var(--t-fast) var(--ease),
+    box-shadow var(--t-fast) var(--ease);
 }
 .btn:hover:not(:disabled) {
   background: var(--s4);
@@ -1512,8 +1517,8 @@ body {
 .seg button {
   border-radius: 6px;
   transition:
-    background 0.25s var(--ease),
-    color 0.25s var(--ease);
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 .seg button:hover {
   background: var(--s2);
@@ -1679,7 +1684,7 @@ body.resizing-row .rail-grip {
   border-radius: 14px;
   border: 1px solid var(--line);
   background: var(--bg);
-  transition: border-color 0.25s var(--ease);
+  transition: border-color var(--t-fast) var(--ease);
 }
 .card::before {
   display: none;
@@ -1724,8 +1729,8 @@ body.resizing-row .rail-grip {
   color: var(--text-dim);
   font-size: var(--fs-body);
   transition:
-    background 0.25s var(--ease),
-    color 0.25s var(--ease);
+    background var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease);
 }
 .settings-nav > button:hover {
   background: var(--s2);
@@ -1830,8 +1835,8 @@ body.resizing-row .rail-grip {
   border: 1px solid var(--line);
   text-align: left;
   transition:
-    background 0.25s var(--ease),
-    border-color 0.25s var(--ease);
+    background var(--t-fast) var(--ease),
+    border-color var(--t-fast) var(--ease);
 }
 .setup-perm:hover {
   background: var(--s1);
@@ -2360,12 +2365,26 @@ body.resizing-row .rail-grip {
   }
 }
 
-/* At 800px the stage is 512px. Chips, the repo, and the tool words give that width to the thread name.
-   The buttons keep their accessible names. A longer title still ellipsizes; the heading's title is the full string. */
-@media (max-width: 860px) {
-  .thread-head .chip,
+/* Header priority, wide to narrow. The repo is also in the sidebar, so it yields first.
+   Chips yield next. Tool words yield last; the icons keep their accessible names.
+   A title longer than the stage still ellipsizes. The heading is focusable and its title is the full string. */
+@media (max-width: 1280px) {
   .thread-head .crumb-repo,
-  .thread-head .crumb-sep,
+  .thread-head .crumb-sep {
+    display: none;
+  }
+}
+@media (max-width: 1000px) {
+  .thread-head .chip {
+    display: none;
+  }
+  .thread-head .crumb {
+    flex: 1 1 auto;
+  }
+}
+/* Stage is the viewport minus the 288px nav. Three labelled tools are about 230px,
+   so below 940px they stop sharing the bar with a full title. Icons and accessible names stay. */
+@media (max-width: 940px) {
   .thread-head .ib.labelled > span {
     display: none;
   }
@@ -2445,7 +2464,7 @@ body.resizing-row .rail-grip {
   color: var(--text-dim);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
   animation: rise-in var(--t-fast) var(--ease);
-  transition: color 0.2s var(--ease), border-color 0.2s var(--ease);
+  transition: color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
 }
 .chat-jump:hover {
   color: var(--text);

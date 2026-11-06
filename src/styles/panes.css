@@ -459,7 +459,7 @@ body.pane-dragging .block-overlay {
   pointer-events: auto;
   cursor: pointer;
   opacity: 0.5;
-  transition: opacity var(--t-fast), width var(--t-fast);
+  transition: opacity var(--t-fast);
 }
 .block-gutter.ok {
   background: color-mix(in srgb, var(--ok) 60%, transparent);

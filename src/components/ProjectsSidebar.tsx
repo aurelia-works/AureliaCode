@@ -375,7 +375,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
               </span>
             )}
             {grown && (
-              <span className="th-trip num" title={`The diff grew from ${grown.from} to ${grown.to} lines since this thread started. Running in circles? Open it to stop or keep going.`}>
+              <span className="th-trip num" title={`Changes expanded from ${grown.from} to ${grown.to} lines (${grown.factor}×). Review the diff before continuing.`}>
                 {grown.factor}× diff
               </span>
             )}

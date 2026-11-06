@@ -159,7 +159,7 @@ export function ThreadHeader() {
         <span className="mono-badge">{repoBadge(repo)}</span>
         <span className="crumb-repo">{repo}</span>
         <span className="crumb-sep" aria-hidden="true">/</span>
-        <h1 title={name}>{name}</h1>
+        <h1 title={name} tabIndex={0}>{name}</h1>
       </div>
       {crew + kids > 0 && (
         <button className="chip crew-chip" title="Agents this thread delegated to: open the crew in the sidebar" onClick={() => ui.set({ nav: "projects" })}>
