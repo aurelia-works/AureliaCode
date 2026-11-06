@@ -1,9 +1,10 @@
 name: macos release
 
-# Manual Apple Silicon .app. This does not publish a GitHub Release or a git tag.
-# The version input defaults to 0.1.0-beta. It must match the three source
-# versions, and it is the artifact filename. macos-15 is the arm64 image.
-# This replaces the macos-15-intel job. There is no x86_64 release leg.
+# Apple Silicon .app. This does not publish a GitHub Release or a git tag.
+# workflow_dispatch input `version` defaults to 0.1.0-beta. A push of this
+# branch has no input, so the job uses that same default. The string must
+# match the three source versions, and it is the artifact name.
+# macos-15 is the arm64 image. There is no x86_64 release leg.
 on:
   workflow_dispatch:
     inputs:
@@ -12,6 +13,9 @@ on:
         required: false
         default: 0.1.0-beta
         type: string
+  push:
+    branches:
+      - cursor/macos-beta-adhoc-f7fb
 
 permissions:
   contents: read
@@ -29,7 +33,7 @@ jobs:
       CARGO_INCREMENTAL: "0"
       CARGO_TERM_COLOR: never
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-      EXPECTED_VERSION: ${{ inputs.version }}
+      EXPECTED_VERSION: ${{ inputs.version || '0.1.0-beta' }}
       APP_BUNDLE: src-tauri/target/release/bundle/macos/AureliaCode.app
       APP_BIN: src-tauri/target/release/bundle/macos/AureliaCode.app/Contents/MacOS/aurelia-space
     steps:
@@ -191,8 +195,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AureliaCode-${{ inputs.version }}-macos-arm64-adhoc
-          path: ${{ runner.temp }}/AureliaCode-${{ inputs.version }}-macos-arm64-adhoc.zip
+          name: AureliaCode-${{ inputs.version || '0.1.0-beta' }}-macos-arm64-adhoc
+          path: ${{ runner.temp }}/AureliaCode-${{ inputs.version || '0.1.0-beta' }}-macos-arm64-adhoc.zip
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
