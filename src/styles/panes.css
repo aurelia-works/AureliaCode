@@ -2259,6 +2259,75 @@ body.pane-dragging .block-overlay {
 .chat-rules {
   width: min(640px, calc(100vw - 32px));
 }
+.untangle-dialog {
+  width: min(640px, calc(100vw - 32px));
+}
+.untangle-body {
+  overflow: auto;
+  padding: 0 16px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.untangle-choices {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-inline-size: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.untangle-choices legend {
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+  margin-bottom: 2px;
+}
+.untangle-choice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: var(--fs-body);
+}
+.untangle-area {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+}
+.untangle-area input {
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text);
+}
+.untangle-kicker {
+  margin: 4px 0 0;
+  font-size: var(--fs-meta);
+  color: var(--text-faint);
+}
+.untangle-preview,
+.untangle-skill {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-meta);
+  white-space: pre-wrap;
+  overflow: auto;
+}
+.untangle-preview {
+  max-height: 4.5rem;
+}
+.untangle-skill {
+  max-height: 9rem;
+}
 .chat-rules-cwd {
   font-size: var(--fs-meta);
   color: var(--text-faint);
