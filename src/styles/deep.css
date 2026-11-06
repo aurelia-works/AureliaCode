@@ -2547,15 +2547,12 @@ body.resizing-row .rail-grip {
   white-space: nowrap;
 }
 
-/* The diff-growth tripwire on a thread row: "3.8×". */
+/* The diff-growth mark sits in the metadata line, same size and color as the diff numbers. */
 .th-trip {
   margin-left: 4px;
-  padding: 0 5px;
-  border-radius: var(--r-xs);
-  font-size: var(--fs-label);
-  font-weight: 600;
-  background: var(--attn-soft);
-  color: var(--warn);
+  font-size: inherit;
+  font-weight: inherit;
+  color: inherit;
   white-space: nowrap;
 }
 
