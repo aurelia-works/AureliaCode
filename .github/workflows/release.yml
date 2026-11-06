@@ -1,11 +1,14 @@
 name: macos release
 
-# Manual 0.1.0 macOS .app. This does not publish a GitHub Release.
+# Manual 0.1.0 Apple Silicon .app. This does not publish a GitHub Release.
 # workflow_dispatch runs only after this file is on the default branch.
-# macos-15-intel is the runner rust.yml already uses. The arm64 pool left jobs
-# unassigned on 2026-11-04, so this route does not add an Apple Silicon leg.
+# macos-15 is the standard arm64 image. macos-14 retired on 2026-11-02.
+# This replaces the macos-15-intel job. There is no x86_64 release leg.
 on:
   workflow_dispatch:
+  # Temporary, so this branch can compile before the file is on main. Removed after the arm64 run.
+  push:
+    branches: [cursor/macos-arm64-release-f896]
 
 permissions:
   contents: read
@@ -15,10 +18,10 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  intel:
-    name: macOS 15 Intel .app
-    runs-on: macos-15-intel
-    timeout-minutes: 45
+  arm64:
+    name: macOS 15 Apple Silicon .app
+    runs-on: macos-15
+    timeout-minutes: 60
     env:
       CARGO_INCREMENTAL: "0"
       CARGO_TERM_COLOR: never
@@ -28,6 +31,19 @@ jobs:
       APP_BIN: src-tauri/target/release/bundle/macos/AureliaCode.app/Contents/MacOS/aurelia-space
     steps:
       - uses: actions/checkout@v4
+
+      - name: Require an Apple Silicon runner
+        run: |
+          set -euo pipefail
+          echo "RUNNER_OS=$RUNNER_OS"
+          echo "RUNNER_ARCH=$RUNNER_ARCH"
+          echo "ImageOS=${ImageOS:-}"
+          uname -m | tee "$RUNNER_TEMP/uname.txt"
+          sw_vers
+          sysctl -n machdep.cpu.brand_string || true
+          test "$RUNNER_OS" = "macOS"
+          test "$RUNNER_ARCH" = "ARM64"
+          grep -qx "arm64" "$RUNNER_TEMP/uname.txt"
 
       - uses: actions/setup-node@v4
         with:
@@ -78,11 +94,14 @@ jobs:
         # APPLE_SIGNING_IDENTITY is the documented override of that same field.
         # --bundles app matches bundle.targets and does not build a .dmg.
         # --locked matches rust.yml. No APPLE_* certificate or notarization secrets.
+        # Standard macos-15 arm64 is 3 CPUs and 7 GB. Two rustc jobs keeps the link in RAM.
         env:
           APPLE_SIGNING_IDENTITY: "-"
+          CARGO_BUILD_JOBS: "2"
         run: |
           set -euo pipefail
-          rustc -vV
+          rustc -vV | tee "$RUNNER_TEMP/rustc.txt"
+          grep -q "^host: aarch64-apple-darwin$" "$RUNNER_TEMP/rustc.txt"
           npm ci --no-audit --no-fund
           npx tauri --version
           npx tauri build --bundles app \
@@ -96,7 +115,15 @@ jobs:
           test -x "$APP_BIN"
           file "$APP_BIN" | tee "$RUNNER_TEMP/file.txt"
           grep -q "Mach-O" "$RUNNER_TEMP/file.txt"
-          grep -q "x86_64" "$RUNNER_TEMP/file.txt"
+          grep -q "arm64" "$RUNNER_TEMP/file.txt"
+          if grep -q "x86_64" "$RUNNER_TEMP/file.txt"; then
+            echo "refusing an x86_64 binary"
+            exit 1
+          fi
+          lipo -archs "$APP_BIN" | tee "$RUNNER_TEMP/lipo.txt"
+          grep -qx "arm64" "$RUNNER_TEMP/lipo.txt"
+          otool -hv "$APP_BIN" | tee "$RUNNER_TEMP/otool.txt"
+          grep -q "ARM64" "$RUNNER_TEMP/otool.txt"
           bytes=$(wc -c < "$APP_BIN" | tr -d ' ')
           echo "binary bytes=$bytes"
           test "$bytes" -gt 1000000
@@ -130,26 +157,27 @@ jobs:
             exit 1
           fi
           codesign --verify --strict --verbose=2 "$APP_BUNDLE"
+          git diff --exit-code -- src-tauri/tauri.conf.json
           {
-            echo "### macOS 0.1.0 Intel bundle"
+            echo "### macOS 0.1.0 Apple Silicon bundle"
+            echo ""
+            echo "Runner: $RUNNER_OS $RUNNER_ARCH (\`uname -m\` is arm64)."
             echo ""
             echo "Path: \`$APP_BUNDLE\`"
             echo ""
-            echo "Binary: \`$APP_BIN\` ($bytes bytes, x86_64 Mach-O)."
+            echo "Binary: \`$APP_BIN\` ($bytes bytes, arm64 Mach-O)."
             echo ""
             echo "Version $ver, executable \`$exe\`, bundle id \`$ident\`, minimum macOS $min."
             echo ""
             echo "Signature is ad-hoc (\`-\`), from Tauri's documented pseudo-identity. There is no Developer ID and no notarization."
             echo ""
             echo "This zip is a build proof. It cannot be installed on another Mac. Gatekeeper rejects an ad-hoc app that was signed on a different machine. A normal install is \`npm run app:build\` on the maintainer's Mac, which still uses the Apple Development identity in \`src-tauri/tauri.conf.json\`."
-            echo ""
-            echo "Apple Silicon was not built. This runner is macos-15-intel only."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Zip the .app with ditto
         run: |
           set -euo pipefail
-          zip="$RUNNER_TEMP/AureliaCode-${EXPECTED_VERSION}-macos-x86_64-adhoc.zip"
+          zip="$RUNNER_TEMP/AureliaCode-${EXPECTED_VERSION}-macos-arm64-adhoc.zip"
           ditto -c -k --keepParent "$APP_BUNDLE" "$zip"
           unzip -l "$zip" | tee "$RUNNER_TEMP/zip-list.txt"
           grep -q "AureliaCode.app/Contents/MacOS/aurelia-space" "$RUNNER_TEMP/zip-list.txt"
@@ -157,8 +185,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AureliaCode-0.1.0-macos-x86_64-adhoc
-          path: ${{ runner.temp }}/AureliaCode-0.1.0-macos-x86_64-adhoc.zip
+          name: AureliaCode-0.1.0-macos-arm64-adhoc
+          path: ${{ runner.temp }}/AureliaCode-0.1.0-macos-arm64-adhoc.zip
           if-no-files-found: error
           retention-days: 14
           compression-level: 0
@@ -214,9 +242,9 @@ jobs:
           cat "$log/stderr.txt" || true
           if [ "$code" -eq 0 ]; then
             {
-              echo "Smoke: launched \`$APP_BIN\` on this macos-15-intel runner. It was still running after 8 seconds. The job then signalled it."
+              echo "Smoke: launched \`$APP_BIN\` on this macos-15 arm64 runner. It was still running after 8 seconds. The job then signalled it."
               echo ""
-              echo "That is a same-machine process start only. It is not a Gatekeeper install, not a click-through, and not an Apple Silicon run. stdout and stderr were empty, so this does not show a window."
+              echo "That is a same-machine process start only. It is not a Gatekeeper install and not a click-through. stdout and stderr were empty, so this does not show a window."
             } >> "$GITHUB_STEP_SUMMARY"
           fi
           exit "$code"
