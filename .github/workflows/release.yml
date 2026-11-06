@@ -1,15 +1,11 @@
 name: macos release
 
 # Manual 0.1.0 macOS .app. This does not publish a GitHub Release.
+# workflow_dispatch runs only after this file is on the default branch.
 # macos-15-intel is the runner rust.yml already uses. The arm64 pool left jobs
 # unassigned on 2026-11-04, so this route does not add an Apple Silicon leg.
 on:
   workflow_dispatch:
-  # Temporary, so this branch can compile before the file exists on main.
-  # workflow_dispatch does not run until the file is on the default branch.
-  # Remove this push trigger before merge.
-  push:
-    branches: [cursor/macos-release-0.1.0-22cd]
 
 permissions:
   contents: read
