@@ -2916,7 +2916,16 @@ textarea::placeholder {
 }
 /* The card fills an unfocused grid pane: the cell is one status surface, not a small
    card floating on black. The ask and its button stay together at the top; where the
-   thread lives (folder, branch, diff) sits on the bottom edge. */
+   thread lives (folder, branch, diff) sits on the bottom edge.
+   .chat-col is a centred reading column (margin: 0 auto, max-width 736px). In a grid
+   that sizes a short card to its text, so the idle cell and a short needs-you cell
+   leave a black gap on each side. A brief card takes the log's width instead. */
+.chat.brief .chat-col {
+  width: 100%;
+  max-width: none;
+  margin-inline: 0;
+  min-width: 0;
+}
 .pane:not(.focused) .chat.brief .chat-col {
   flex: 1 0 auto;
   display: flex;
