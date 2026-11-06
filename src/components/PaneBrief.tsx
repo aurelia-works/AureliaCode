@@ -80,6 +80,7 @@ export function PaneBrief({ paneId, cwd }: { paneId: string; cwd?: string }) {
           <span className="num">
             Round {goalRound(goal)} of {goal.maxRounds}
             {goal.last && !goal.last.met ? ` · last check failed (exit ${goal.last.code})` : ""}
+            {v === "working" ? " · next check runs when this turn ends" : ""}
           </span>
           <span className="pane-brief-goal-acts">
             <button type="button" className="btn sm" disabled={v === "working"} title={v === "working" ? "The check runs when this turn ends" : `Run \`${goal.check}\` now`} onClick={() => void runGoalCheck(paneId, (t) => void sendChat(paneId, t))}>

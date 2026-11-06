@@ -247,7 +247,7 @@ export function ChatPane({ paneId }: { paneId: string }) {
             </button>
           </div>
         ) : (
-          <ChatComposer paneId={paneId} busy={busy} expanded={composing} onExpand={setComposing} />
+          <ChatComposer paneId={paneId} busy={busy} steering={runningHook && !busy} expanded={composing} onExpand={setComposing} />
         )}
       </div>
     </div>
@@ -1248,7 +1248,7 @@ function modelName(id?: string): string | undefined {
 
 const cap = (s?: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; busy: boolean; expanded: boolean; onExpand: (on: boolean) => void }) {
+function ChatComposer({ paneId, busy, steering, expanded, onExpand }: { paneId: string; busy: boolean; steering: boolean; expanded: boolean; onExpand: (on: boolean) => void }) {
   const setExpanded = onExpand;
   const prefs = useUi((s) => s.prefs);
   const [text, setText] = useState(() => drafts.get(paneId)?.text ?? "");
@@ -1568,7 +1568,7 @@ function ChatComposer({ paneId, busy, expanded, onExpand }: { paneId: string; bu
           rows={narrowBar && !text ? 1 : 2}
           value={text}
           data-chat-input={paneId}
-          placeholder={busy ? `${agentName(pane)} is working. A message now goes after this turn` : oc ? "Ask anything. @ files" : "Ask anything. @ files, / commands"}
+          placeholder={busy ? `${agentName(pane)} is working. Your next message sends after this turn` : steering ? `${agentName(pane)} is working. Reply here to steer it` : oc ? "Ask anything. @ files" : "Ask anything. @ files, / commands"}
           onChange={(e) => {
             setText(cleanTextarea(e.target));
             setCaret(e.target.selectionStart);

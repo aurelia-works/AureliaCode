@@ -303,6 +303,21 @@ try {
       const second = await page.evaluate(() => document.activeElement?.closest("[data-thread]")?.dataset.thread ?? "");
       report.interactions.arrow = { first, second };
       if (checks.has("sidebar") && (!second || second === first)) fail(`ArrowDown did not move sidebar focus (${first} -> ${second})`);
+      if (checks.has("sidebar")) {
+        const search = page.getByRole("searchbox", { name: "Search threads" });
+        await search.fill("zzzz");
+        const miss = (await page.locator(".side-empty").textContent()) ?? "";
+        report.interactions.search = miss.trim();
+        if (!miss.includes("zzzz")) fail(`search miss did not name the query: ${miss}`);
+        await page.getByRole("button", { name: "Clear search" }).click();
+        const back = await page.locator(".nav-thread .th-row").count();
+        if (back < 7) fail(`clearing search left ${back} thread rows`);
+      }
+      if (checks.has("title")) {
+        const goal = await page.locator(".pane-brief-goal").filter({ hasText: "last check failed" }).first().innerText();
+        report.interactions.goal = goal.replace(/\s+/g, " ").trim();
+        if (!goal.includes("next check runs when this turn ends")) fail(`working goal does not say when the next check runs: ${goal.slice(0, 180)}`);
+      }
 
       const composer = page.locator(".tab-content:not(.hidden) .pane.focused textarea[data-chat-input]");
       await composer.click();
@@ -361,6 +376,13 @@ try {
       report.single.body = body.replace(/\s+/g, " ").trim();
       if (body.includes("What should")) fail(`a running thread still asks what to do`);
       if (!body.includes("already running") && !body.includes("Answer in the composer")) fail(`running thread has no guidance: ${body.slice(0, 120)}`);
+      const said = await page.evaluate(() => {
+        const pane = document.querySelector(".tab-content:not(.hidden) .pane.focused");
+        return pane?.querySelector("textarea[data-chat-input]")?.getAttribute("placeholder") ?? "";
+      });
+      report.single.placeholder = said;
+      if (said.includes("Ask anything") || said.includes("A message now goes")) fail(`a running thread's composer still asks what to do: ${said}`);
+      if (!said.includes("steer")) fail(`a running thread's composer does not say you can steer it: ${said}`);
     }
     await context.close();
   }
