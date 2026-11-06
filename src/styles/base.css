@@ -429,7 +429,8 @@ button.chip:hover,
 }
 .glyph.working {
   color: var(--s-work);
-  animation: glyph-spin 2.4s linear infinite;
+  /* One turn in 0.8s. 2.4s read as idle. Linear, because an ease would slow every loop. Rotate only. */
+  animation: glyph-spin 0.8s linear infinite;
 }
 .glyph.done {
   color: var(--s-done);
@@ -802,6 +803,10 @@ button.primary:disabled,
 }
 .diffstat .add {
   color: var(--s-done);
+}
+/* Light #15803d on a selected row (#ebebeb) is 4.2:1. This green clears 4.5 there and on white. */
+:root[data-theme="light"] .diffstat .add {
+  color: #116e32;
 }
 .diffstat .del {
   color: var(--err);

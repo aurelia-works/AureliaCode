@@ -459,7 +459,7 @@ body.pane-dragging .block-overlay {
   pointer-events: auto;
   cursor: pointer;
   opacity: 0.5;
-  transition: opacity var(--t-fast), width var(--t-fast);
+  transition: opacity var(--t-fast);
 }
 .block-gutter.ok {
   background: color-mix(in srgb, var(--ok) 60%, transparent);
@@ -3319,8 +3319,9 @@ textarea::placeholder {
 .pane.focused .chat.brief .chat-card-bar {
   flex-wrap: nowrap;
 }
-/* The model slot takes the room after the account control. Its size is that room,
-   not the label, so a longer name ellipsizes in place and the menu stays put. */
+/* The model slot sizes to its label. The context percent yields first, so "Default · Medium"
+   is not clipped to make room for "57%". A longer name still ellipsizes, and the button
+   keeps the full string in its title and accessible name. Send does not shrink. */
 .pane.focused .chat.brief .chat-card-gap {
   display: none;
 }
@@ -3332,12 +3333,21 @@ textarea::placeholder {
 .pane.focused .chat.brief .chat-card-end > :not(.chat-pick) {
   flex-shrink: 0;
 }
+.pane.focused .chat.brief .chat-card-end > .chat-ctx {
+  flex: 0 0 auto;
+  min-width: min-content;
+}
+.pane.focused .chat.brief .chat-card-end .chat-send {
+  margin-left: 2px;
+}
 .pane.focused .chat.brief .chat-card-end .chat-pick {
+  flex: 0 0 auto;
+  width: max-content;
+  max-width: calc(100% - 44px);
   min-width: 0;
-  flex: 1 1 0;
 }
 .pane.focused .chat.brief .chat-card-end .chat-pick-btn {
-  width: 100%;
+  width: max-content;
   max-width: 100%;
   min-width: 0;
   justify-content: flex-start;
@@ -3346,6 +3356,27 @@ textarea::placeholder {
   overflow: hidden;
   text-overflow: ellipsis;
   min-width: 0;
+}
+/* A three-column card cannot also show the percent. The words of the model and effort stay. */
+@container chat (max-width: 340px) {
+  .chat.brief .chat-card-end .chat-ctx {
+    display: none;
+  }
+}
+@container chat (max-width: 280px) {
+  .pane.focused .chat.brief .chat-card-end .chat-pick {
+    max-width: calc(100% - 40px);
+  }
+  .chat.brief .chat-card-end .chat-pick-btn > svg {
+    display: none;
+  }
+  .chat.brief .chat-card-end .chat-pick-btn {
+    padding-inline: 0;
+    gap: 0;
+  }
+  .chat.brief .chat-send {
+    margin-left: 2px;
+  }
 }
 /* The tooltip is a span inside the button, so the label's nowrap and ellipsis would
    clip it to one cut line. The tip shows the whole string and wraps. */

@@ -651,7 +651,7 @@
 .signals .sig > .btn,
 .signals .sig > .tb-focus-wrap {
   opacity: 0;
-  transition: opacity 0.15s var(--ease);
+  transition: opacity var(--t-fast) var(--ease);
 }
 .signals .sig:hover > .btn,
 .signals .sig:focus-within > .btn,
