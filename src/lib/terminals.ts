@@ -222,7 +222,7 @@ function spawn(entry: TermEntry, cols: number, rows: number) {
     entry.term.write(bytes, () => parsed(entry, bytes.length));
   };
   ipc
-    .ptySpawn({ paneId: entry.paneId, cwd: pane?.cwd, account: pane?.account, env: pane?.env, secretEnv: pane?.secretEnv, cols, rows, fresh, onData })
+    .ptySpawn({ paneId: entry.paneId, cwd: pane?.cwd, account: pane?.account, env: pane?.env, secretEnv: pane?.secretEnv, contextCompression: pane?.contextCompression === true, cols, rows, fresh, onData })
     .then(({ attached, missingCwd }) => {
       entry.ready = true;
       if (missingCwd) {

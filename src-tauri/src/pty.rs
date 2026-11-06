@@ -142,10 +142,11 @@ fn build_spec(
     account: Option<String>,
     env: Option<HashMap<String, String>>,
     secret_env: Option<HashMap<String, String>>,
+    context_compression: bool,
 ) -> Result<SpawnSpec, String> {
     let shell = default_shell(cfg);
     let dir = pane_dir(cfg, cwd);
-    let mut vars = pane_env(cfg, pane_id, account, env, secret_env)?;
+    let mut vars = pane_env(cfg, pane_id, account, env, secret_env, context_compression)?;
     vars.insert("TERM".into(), "xterm-256color".into());
     vars.insert("COLORTERM".into(), "truecolor".into());
 
@@ -182,6 +183,7 @@ pub(crate) fn pane_env(
     account: Option<String>,
     env: Option<HashMap<String, String>>,
     secret_env: Option<HashMap<String, String>>,
+    context_compression: bool,
 ) -> Result<BTreeMap<String, String>, String> {
     let mut vars: BTreeMap<String, String> = std::env::vars().collect();
     // Don't leak the environment of whatever launched the app (e.g. a Claude Code
@@ -204,7 +206,7 @@ pub(crate) fn pane_env(
     set("AURELIA_CLAUDE_SETTINGS", &s(&paths.claude_settings));
     set("AURELIA_CLAUDE_MCP", &s(&paths.claude_mcp));
 
-    if let Some(name) = account {
+    if let Some(name) = account.as_deref() {
         let acct = cfg
             .accounts
             .iter()
@@ -219,6 +221,8 @@ pub(crate) fn pane_env(
     for (k, v) in crate::agents::resolve_env(env, secret_env)? {
         set(&k, &v);
     }
+    // After agent env, so a foreign ANTHROPIC_BASE_URL is visible and compression can refuse it.
+    crate::context_compression::apply(&crate::context_compression::Home::production(), cfg, pane_id, account.as_deref(), context_compression, &mut vars)?;
     Ok(vars)
 }
 
@@ -232,6 +236,7 @@ pub fn pty_spawn(
     account: Option<String>,
     env: Option<HashMap<String, String>>,
     secret_env: Option<HashMap<String, String>>,
+    context_compression: Option<bool>,
     cols: u16,
     rows: u16,
     fresh: Option<bool>,
@@ -247,7 +252,7 @@ pub fn pty_spawn(
 
     let cfg = config::load();
     let missing_cwd = cwd.clone().filter(|c| !c.is_empty() && !Path::new(&config::expand_path(c)).is_dir());
-    let spec = build_spec(&cfg, &pane_id, cwd, account, env, secret_env)?;
+    let spec = build_spec(&cfg, &pane_id, cwd, account, env, secret_env, context_compression.unwrap_or(false))?;
     // Bounded: when the batcher waits on the frontend, the reader blocks here and stops reading.
     let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(READ_QUEUE);
     let exit_code: Arc<Mutex<Option<u32>>> = Default::default();
@@ -495,7 +500,7 @@ mod tests {
     fn a_folder_that_no_longer_exists_falls_back_to_the_workspace() {
         let mut cfg = config::Config::default();
         cfg.default_workspace = "/tmp".into();
-        let spec = build_spec(&cfg, "pane-1", Some("/no/such/folder".into()), None, None, None).unwrap();
+        let spec = build_spec(&cfg, "pane-1", Some("/no/such/folder".into()), None, None, None, false).unwrap();
         assert_eq!(spec.cwd, "/tmp");
     }
 
@@ -505,7 +510,7 @@ mod tests {
         cfg.terminal.shell = "/bin/zsh".into();
         let mut env = HashMap::new();
         env.insert("OPENAI_BASE_URL".to_string(), "http://x".to_string());
-        let spec = build_spec(&cfg, "pane-1", Some("/tmp".into()), None, Some(env), None).unwrap();
+        let spec = build_spec(&cfg, "pane-1", Some("/tmp".into()), None, Some(env), None, false).unwrap();
         let get = |k: &str| spec.env.iter().find(|(n, _)| n == k).map(|(_, v)| v.as_str());
         assert_eq!(spec.argv, ["/bin/zsh", "-l"]);
         assert!(spec.cwd == "/tmp" || spec.cwd == "/private/tmp");

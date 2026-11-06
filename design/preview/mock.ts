@@ -236,6 +236,7 @@ const config = {
   sounds: { enabled: true, volume: 60, events: {}, projects: {} },
   push: { enabled: false, server: "", topic: "", detail: false },
   proxy: { enabled: false, port: 8317 },
+  contextCompression: { accounts: params.get("compress") === "on" || params.get("compress") === "active" || params.get("compress") === "failed" ? ["work"] : [] },
   tray: { enabled: true, animate: false, size: 18, color: "", streamer: params.get("streamer") === "1" },
   discord: { enabled: false, clientId: "", hideProject: false },
   defaultAccount: "claude",
@@ -474,6 +475,18 @@ mockIPC(
         return null;
       case "proxy_status":
         return { installed: true, running: false, signedIn: false };
+      case "context_compression_status": {
+        const mode = params.get("compress");
+        if (mode === "active") return { phase: "ready", version: null, reason: null, claude: true, active: [{ paneId: "p1", account: "work" }], failures: [] };
+        if (mode === "on") return { phase: "ready", version: null, reason: null, claude: true, active: [], failures: [] };
+        if (mode === "failed") return { phase: "ready", version: null, reason: null, claude: true, active: [], failures: [{ paneId: "p1", account: "work", code: 2 }] };
+        if (mode === "unavailable") return { phase: "unavailable", version: null, reason: "Claude Code isn't on PATH.", claude: false, active: [], failures: [] };
+        return { phase: "absent", version: null, reason: null, claude: true, active: [], failures: [] };
+      }
+      case "context_compression_install":
+        return "0.0.0-preview";
+      case "context_compression_dismiss":
+        return null;
       case "tray_accounts":
         return [
           { name: "a", email: "jah@aurelia.space", plan: "Max 5x" },

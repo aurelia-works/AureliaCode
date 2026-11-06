@@ -1,6 +1,8 @@
+import { compressionForUpdate, compressionStamp } from "../lib/contextCompression";
 import type { Goal } from "../lib/goalLoop";
 import { create } from "zustand";
 import { paneForLayout } from "../lib/paneKind";
+import { useConfig } from "./config";
 
 export type SplitDir = "row" | "column"; // row = side by side, column = stacked
 
@@ -71,6 +73,11 @@ export interface PaneMeta {
   then?: { paneId: string; text: string };
   /** The pane whose agent opened this one (`aurelia_open_pane`); lib/threadFamily.ts links them. */
   openedBy?: string;
+  /**
+   * Stamped when the thread is created, from the account's compression switch.
+   * Respawn keeps this value, so turning the switch on later does not change an open thread.
+   */
+  contextCompression?: boolean;
 }
 
 export interface EditorTarget {
@@ -189,6 +196,7 @@ function makePane(opts?: NewPaneOpts): PaneMeta {
     chatModel: opts?.chatModel,
     provider: opts?.mode === "chat" ? opts.provider : undefined,
     openedBy: opts?.openedBy,
+    contextCompression: opts?.provider === "opencode" ? undefined : compressionStamp(opts?.account, useConfig.getState().config?.contextCompression?.accounts),
   });
 }
 
@@ -386,7 +394,11 @@ export const useLayout = create<LayoutState>((set, get) => ({
   updatePane(paneId, patch) {
     const pane = get().panes[paneId];
     if (!pane) return;
-    const next = paneForLayout({ ...pane, ...patch });
+    const next = paneForLayout({
+      ...pane,
+      ...patch,
+      contextCompression: compressionForUpdate(pane, patch, useConfig.getState().config?.contextCompression?.accounts),
+    });
     const keys = new Set([...Object.keys(pane), ...Object.keys(next)]) as Set<keyof PaneMeta>;
     const changed = [...keys].some((k) => pane[k] !== next[k]);
     if (changed) set((s) => ({ panes: { ...s.panes, [paneId]: next } }));

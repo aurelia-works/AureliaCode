@@ -62,8 +62,16 @@ fn local_key() -> Result<String, String> {
 
 fn rand_byte() -> u8 {
     let mut b = [0u8; 1];
-    // SAFETY: the buffer is one writable byte, as the length says.
+    // macOS has this in libc. Other targets (the Linux test VM) read a byte from urandom.
+    #[cfg(target_os = "macos")]
     unsafe { libc::arc4random_buf(b.as_mut_ptr().cast(), 1) };
+    #[cfg(not(target_os = "macos"))]
+    {
+        use std::io::Read;
+        if std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut b)).is_err() {
+            b[0] = 0x5a;
+        }
+    }
     b[0]
 }
 

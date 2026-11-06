@@ -12,6 +12,7 @@ use tauri::{AppHandle, Emitter};
 
 const ZSHENV: &str = include_str!("../resources/zshenv.zsh");
 const ZSH_INTEGRATION: &str = include_str!("../resources/integration.zsh");
+const BILI_WRAP: &str = include_str!("../resources/aurelia-bili-wrap.sh");
 const HOOK_SH: &str = include_str!("../resources/hook.sh");
 const STATUSLINE_SH: &str = include_str!("../resources/statusline.sh");
 
@@ -78,6 +79,10 @@ pub fn install() -> Result<(), String> {
     }
     fs::write(p.zdotdir.join(".zshenv"), ZSHENV).map_err(|e| e.to_string())?;
     fs::write(&p.zsh_integration, ZSH_INTEGRATION).map_err(|e| e.to_string())?;
+    let wrap = app_dir().join("shell/aurelia-bili-wrap.sh");
+    fs::write(&wrap, BILI_WRAP).map_err(|e| e.to_string())?;
+    use std::os::unix::fs::PermissionsExt;
+    fs::set_permissions(&wrap, fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
     fs::write(&hook_path, HOOK_SH).map_err(|e| e.to_string())?;
     fs::write(&statusline_path, STATUSLINE_SH).map_err(|e| e.to_string())?;
     let settings = claude_settings(&hook_path.to_string_lossy(), &statusline_path.to_string_lossy());

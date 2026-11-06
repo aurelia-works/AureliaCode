@@ -267,6 +267,7 @@ export async function ensureChat(pane: PaneMeta) {
       effort: oc ? undefined : real(chatPicks(pane).effort),
       permissionMode: oc ? undefined : pane.chatPermission || startPermissionMode(getConfig().claudePermissionMode),
       provider: pane.provider,
+      contextCompression: pane.contextCompression === true,
       onEvent: ch,
     });
     if (spawns.get(pane.id) !== token) return;

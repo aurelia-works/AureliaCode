@@ -17,6 +17,13 @@ export function AboutSection(_: SectionProps) {
           A local-first workspace for many coding agents: terminals, chats, review and a thread list that keeps the work in
           one place.
         </p>
+        <p className="hint">
+          Optional long-session compression uses{" "}
+          <button type="button" className="link-btn" onClick={() => open("https://github.com/ranxianglei/billion-context")}>
+            billion-context
+          </button>
+          . It forwards Claude Code to the existing provider and stores compressed summaries on this Mac.
+        </p>
         <div className="field-row">
           <button type="button" onClick={() => open("https://github.com/aurelia-works/AureliaCode")}>
             GitHub

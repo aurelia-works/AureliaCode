@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { compressionCopy, type CompressionFacts } from "../../lib/contextCompression";
 import { ipc, type Account } from "../../lib/ipc";
 import { shortenPath } from "../../lib/format";
 import { useConfig } from "../../store/config";
@@ -36,6 +37,7 @@ export function AccountsSection(props: SectionProps) {
   return (
     <>
       <AccountsList {...props} />
+      <CompressionGroup {...props} />
       <ProxyGroup />
     </>
   );
@@ -243,6 +245,80 @@ function AccountDefaults({ draft, update }: SectionProps) {
       <button className="acct-add" onClick={addOverride}>
         + Workspace override
       </button>
+    </section>
+  );
+}
+
+const BILI_REPO = "https://github.com/ranxianglei/billion-context";
+
+/** Per-account opt-in. The stamp is taken when a thread is created, so this does not touch threads already open. */
+function CompressionGroup({ draft, update }: SectionProps) {
+  const names = draft.accounts.map((a) => a.name);
+  const enabled = draft.contextCompression?.accounts ?? [];
+  const [facts, setFacts] = useState<CompressionFacts | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const refresh = () => ipc.contextCompressionStatus().then(setFacts).catch(() => {});
+  useEffect(() => {
+    void refresh();
+    const timer = setInterval(refresh, 4000);
+    return () => clearInterval(timer);
+  }, []);
+  const view = compressionCopy(facts, enabled, names);
+  const toggle = (name: string, on: boolean) =>
+    update((c) => {
+      const next = new Set(c.contextCompression?.accounts ?? []);
+      if (on) next.add(name);
+      else next.delete(name);
+      c.contextCompression = { accounts: [...next] };
+    });
+  const install = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await ipc.contextCompressionInstall();
+      await refresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="set-group">
+      <h3>Long-session compression</h3>
+      <p className="hint">{view.summary}</p>
+      <p className={`hint ${view.tone === "bad" ? "err" : view.tone === "warn" ? "warn" : view.tone === "ok" ? "ok" : ""}`} role="status">
+        {view.status}
+      </p>
+      <p className="hint">
+        Uses{" "}
+        <button type="button" className="link-btn" onClick={() => void ipc.openUrl(BILI_REPO).catch(() => {})}>
+          billion-context
+        </button>
+        . Each enabled new thread runs <code>bili --host 127.0.0.1 --no-auto-update --bin {"<claude>"} claude</code>. Automatic updates stay off. Threads already open are unchanged.
+      </p>
+      <div className="field-row">
+        <button type="button" className="primary" disabled={busy} onClick={() => void install()}>
+          {busy ? "Installing…" : facts?.phase === "absent" ? "Install billion-context" : "Reinstall billion-context"}
+        </button>
+        {!!facts?.failures.length && (
+          <button type="button" onClick={() => void ipc.contextCompressionDismiss().then(refresh, (e) => setError(String(e)))}>
+            Clear failure note
+          </button>
+        )}
+      </div>
+      {error && <p className="set-error">{error}</p>}
+      {names.map((name) => (
+        <label className="field check" key={name}>
+          <input type="checkbox" checked={enabled.includes(name)} onChange={(e) => toggle(name, e.target.checked)} />
+          <span>
+            New threads for {name}
+            <span className="hint"> {view.perAccount[name]}</span>
+          </span>
+        </label>
+      ))}
     </section>
   );
 }
