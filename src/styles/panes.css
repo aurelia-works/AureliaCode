@@ -2892,7 +2892,7 @@ textarea::placeholder {
   gap: 2px;
   margin-top: 6px;
   font-size: var(--fs-meta);
-  color: var(--text-dim);
+  color: var(--text);
 }
 .pane-brief-goal-text {
   color: var(--text);
@@ -2900,12 +2900,17 @@ textarea::placeholder {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-/* Four sizes on the card: meta 12, body 13.5, title 14 (the scale's tokens). */
+/* The question or current activity is the title. Status is body. Goal guidance and the footer stay meta. */
+.pane-brief .state-text {
+  font-size: var(--fs-body);
+}
 .pane-brief-title {
   font-size: var(--fs-title);
 }
 .pane-brief-detail {
-  font-size: var(--fs-body);
+  font-size: var(--fs-title);
+  font-weight: 600;
+  line-height: 1.35;
 }
 .pane-brief-where,
 .pane-brief-state {
@@ -3031,6 +3036,7 @@ textarea::placeholder {
   height: 6px;
 }
 .pane-brief-goal-text {
+  font-weight: 600;
   white-space: normal;
 }
 /* Grouped picker menus: effort under the model, and the narrow composer's "…" menu. */

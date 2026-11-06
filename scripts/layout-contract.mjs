@@ -317,6 +317,24 @@ try {
         const goal = await page.locator(".pane-brief-goal").filter({ hasText: "last check failed" }).first().innerText();
         report.interactions.goal = goal.replace(/\s+/g, " ").trim();
         if (!goal.includes("next check runs when this turn ends")) fail(`working goal does not say when the next check runs: ${goal.slice(0, 180)}`);
+        const type = await page.evaluate(() => {
+          const px = (sel) => {
+            const el = document.querySelector(sel);
+            return el ? parseFloat(getComputedStyle(el).fontSize) : 0;
+          };
+          return {
+            detail: px(".pane-brief.working .pane-brief-detail"),
+            ask: px(".pane-brief.needs_input .pane-brief-detail"),
+            state: px(".pane-brief .state-text"),
+            meta: px(".pane-brief .tc-meta"),
+            goal: px(".pane-brief-goal-text"),
+            goalWeight: document.querySelector(".pane-brief-goal-text") ? parseInt(getComputedStyle(document.querySelector(".pane-brief-goal-text")).fontWeight, 10) : 0,
+          };
+        });
+        report.interactions.type = type;
+        if (!(type.detail > type.meta && type.ask > type.meta && type.state > type.meta && type.goal >= type.meta && type.goalWeight >= 600)) {
+          fail(`activity does not scan ahead of metadata: ${JSON.stringify(type)}`);
+        }
       }
 
       const composer = page.locator(".tab-content:not(.hidden) .pane.focused textarea[data-chat-input]");
