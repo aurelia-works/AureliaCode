@@ -1,0 +1,222 @@
+name: macos release
+
+# Manual 0.1.0 macOS .app. This does not publish a GitHub Release.
+# workflow_dispatch runs only after this file is on the default branch.
+# macos-15-intel is the runner rust.yml already uses. The arm64 pool left jobs
+# unassigned on 2026-11-04, so this route does not add an Apple Silicon leg.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  intel:
+    name: macOS 15 Intel .app
+    runs-on: macos-15-intel
+    timeout-minutes: 45
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_TERM_COLOR: never
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      EXPECTED_VERSION: "0.1.0"
+      APP_BUNDLE: src-tauri/target/release/bundle/macos/AureliaCode.app
+      APP_BIN: src-tauri/target/release/bundle/macos/AureliaCode.app/Contents/MacOS/aurelia-space
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      # Same stable toolchain and cache action as rust.yml. shared-key keeps this
+      # release target from replacing the cargo-test cache. Only main saves it.
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: tauri-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+
+      - name: Require version 0.1.0
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, re
+          root = pathlib.Path(".")
+          pkg = json.loads((root / "package.json").read_text())["version"]
+          tauri = json.loads((root / "src-tauri" / "tauri.conf.json").read_text())["version"]
+          cargo_src = (root / "src-tauri" / "Cargo.toml").read_text().split("[package]", 1)[1].split("\n[", 1)[0]
+          cargo = re.search(r'(?m)^version = "([^"]+)"', cargo_src).group(1)
+          expected = os.environ["EXPECTED_VERSION"]
+          print(f"package.json={pkg}")
+          print(f"tauri.conf.json={tauri}")
+          print(f"Cargo.toml={cargo}")
+          if not (pkg == tauri == cargo == expected):
+              raise SystemExit(f"expected {expected} in package.json, tauri.conf.json and Cargo.toml")
+          identity = json.loads((root / "src-tauri" / "tauri.conf.json").read_text())["bundle"]["macOS"]["signingIdentity"]
+          targets = json.loads((root / "src-tauri" / "tauri.conf.json").read_text())["bundle"]["targets"]
+          print(f"signingIdentity={identity}")
+          print(f"targets={targets}")
+          if identity != "Apple Development":
+              raise SystemExit("local signingIdentity must stay Apple Development")
+          if targets != ["app"]:
+              raise SystemExit("bundle targets must stay ['app']")
+          PY
+
+      - name: Build the release .app
+        # tauri.conf.json beforeBuildCommand is `npm run build` (tsc and vite).
+        # The committed signingIdentity stays "Apple Development" for a later local
+        # build. This command overwrites it with Tauri's ad-hoc pseudo-identity "-":
+        # https://v2.tauri.app/distribute/sign/macos/  (no Developer ID, no notarization).
+        # APPLE_SIGNING_IDENTITY is the documented override of that same field.
+        # --bundles app matches bundle.targets and does not build a .dmg.
+        # --locked matches rust.yml. No APPLE_* certificate or notarization secrets.
+        env:
+          APPLE_SIGNING_IDENTITY: "-"
+        run: |
+          set -euo pipefail
+          rustc -vV
+          npm ci --no-audit --no-fund
+          npx tauri --version
+          npx tauri build --bundles app \
+            --config '{"bundle":{"macOS":{"signingIdentity":"-"}}}' \
+            -- --locked
+
+      - name: Check the generated bundle
+        run: |
+          set -euo pipefail
+          test -d "$APP_BUNDLE"
+          test -x "$APP_BIN"
+          file "$APP_BIN" | tee "$RUNNER_TEMP/file.txt"
+          grep -q "Mach-O" "$RUNNER_TEMP/file.txt"
+          grep -q "x86_64" "$RUNNER_TEMP/file.txt"
+          bytes=$(wc -c < "$APP_BIN" | tr -d ' ')
+          echo "binary bytes=$bytes"
+          test "$bytes" -gt 1000000
+          plist="$APP_BUNDLE/Contents/Info.plist"
+          ver=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")
+          bundle_ver=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$plist")
+          exe=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$plist")
+          name=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$plist")
+          display=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleDisplayName' "$plist")
+          ident=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$plist")
+          min=$(/usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$plist")
+          echo "CFBundleShortVersionString=$ver"
+          echo "CFBundleVersion=$bundle_ver"
+          echo "CFBundleExecutable=$exe"
+          echo "CFBundleName=$name"
+          echo "CFBundleDisplayName=$display"
+          echo "CFBundleIdentifier=$ident"
+          echo "LSMinimumSystemVersion=$min"
+          test "$ver" = "$EXPECTED_VERSION"
+          test "$bundle_ver" = "$EXPECTED_VERSION"
+          test "$exe" = "aurelia-space"
+          test "$name" = "AureliaCode"
+          test "$display" = "AureliaCode"
+          test "$ident" = "space.aurelia.code"
+          test "$min" = "13.0"
+          codesign -dv --verbose=4 "$APP_BUNDLE" > "$RUNNER_TEMP/codesign.txt" 2>&1 || true
+          cat "$RUNNER_TEMP/codesign.txt"
+          grep -Eq "Signature=adhoc|flags=.*adhoc" "$RUNNER_TEMP/codesign.txt"
+          if grep -E "Authority=Developer ID|Authority=Apple Development|Authority=Apple Distribution" "$RUNNER_TEMP/codesign.txt"; then
+            echo "refusing a real Apple signing identity on this CI bundle"
+            exit 1
+          fi
+          codesign --verify --strict --verbose=2 "$APP_BUNDLE"
+          {
+            echo "### macOS 0.1.0 Intel bundle"
+            echo ""
+            echo "Path: \`$APP_BUNDLE\`"
+            echo ""
+            echo "Binary: \`$APP_BIN\` ($bytes bytes, x86_64 Mach-O)."
+            echo ""
+            echo "Version $ver, executable \`$exe\`, bundle id \`$ident\`, minimum macOS $min."
+            echo ""
+            echo "Signature is ad-hoc (\`-\`), from Tauri's documented pseudo-identity. There is no Developer ID and no notarization."
+            echo ""
+            echo "This zip is a build proof. It cannot be installed on another Mac. Gatekeeper rejects an ad-hoc app that was signed on a different machine. A normal install is \`npm run app:build\` on the maintainer's Mac, which still uses the Apple Development identity in \`src-tauri/tauri.conf.json\`."
+            echo ""
+            echo "Apple Silicon was not built. This runner is macos-15-intel only."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Zip the .app with ditto
+        run: |
+          set -euo pipefail
+          zip="$RUNNER_TEMP/AureliaCode-${EXPECTED_VERSION}-macos-x86_64-adhoc.zip"
+          ditto -c -k --keepParent "$APP_BUNDLE" "$zip"
+          unzip -l "$zip" | tee "$RUNNER_TEMP/zip-list.txt"
+          grep -q "AureliaCode.app/Contents/MacOS/aurelia-space" "$RUNNER_TEMP/zip-list.txt"
+          ls -lh "$zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AureliaCode-0.1.0-macos-x86_64-adhoc
+          path: ${{ runner.temp }}/AureliaCode-0.1.0-macos-x86_64-adhoc.zip
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Smoke-launch the binary on this runner
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          log="$RUNNER_TEMP/smoke"
+          mkdir -p "$log"
+          set +e
+          BIN="$GITHUB_WORKSPACE/$APP_BIN" LOG="$log" python3 - <<'PY'
+          import os, signal, subprocess, time, pathlib
+          log = pathlib.Path(os.environ["LOG"])
+          proc = subprocess.Popen(
+              [os.environ["BIN"]],
+              stdout=open(log / "stdout.txt", "w"),
+              stderr=open(log / "stderr.txt", "w"),
+              start_new_session=True,
+          )
+          (log / "pid").write_text(str(proc.pid))
+          time.sleep(8)
+          alive = proc.poll() is None
+          print(f"alive={alive} pid={proc.pid} returncode={proc.returncode}")
+          # The GUI process can refuse killpg (EPERM) after it attaches to the
+          # window server. A refused kill does not undo the 8s start.
+          for sig, name in ((signal.SIGTERM, "TERM"), (signal.SIGKILL, "KILL")):
+              for fn in (
+                  lambda s, p=proc.pid: os.killpg(p, s),
+                  lambda s, p=proc.pid: os.kill(p, s),
+              ):
+                  try:
+                      fn(sig)
+                      print(f"sent {name}")
+                  except ProcessLookupError:
+                      print(f"{name}: already gone")
+                  except OSError as err:
+                      print(f"{name}: {err}")
+              time.sleep(1)
+          (log / "result.txt").write_text("alive\n" if alive else f"exited {proc.returncode}\n")
+          raise SystemExit(0 if alive else 1)
+          PY
+          code=$?
+          set -euo pipefail
+          if [ -f "$log/pid" ]; then
+            kill -TERM "$(cat "$log/pid")" 2>/dev/null || true
+            sleep 1
+            kill -KILL "$(cat "$log/pid")" 2>/dev/null || true
+          fi
+          echo "--- stdout ---"
+          cat "$log/stdout.txt" || true
+          echo "--- stderr ---"
+          cat "$log/stderr.txt" || true
+          if [ "$code" -eq 0 ]; then
+            {
+              echo "Smoke: launched \`$APP_BIN\` on this macos-15-intel runner. It was still running after 8 seconds. The job then signalled it."
+              echo ""
+              echo "That is a same-machine process start only. It is not a Gatekeeper install, not a click-through, and not an Apple Silicon run. stdout and stderr were empty, so this does not show a window."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          exit "$code"
