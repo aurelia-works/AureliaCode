@@ -376,7 +376,7 @@ function PaneRow({ paneId, focused, snoozed, selected, now, onSelect, dnd }: { p
             )}
             {grown && (
               <span className="th-trip num" title={`The diff grew from ${grown.from} to ${grown.to} lines since this thread started. Running in circles? Open it to stop or keep going.`}>
-                {grown.factor}×
+                {grown.factor}× diff
               </span>
             )}
             {queue && queue.stage !== "merged" && (
