@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { composerEnter, followUpAction, paletteQuery, prNumberRef, retitle, startWorktree } from "./threadTools.ts";
+import { composerEnter, followUpAction, locationTitle, paletteQuery, prNumberRef, retitle, startWorktree } from "./threadTools.ts";
 
 test("idle sends; busy follows the mode; the opposite key flips it once", () => {
   assert.equal(followUpAction(false, "steer", false), "send");
@@ -16,6 +16,16 @@ test("a leading > filters the palette to actions", () => {
   assert.deepEqual(paletteQuery("  > roadmap "), { actionsOnly: true, text: "roadmap" });
   assert.deepEqual(paletteQuery(">"), { actionsOnly: true, text: "" });
   assert.deepEqual(paletteQuery("web "), { actionsOnly: false, text: "web" });
+});
+
+test("the location title uses the thread's own name before New thread", () => {
+  assert.equal(locationTitle({ fresh: true, taskTitle: "Keyboard-accessible settings nav" }), "Keyboard-accessible settings nav");
+  assert.equal(locationTitle({ paneTitle: "Refunds", chatTitle: "add keys", taskTitle: "other" }), "Refunds");
+  assert.equal(locationTitle({ chatTitle: "add keys", taskTitle: "other" }), "add keys");
+  assert.equal(locationTitle({ fresh: true, launcher: true }), "New thread");
+  assert.equal(locationTitle({ namedAgent: true }), "Claude");
+  assert.equal(locationTitle({ editorName: "Nav.tsx" }), "Nav.tsx");
+  assert.equal(locationTitle({}), "Terminal");
 });
 
 test("PR number reference", () => {

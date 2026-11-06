@@ -49,14 +49,16 @@ const PATHS: Record<Visual | "shell", React.ReactNode> = {
   ),
 };
 
-const WORD: Record<Visual, string> = { needs_input: "Needs you", working: "Working", done: "Finished", idle: "Idle", starting: "Starting" };
+/** The word a row shows beside the icon, so the state is not only a shape. */
+export const stateWord: Record<Visual, string> = { needs_input: "Needs you", working: "Working", done: "Finished", idle: "Idle", starting: "Starting" };
 
 /** A thread's state as one icon, optionally with its word ("Working", "Needs you"). */
-export function StatusGlyph({ state, busy, title, word }: { state: Visual | "shell"; busy?: boolean; title?: string; word?: boolean }) {
+export function StatusGlyph({ state, busy, title, word, decorative }: { state: Visual | "shell"; busy?: boolean; title?: string; word?: boolean; decorative?: boolean }) {
   const label = title ?? (state === "shell" ? (busy ? "shell, running a command" : "shell") : stateLabel[state]);
+  const named = !decorative && !word;
   const icon = (
-    <svg className={`glyph ${state}${busy ? " busy" : ""}`} viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role="img" aria-label={label}>
-      <title>{label}</title>
+    <svg className={`glyph ${state}${busy ? " busy" : ""}`} viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" role={named ? "img" : undefined} aria-label={named ? label : undefined} aria-hidden={named ? undefined : true}>
+      {named && <title>{label}</title>}
       {PATHS[state]}
     </svg>
   );
@@ -64,7 +66,7 @@ export function StatusGlyph({ state, busy, title, word }: { state: Visual | "she
   return (
     <span className={`status-word ${state}`}>
       {icon}
-      <span className="state-text">{WORD[state]}</span>
+      <span className="state-text">{stateWord[state]}</span>
     </span>
   );
 }

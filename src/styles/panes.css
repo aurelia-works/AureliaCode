@@ -2829,8 +2829,13 @@ body.pane-dragging .block-overlay {
 }
 /* A grid pane with only its card: the composer follows the card instead of sitting a pane away,
    and outside the focused pane it is one quiet line (its pickers come back when you click in). */
+/* The log is the space above the composer. It stays inside the pane, and the card scrolls inside it. */
 .chat.brief .chat-log {
-  flex: 0 1 auto;
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 .chat.brief .chat-dock {
   margin-top: 0;
@@ -2925,15 +2930,30 @@ textarea::placeholder {
   max-width: none;
   margin-inline: 0;
   min-width: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
+  height: 100%;
 }
-.pane:not(.focused) .chat.brief .chat-col {
-  flex: 1 0 auto;
+.pane:not(.focused) .chat.brief .chat-col,
+.pane.focused .chat.brief .chat-col {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
-.pane:not(.focused) .pane-brief {
-  flex: 1 0 auto;
+.pane:not(.focused) .pane-brief,
+.pane.focused .chat.brief .pane-brief {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: 100%;
   margin: 0;
+  overflow-y: auto;
+}
+/* The card box shrinks to the pane. The steps, the goal, and the footer keep their height and scroll. */
+.pane:not(.focused) .pane-brief > *,
+.pane.focused .chat.brief .pane-brief > * {
+  flex-shrink: 0;
 }
 .pane:not(.focused) .pane-brief > .tc-meta {
   margin-top: auto;

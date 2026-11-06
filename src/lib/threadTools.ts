@@ -21,6 +21,33 @@ export function composerEnter(keys: { meta: boolean; shift: boolean }, sendOnEnt
 /** The worktree switch at launch: "worktree by default" wins; otherwise the switch stays as it was left. */
 export const startWorktree = (saved: boolean | undefined, byDefault: boolean | undefined) => !!byDefault || !!saved;
 
+/**
+ * The one name in the thread header. A rename wins, then the first message, then the attached task.
+ * "New thread" is only for a pane that has none of those.
+ */
+export function locationTitle(o: {
+  paneTitle?: string;
+  chatTitle?: string;
+  taskTitle?: string;
+  fresh?: boolean;
+  launcher?: boolean;
+  browser?: boolean;
+  editorName?: string;
+  customName?: string;
+  openCode?: boolean;
+  namedAgent?: boolean;
+}): string {
+  const named = [o.paneTitle, o.chatTitle, o.taskTitle].map((s) => s?.trim()).find(Boolean);
+  if (named) return named;
+  if (o.launcher || o.fresh) return "New thread";
+  if (o.browser) return "Browser";
+  if (o.editorName) return o.editorName;
+  if (o.customName) return o.customName;
+  if (o.openCode) return "OpenCode";
+  if (o.namedAgent) return "Claude";
+  return "Terminal";
+}
+
 /** A leading ">" in the palette means "actions only"; the rest is the search text. */
 export function paletteQuery(q: string): { actionsOnly: boolean; text: string } {
   const t = q.trimStart();
