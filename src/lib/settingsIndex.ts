@@ -13,7 +13,7 @@ export const PARTS = {
   effort: { label: "Auto effort", keywords: "model effort auto judge" },
   chat: { label: "Chat", keywords: "send enter command enter queue steer follow-up timestamps messages" },
   sounds: { label: "Sounds", keywords: "sound volume notification alert" },
-  accounts: { label: "Accounts", keywords: "claude account config folder default workspace compression billion-context long session" },
+  accounts: { label: "Accounts", keywords: "claude account config folder default workspace compression billion-context long session untangle" },
   providers: { label: "Providers", keywords: "providers installed signed in sign-in login models capabilities claude opencode gemini grok codex cursor copilot cli" },
   agents: { label: "Agent keys", keywords: "keys api key deepseek anthropic openai" },
   "my-agents": { label: "My agents", keywords: "agents teams custom" },

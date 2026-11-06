@@ -7,6 +7,7 @@ import { basename, formatCost, formatDuration, formatTokens } from "../lib/forma
 import { appendText, drafts, registerComposer } from "../lib/chatComposer";
 import { BROWSER_PICK } from "../lib/browserPick";
 import { cleanTextarea } from "../lib/controlChars";
+import { anchoredMenuWidth, pickFullText, pickTipTop } from "../lib/pickMenu";
 import { liveToolLabel, pickBySeed, THINKING, toolPhrase } from "../lib/toolPhrase";
 import { agentPrompt, PROMPT_HIDDEN } from "../lib/agentPrompt";
 import { ACCEPT, capError, forSend, sendProblem, sentBytes, settleRead, type Attachment } from "../lib/attachments";
@@ -24,6 +25,8 @@ import { PaneBrief } from "./PaneBrief";
 import { useThreadSummary, type ThreadSummary } from "./ThreadCard";
 import { useAgents } from "../store/agents";
 import { expandSkillRefs, skillQuery } from "../lib/skillRefs";
+import { parseUntangleCommand, UNTANGLE_NAME, UNTANGLE_OPEN } from "../lib/untangle";
+import { UntangleDialog } from "./UntangleDialog";
 import { chatCan, freshChat } from "../lib/chatStart";
 import { ChatStart, sendFirst } from "./ChatStart";
 import { loadProviders, useProviders } from "../store/providers";
@@ -1285,6 +1288,17 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
     return true;
   };
   const [rulesOpen, setRulesOpen] = useState(false);
+  const [untangleOpen, setUntangleOpen] = useState(false);
+  const [untangleArea, setUntangleArea] = useState("");
+  useEffect(() => {
+    const open = (e: Event) => {
+      if ((e as CustomEvent<string>).detail !== paneId) return;
+      setUntangleArea("");
+      setUntangleOpen(true);
+    };
+    window.addEventListener(UNTANGLE_OPEN, open);
+    return () => window.removeEventListener(UNTANGLE_OPEN, open);
+  }, [paneId]);
   // T3's composer layout: below 620px the bar folds permissions, provider and style into one "…" menu.
   const barRef = useRef<HTMLDivElement>(null);
   const [narrowBar, setNarrowBar] = useState(false);
@@ -1383,7 +1397,15 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
     });
     ref.current?.focus();
   };
+  const openUntangle = (area: string) => {
+    setUntangleArea(area);
+    setUntangleOpen(true);
+  };
   const pick = (c: SlashCommand, run: boolean) => {
+    if (c.name === UNTANGLE_NAME) {
+      openUntangle(parseUntangleCommand(text)?.area ?? "");
+      return;
+    }
     if (run && !c.argumentHint) {
       setText("");
       sendChat(paneId, `/${c.name}`);
@@ -1430,15 +1452,18 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
     el.style.height = `${Math.min(el.scrollHeight, line * MAX_ROWS + 8)}px`;
   }, [text, expanded, narrowBar]);
 
-  /** Enter sends; ⌘Enter does the opposite of the Queue/Steer mode for this one message. */
-  const send = (opposite = false) => {
-    const typed = text.trim();
+  /** One composer send. Returns false when nothing went out, so the caller can keep a dialog open. */
+  const deliverText = (raw: string, opposite = false) => {
+    const typed = raw.trim();
     const t = oc ? typed : expandSkillRefs(typed, skillNames.map((c) => c.name));
     const problem = sendProblem(atts);
-    if (problem) return toast(problem, true);
+    if (problem) {
+      toast(problem, true);
+      return false;
+    }
     const { images, documents, refs } = forSend(atts);
     const body = [t, refs].filter(Boolean).join(t && refs ? "\n\n" : "");
-    if (!body && !images.length && !documents.length) return;
+    if (!body && !images.length && !documents.length) return false;
     // Steer: stop the running turn and send once it has ended, so the new message is a normal turn.
     const steer = followUpAction(busy, prefs.followUp, opposite) === "steer";
     setText("");
@@ -1446,12 +1471,22 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
     setHist(null);
     setExpanded(false);
     void (steer ? steerChat(paneId, body, { images, documents }) : sendFirst(paneId, body, { images, documents }));
+    return true;
+  };
+  /** Enter sends; ⌘Enter does the opposite of the Queue/Steer mode for this one message. */
+  const send = (opposite = false) => {
+    const parsed = parseUntangleCommand(text);
+    if (parsed) {
+      openUntangle(parsed.area);
+      return false;
+    }
+    return deliverText(text, opposite);
   };
   const empty = !text.trim() && !atts.some((a) => a.status !== "error");
   /** ⌘⌥Enter: send, then open a fresh start tab in the same folder so the next task can begin while this one runs. */
   const sendBackground = () => {
     if (empty) return;
-    send();
+    if (!send()) return;
     useLayout.getState().newTab({ cwd: pane?.cwd, launcher: true });
   };
   /** ⌘S: set the draft aside, or bring the last one back into an empty box. */
@@ -1508,6 +1543,17 @@ function ChatComposer({ paneId, busy, steering, visual, expanded, onExpand }: { 
   return (
     <div className="chat-compose">
       {rulesOpen && <RulesDialog cwd={pane?.cwd ?? "~"} account={pane?.account ?? null} onClose={() => setRulesOpen(false)} />}
+      {untangleOpen && (
+        <UntangleDialog
+          paneId={paneId}
+          initialArea={untangleArea}
+          withAttachments={atts.some((a) => a.status !== "error")}
+          onClose={() => setUntangleOpen(false)}
+          onSend={(message) => {
+            if (deliverText(message)) setUntangleOpen(false);
+          }}
+        />
+      )}
       {mentions.length > 0 && <FileMenu items={mentions} sel={Math.min(slashSel, mentions.length - 1)} onHover={setSlashSel} onPick={mention} />}
       {slash.length > 0 && <SlashMenu items={slash} sel={Math.min(slashSel, slash.length - 1)} onHover={setSlashSel} onPick={(c) => pick(c, true)} />}
       {skills.length > 0 && <SlashMenu sigil="$" items={skills} sel={Math.min(slashSel, skills.length - 1)} onHover={setSlashSel} onPick={pickSkill} />}
@@ -1973,13 +2019,86 @@ interface PickGroup {
   more?: { label: string; onClick: () => void };
 }
 
+/** Put a cut label's full text beside its control, kept inside the pane and off the goal actions. */
+function placePickTip(anchor: HTMLElement) {
+  const tip = anchor.querySelector<HTMLElement>(":scope > .chat-pick-tip");
+  if (!tip) return;
+  const paneEl = anchor.closest(".pane");
+  const pane = paneEl?.getBoundingClientRect();
+  const r = anchor.getBoundingClientRect();
+  const boundL = (pane?.left ?? 8) + 8;
+  const boundR = (pane?.right ?? window.innerWidth) - 8;
+  const minTop = (pane?.top ?? 8) + 4;
+  const maxBottom = (pane?.bottom ?? window.innerHeight) - 4;
+  const width = Math.max(80, Math.min(280, Math.max(0, boundR - boundL)));
+  tip.style.width = `${width}px`;
+  const h = tip.offsetHeight;
+  // Only the card's own model button. A menu row keeps the simple above/below place;
+  // the button is the control on the lower edge, where "above" covers Check now and Stop goal.
+  const cardBtn = anchor.classList.contains("chat-pick-btn") && !!anchor.closest(".chat.brief");
+  const actions = cardBtn ? paneEl?.querySelector(".pane-brief-goal-acts")?.getBoundingClientRect() : null;
+  const field = cardBtn ? paneEl?.querySelector("textarea")?.getBoundingClientRect() : null;
+  const left = Math.min(Math.max(boundL, r.left), Math.max(boundL, boundR - width));
+  const top = pickTipTop({
+    anchorTop: r.top,
+    anchorBottom: r.bottom,
+    tipHeight: h,
+    minTop,
+    maxBottom,
+    actionsBottom: actions && actions.height > 0 ? actions.bottom : undefined,
+    fieldTop: field && field.height > 0 ? field.top : undefined,
+    fieldBottom: field && field.height > 0 ? field.bottom : undefined,
+  });
+  tip.style.left = `${left}px`;
+  tip.style.top = `${top}px`;
+}
+
 function PickOption({ o, on, focus, onPick }: { o: Option; on: boolean; focus: boolean; onPick: () => void }) {
+  const nameRef = useRef<HTMLSpanElement>(null);
+  const descRef = useRef<HTMLSpanElement>(null);
+  const rowRef = useRef<HTMLButtonElement>(null);
+  const [cut, setCut] = useState(false);
+  const [tipOn, setTipOn] = useState(false);
+  useLayoutEffect(() => {
+    const over = (el: HTMLElement | null) => !!el?.textContent?.trim() && (el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1);
+    const measure = () => setCut(over(nameRef.current) || over(descRef.current));
+    measure();
+    const ro = new ResizeObserver(measure);
+    if (nameRef.current) ro.observe(nameRef.current);
+    if (descRef.current) ro.observe(descRef.current);
+    return () => ro.disconnect();
+  }, [o.label, o.desc]);
+  const full = pickFullText(o.label, o.desc);
+  const text = o.disabled && !full.includes(o.disabled) ? `${full}. ${o.disabled}` : full;
+  useLayoutEffect(() => {
+    if (tipOn && rowRef.current) placePickTip(rowRef.current);
+  }, [tipOn, text]);
   return (
-    <button type="button" role="option" className={o.tone} disabled={!!o.disabled} title={o.disabled} aria-selected={on} autoFocus={focus} onClick={onPick}>
+    <button
+      type="button"
+      role="option"
+      ref={rowRef}
+      className={o.tone}
+      disabled={!!o.disabled}
+      title={cut ? text : o.disabled}
+      aria-label={cut ? text : undefined}
+      aria-selected={on}
+      autoFocus={focus}
+      onClick={onPick}
+      onMouseEnter={() => cut && setTipOn(true)}
+      onMouseLeave={() => setTipOn(false)}
+      onFocus={() => cut && setTipOn(true)}
+      onBlur={() => setTipOn(false)}
+    >
       <span className="chat-pick-icon">{o.icon}</span>
-      <span className="chat-pick-name">{o.label}</span>
-      <span className="chat-pick-desc">{o.desc}</span>
+      <span className="chat-pick-name" ref={nameRef}>{o.label}</span>
+      <span className="chat-pick-desc" ref={descRef}>{o.desc}</span>
       {on && <CheckIcon className="chat-pick-check" />}
+      {cut && (
+        <span className={`chat-pick-tip${tipOn ? " on" : ""}`} role="tooltip" aria-hidden="true">
+          {text}
+        </span>
+      )}
     </button>
   );
 }
@@ -2013,14 +2132,63 @@ function Picker({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const labelRef = useRef<HTMLSpanElement>(null);
+  const [labelCut, setLabelCut] = useState(false);
+  const [labelTip, setLabelTip] = useState(false);
   useEffect(() => {
     if (!open) return;
+    setLabelTip(false);
     const off = (e: MouseEvent) => {
       if (!ref.current?.contains(e.target as Node)) setOpen(false);
     };
     addEventListener("mousedown", off);
     return () => removeEventListener("mousedown", off);
   }, [open]);
+  // A narrow grid card unpositions pickers so a menu can be as wide as the pane. That
+  // pins the menu to the pane's left, under the account control. Keep this menu on its
+  // own trigger: the left edge is the trigger, and the width is the room to the pane.
+  useLayoutEffect(() => {
+    if (!open) return;
+    const pick = ref.current;
+    if (!pick?.closest(".chat.brief")) return;
+    const menu = pick.querySelector<HTMLElement>(":scope > .chat-pick-menu");
+    if (!menu) return;
+    const place = () => {
+      const pane = pick.closest(".pane");
+      if (!pane) return;
+      const box = pick.getBoundingClientRect();
+      const paneBox = pane.getBoundingClientRect();
+      const width = anchoredMenuWidth(box.left, paneBox.right);
+      menu.style.left = "0px";
+      menu.style.right = "auto";
+      menu.style.width = `${width}px`;
+      // The menu opens upward. Cap it to the room inside the pane so the list is not clipped.
+      menu.style.maxHeight = `${Math.max(120, Math.min(420, box.top - paneBox.top - 12))}px`;
+    };
+    place();
+    const ro = new ResizeObserver(place);
+    ro.observe(pick);
+    const pane = pick.closest(".pane");
+    if (pane) ro.observe(pane);
+    return () => ro.disconnect();
+  }, [open]);
+  useLayoutEffect(() => {
+    const el = labelRef.current;
+    if (!el) {
+      setLabelCut(false);
+      return;
+    }
+    const measure = () => setLabelCut(el.scrollWidth > el.clientWidth + 1);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [label]);
+  const shown = labelCut && label ? pickFullText(label, title) : title;
+  useLayoutEffect(() => {
+    const btn = ref.current?.querySelector<HTMLElement>(":scope > .chat-pick-btn");
+    if (labelTip && btn) placePickTip(btn);
+  }, [labelTip, shown]);
   const close = () => {
     setOpen(false);
     ref.current?.querySelector<HTMLButtonElement>(".chat-pick-btn")?.focus();
@@ -2032,12 +2200,22 @@ function Picker({
         className={`chat-pick-btn${open ? " on" : ""}${tone ? ` ${tone}` : ""}`}
         aria-haspopup="listbox"
         aria-expanded={open}
-        title={title}
+        aria-label={labelCut && label ? shown : undefined}
+        title={shown}
         onClick={() => setOpen((o) => !o)}
+        onMouseEnter={() => !open && labelCut && setLabelTip(true)}
+        onMouseLeave={() => setLabelTip(false)}
+        onFocus={() => !open && labelCut && setLabelTip(true)}
+        onBlur={() => setLabelTip(false)}
       >
         {icon}
-        {label && <span>{label}</span>}
+        {label && <span ref={labelRef}>{label}</span>}
         <ChevronIcon className="chat-chev down" />
+        {labelCut && label && (
+          <span className={`chat-pick-tip${labelTip ? " on" : ""}`} role="tooltip" aria-hidden="true">
+            {shown}
+          </span>
+        )}
       </button>
       {open && (
         <div

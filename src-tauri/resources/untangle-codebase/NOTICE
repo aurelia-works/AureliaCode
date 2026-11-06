@@ -1,0 +1,23 @@
+Adapted from caldoai/skills, MIT, Copyright (c) 2026 Maze
+
+Source: https://github.com/caldoai/skills/tree/main/skills/untangle-codebase
+Upstream file: skills/untangle-codebase/SKILL.md on the main branch.
+
+This folder is AureliaCode's bundled copy of that skill. The original work is
+licensed under the MIT License reproduced in full in LICENSE. The copyright
+notice and permission notice from that license are part of this copy.
+
+AureliaCode adaptation, which does not replace the upstream workflow:
+
+- Invocation is only `/untangle-codebase [optional area]`.
+- `disable-model-invocation: true` stays, so the model does not run it on its own.
+- Installing these files does not start a refactor and does not edit a codebase.
+- The user may name additions: refactor only, refactor plus comments, refactor
+  plus tests, or both. With no choice, the skill asks. Tests are not deleted
+  unless the user opts in.
+- The decision log and a proposed plan are shown, and the user confirms them,
+  before any destructive edit.
+
+The comments and tests descriptions, the hidden-link / needless-link / surplus
+categories, the special-case log, the redesign step, and the end-to-end check
+are the upstream workflow.

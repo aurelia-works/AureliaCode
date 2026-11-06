@@ -6,6 +6,7 @@
  *   /design/preview/?theme=dark&view=board|terminals|review|settings|start|palette|agentview
  */
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
+import untangleSkill from "../../src-tauri/resources/untangle-codebase/SKILL.md?raw";
 
 const params = new URLSearchParams(location.search);
 const theme = (params.get("theme") ?? "dark") as "dark" | "light";
@@ -235,7 +236,7 @@ const config = {
   sounds: { enabled: true, volume: 60, events: {}, projects: {} },
   push: { enabled: false, server: "", topic: "", detail: false },
   proxy: { enabled: false, port: 8317 },
-  contextCompression: { accounts: params.get("compress") === "on" || params.get("compress") === "active" ? ["work"] : [] },
+  contextCompression: { accounts: params.get("compress") === "on" || params.get("compress") === "active" || params.get("compress") === "failed" ? ["work"] : [] },
   tray: { enabled: true, animate: false, size: 18, color: "", streamer: params.get("streamer") === "1" },
   discord: { enabled: false, clientId: "", hideProject: false },
   defaultAccount: "claude",
@@ -478,6 +479,7 @@ mockIPC(
         const mode = params.get("compress");
         if (mode === "active") return { phase: "ready", version: null, reason: null, claude: true, active: [{ paneId: "p1", account: "work" }], failures: [] };
         if (mode === "on") return { phase: "ready", version: null, reason: null, claude: true, active: [], failures: [] };
+        if (mode === "failed") return { phase: "ready", version: null, reason: null, claude: true, active: [], failures: [{ paneId: "p1", account: "work", code: 2 }] };
         if (mode === "unavailable") return { phase: "unavailable", version: null, reason: "Claude Code isn't on PATH.", claude: false, active: [], failures: [] };
         return { phase: "absent", version: null, reason: null, claude: true, active: [], failures: [] };
       }
@@ -739,7 +741,42 @@ mockIPC(
         if (REPLAY) void playReplay(args.paneId);
         return null;
       case "chat_commands":
-        return { commands: [] };
+        return params.get("untangle") === "1"
+          ? { commands: [{ name: "untangle-codebase", description: "Untangle a whole codebase in one pass.", argumentHint: "[optional area or concern to focus on]" }] }
+          : { commands: [] };
+      case "untangle_status":
+      case "untangle_install": {
+        const account = String(args.account ?? "");
+        const dir = account === "work" ? "/Users/you/.claude-work" : account === "claude-b" ? "/Users/you/.claude-b" : "/Users/you/.claude";
+        if (account === "claude") {
+          return {
+            state: "unavailable",
+            reason: "The shared ~/.claude account is not an isolated Claude config. Install is unavailable, so this skill is not written there.",
+            configDir: dir,
+            skillDir: null,
+          };
+        }
+        if (cmd === "untangle_install" || account === "work") {
+          return {
+            state: "installed",
+            reason: "Installed and matches the bundled skill.",
+            configDir: dir,
+            skillDir: `${dir}/skills/untangle-codebase`,
+          };
+        }
+        return {
+          state: "notInstalled",
+          reason: "Not installed. New sessions will not list /untangle-codebase until you install it into this account.",
+          configDir: dir,
+          skillDir: `${dir}/skills/untangle-codebase`,
+        };
+      }
+      case "untangle_asset":
+        return {
+          skill: untangleSkill,
+          license: "MIT License\n\nCopyright (c) 2026 Maze\n",
+          notice: "Adapted from caldoai/skills, MIT, Copyright (c) 2026 Maze\nhttps://github.com/caldoai/skills/tree/main/skills/untangle-codebase\n",
+        };
       case "transcript_usage":
         return { entries: [], offset: 0 };
       case "plugin:path|resolve_directory":
@@ -1152,6 +1189,20 @@ if (view === "chat" && params.get("attach") === "1") {
   attachToChat("p10", ["/Users/you/shot.png", "/Users/you/specs/spec.pdf", "/Users/you/data/rows.csv", "/Users/you/Deck.pptx", "/Users/you/big.pdf"]);
   await sleep(400);
 }
+if (view === "chat" && params.get("untangle") === "1") {
+  const { useChat } = await import("../../src/lib/chat.ts");
+  const chat = useChat.getState().byPane.p10;
+  if (chat) {
+    useChat.setState({
+      byPane: {
+        p10: {
+          ...chat,
+          commands: [{ name: "untangle-codebase", description: "Untangle a whole codebase in one pass.", argumentHint: "[optional area or concern to focus on]" }],
+        },
+      },
+    });
+  }
+}
 if (view === "chat" && params.get("goal")) {
   // A goal two rounds in, the last check short of its score (&goal=1), or the set-goal dialog (&goal=dialog).
   const now = Date.now();
@@ -1192,4 +1243,11 @@ await (await import("../../src/App.tsx")).loadScreens();
 await new Promise((r) => setTimeout(r, 50));
 // A screen that just mounted is still fading in; finite animations settle first (spinners loop forever).
 await Promise.all(document.getAnimations().filter((a) => a.effect?.getTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {})));
+if (view === "chat" && params.get("untangle") === "1") {
+  const { UNTANGLE_OPEN } = await import("../../src/lib/untangle.ts");
+  const deadline = Date.now() + 4000;
+  while (!document.querySelector("[data-chat-input='p10']") && Date.now() < deadline) await sleep(50);
+  window.dispatchEvent(new CustomEvent(UNTANGLE_OPEN, { detail: "p10" }));
+  await sleep(250);
+}
 (window as any).__ready = true;

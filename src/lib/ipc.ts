@@ -1,5 +1,6 @@
 import type { GhPr } from "./humanStats";
 import type { ChatDocument } from "./attachments";
+import type { UntangleDisk } from "./untangle";
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { ProviderStatus } from "./providers";
 
@@ -481,6 +482,12 @@ export const ipc = {
     return invoke<{ missingCwd?: string | null }>("chat_spawn", args);
   },
   permissionRules: (cwd: string, account: string | null) => invoke<RuleFile[]>("permission_rules", { cwd, account }),
+  /** Whether the bundled /untangle-codebase skill is in this isolated account. Never writes. */
+  untangleStatus: (account: string) => invoke<UntangleDisk>("untangle_status", { account }),
+  /** Copies the bundled skill into that account's skills folder. Refuses the shared ~/.claude account. */
+  untangleInstall: (account: string) => invoke<UntangleDisk>("untangle_install", { account }),
+  /** The packaged skill, license, and notice. No network. */
+  untangleAsset: () => invoke<{ skill: string; license: string; notice: string }>("untangle_asset"),
   removePermissionRule: (cwd: string, account: string | null, path: string, kind: RuleKind, rule: string) =>
     invoke<void>("remove_permission_rule", { cwd, account, path, kind, rule }),
   chatSend: (paneId: string, text: string, images?: ChatImage[], uuid?: string, documents?: ChatDocument[]) => invoke<void>("chat_send", { paneId, text, images, documents, uuid }),

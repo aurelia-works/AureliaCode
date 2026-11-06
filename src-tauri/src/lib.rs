@@ -45,6 +45,7 @@ mod suggest;
 mod lifecycle;
 mod tray;
 mod transcript;
+mod untangle;
 mod usage;
 mod voice;
 mod which;
@@ -235,6 +236,9 @@ pub fn run() {
             chat::chat_parent,
             rules::permission_rules,
             rules::remove_permission_rule,
+            untangle::untangle_status,
+            untangle::untangle_install,
+            untangle::untangle_asset,
             chat::chat_answer,
             chat::chat_kill,
             chat::chat_history,

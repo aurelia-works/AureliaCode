@@ -273,6 +273,12 @@
 .acct-row .account-chip {
   max-width: 18ch;
 }
+.untangle-state {
+  flex: 1;
+  min-width: 0;
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+}
 .acct-actions,
 .acct-confirm {
   display: flex;

@@ -5,6 +5,7 @@ import { shortenPath } from "../../lib/format";
 import { useConfig } from "../../store/config";
 import { useLayout } from "../../store/layout";
 import type { SectionProps } from "./registry";
+import { UntangleAccounts } from "./UntangleAccounts";
 
 /** Account edits commit straight to config.json (not the page's draft): names are referenced by open panes. */
 interface Edit {
@@ -186,6 +187,7 @@ function AccountsList(props: SectionProps) {
       )}
       {!edit && error && <p className="set-error">{error}</p>}
     </section>
+    <UntangleAccounts />
     <AccountDefaults {...props} />
     </>
   );
@@ -295,7 +297,7 @@ function CompressionGroup({ draft, update }: SectionProps) {
         <button type="button" className="link-btn" onClick={() => void ipc.openUrl(BILI_REPO).catch(() => {})}>
           billion-context
         </button>
-        . Each enabled new thread runs <code>bili claude --bin</code> on 127.0.0.1. Automatic updates stay off. Threads already open are unchanged.
+        . Each enabled new thread runs <code>bili --host 127.0.0.1 --no-auto-update --bin {"<claude>"} claude</code>. Automatic updates stay off. Threads already open are unchanged.
       </p>
       <div className="field-row">
         <button type="button" className="primary" disabled={busy} onClick={() => void install()}>
