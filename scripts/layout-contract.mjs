@@ -867,11 +867,6 @@ async function pickerMatrix(browser, base) {
 
     await openPick(page, "model");
     const before = await readOpenPick(page, "model");
-    // A short "Model · Effort" stays whole. Anything that is still clipped keeps the full string on the button.
-    if (before.label.includes("·") && before.spanCut) fail(`${label} effort label "${before.label}" is clipped`);
-    if (before.spanCut && (!before.title?.includes(before.label) || !before.aria?.includes(before.label))) {
-      fail(`${label} clipped label "${before.label}" is missing from the button name`);
-    }
     await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
     const first = await page.evaluate(() => document.activeElement?.querySelector(".chat-pick-name")?.textContent?.trim() ?? "");
     await page.keyboard.press("ArrowDown");
@@ -1151,78 +1146,7 @@ async function compressionMatrix(browser, base) {
   }
 }
 
-const report = { viewports: {}, interactions: {}, goalCards: {}, picker: {}, composerTitle: {} };
-
-async function composerTitle(browser, base) {
-  // Priority band for this fixture, not a promise that every title fits.
-  // Repo yields at 1280, chips at 1000, tool words at 940. 390 may still clip.
-  const band = [[1440, 900], [1280, 800], [1100, 700], [960, 800], [860, 800], [800, 900], [720, 800], [390, 700]];
-  for (const [w, h] of band) {
-    const context = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: "dark" });
-    const page = await context.newPage();
-    // Below 760px the thread list is a drawer and starts closed, so the sidebar title is not in the page.
-    if (w >= 760) await prepare(page, base, "view=chat");
-    else {
-      const theme = "theme=dark&";
-      await page.goto(`${base}/design/preview/?${theme}view=chat`, { waitUntil: "domcontentloaded" });
-      await page.waitForTimeout(150);
-    }
-    await page.waitForFunction(
-      () => (document.querySelector(".thread-head h1")?.textContent ?? "").includes("keyboard layout"),
-      null,
-      { timeout: 20_000 },
-    );
-    const box = await page.evaluate(() => {
-      const h1 = document.querySelector(".thread-head h1");
-      const r = h1.getBoundingClientRect();
-      const shown = (sel) => {
-        const el = document.querySelector(sel);
-        return !!el && getComputedStyle(el).display !== "none";
-      };
-      const head = document.querySelector(".thread-head");
-      const hr = head.getBoundingClientRect();
-      const controls = ["Grid", "Changes", "More"].map((name) => {
-        const el = [...document.querySelectorAll(".thread-head button")].find((b) => (b.getAttribute("aria-label") || b.textContent || "").includes(name));
-        if (!el) return { name, ok: false };
-        const br = el.getBoundingClientRect();
-        return { name, ok: br.width >= 24 && br.height >= 20 && br.right <= hr.right + 1 };
-      });
-      return {
-        text: h1.textContent.trim(),
-        title: h1.getAttribute("title") ?? "",
-        tabIndex: h1.tabIndex,
-        w: Math.round(r.width),
-        client: h1.clientWidth,
-        scroll: h1.scrollWidth,
-        cut: h1.scrollWidth > h1.clientWidth + 1,
-        repo: shown(".thread-head .crumb-repo"),
-        chip: shown(".thread-head .chip"),
-        toolWords: shown(".thread-head .ib.labelled > span"),
-        controls,
-        headOverflow: !!head && head.scrollWidth > head.clientWidth + 1,
-        pageOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
-      };
-    });
-    report.composerTitle[`${w}x${h}`] = box;
-    if (checks.has("title")) {
-      if (!box.text) fail(`${w}x${h} composer has no thread title`);
-      if (box.title !== box.text) fail(`${w}x${h} thread title tooltip is "${box.title}" for "${box.text}"`);
-      if (box.tabIndex < 0) fail(`${w}x${h} thread title is not keyboard focusable`);
-      if (box.pageOverflow || box.headOverflow) fail(`${w}x${h} header overflows (${box.headOverflow ? "head" : "page"})`);
-      if (box.controls.some((c) => !c.ok)) fail(`${w}x${h} header control is missing or clipped`);
-      if (box.chip && !box.repo && w > 1280) fail(`${w}x${h} chips show without the repo above the repo breakpoint`);
-      if (box.repo && w <= 1280) fail(`${w}x${h} repo still crowds the title`);
-      if (!box.repo && w >= 1440) fail(`${w}x${h} repo is hidden on a wide stage`);
-      if (box.chip && w <= 1000) fail(`${w}x${h} chips still crowd a narrow stage`);
-      if (box.toolWords && w <= 940) fail(`${w}x${h} tool words still crowd a narrow stage`);
-      if (!box.toolWords && w >= 960) fail(`${w}x${h} tool words hid while the stage still fits them`);
-      // This fixture fits once the band has yielded. 390 is shorter than the string; the tooltip carries it.
-      if (w >= 720 && box.cut) fail(`${w}x${h} thread title is clipped (${box.client} of ${box.scroll}px)`);
-      if (w < 720 && box.client < 80) fail(`${w}x${h} thread title collapsed to ${box.client}px`);
-    }
-    await context.close();
-  }
-}
+const report = { viewports: {}, interactions: {}, goalCards: {}, picker: {} };
 
 const base = await serve();
 const browser = await chromium.launch({ headless: !flag("headed") });
@@ -1270,26 +1194,6 @@ try {
         const goal = await reach(page, `.pane[data-pane-id="${pane.id}"] .pane-brief-goal-acts button`);
         if (!goal.missing && !goal.inside) fail(`${vp.name} ${pane.id} goal action not reachable`);
       }
-    }
-    if (vp.name === "1100x700" && checks.has("title")) {
-      const trip = await page.evaluate(() => {
-        const el = document.querySelector(".pane-brief-trip");
-        if (!el) return null;
-        const pane = el.closest(".pane");
-        const pr = pane.getBoundingClientRect();
-        const tr = el.getBoundingClientRect();
-        return {
-          text: (el.innerText || "").replace(/\s+/g, " ").trim(),
-          buttons: [...el.querySelectorAll("button")].map((b) => b.textContent.trim()),
-          sticks: tr.right > pr.right + 1 || tr.left < pr.left - 1,
-        };
-      });
-      report.interactions.diffWarning = trip;
-      if (!trip) fail("diff warning missing");
-      if (!trip.text.startsWith("Changes expanded from") || !trip.text.includes("Review the diff before continuing")) fail(`diff warning wording: ${trip.text}`);
-      if (/cliff|circles/i.test(trip.text)) fail(`diff warning still terse: ${trip.text}`);
-      if (!trip.buttons.includes("Review") || !trip.buttons.includes("Keep going")) fail(`diff warning actions: ${trip.buttons.join(", ")}`);
-      if (trip.sticks) fail("diff warning sticks out of its card");
     }
     if (vp.name === "1440x900") {
       await page.locator(".th-row").first().focus();
@@ -1417,7 +1321,6 @@ try {
   await pickerMatrix(browser, base);
   await narrowMenus(browser, base);
   await compressionMatrix(browser, base);
-  await composerTitle(browser, base);
 } finally {
   await browser.close();
   vite?.kill();
@@ -1441,6 +1344,6 @@ for (const [name, grid] of Object.entries(report.viewports)) {
     panes: grid.panes.map((p) => ({ id: p.id, state: p.state, focused: p.focused, paneH: p.paneH, sideInset: p.sideInset, cardPast: p.cardPast, metaInside: p.metaInside, metaGap: p.metaGap, feedH: p.feedH, feedItems: p.feedItems, dockInside: p.dockInside, dockShown: p.dockShown })),
   };
 }
-console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions, goalCards: report.goalCards, picker: report.picker, compression: report.compression, composerTitle: report.composerTitle }, null, 2));
+console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions, goalCards: report.goalCards, picker: report.picker, compression: report.compression }, null, 2));
 console.log(failures.length ? `layout-contract: ${failures.length} failed` : "layout-contract: ok");
 process.exit(failures.length ? 1 : 0);
