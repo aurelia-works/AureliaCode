@@ -29,4 +29,12 @@ Threads grid, this reviewer's score: 6.3 → 6.8.
 | Consistency | 6 | 7 | The sidebar now shows the same full name as the pane header. |
 | Clarity | 6 | 7 | The state is a word. The `4.4×` badge is still unexplained. |
 
-Not a 9. The single-thread header still says New thread. Short panes still clip tall cards.
+Not a 9. Short panes still clip tall cards.
+
+## Checkpoint 2 — one accurate location title
+
+Hypothesis: the header says New thread because `freshChat` wins before the pane title and the attached task. Use the same order as the pane header (rename, then first message, then task), and in the one-thread view do not repeat that name under it.
+
+Kept. `threads&single=1` h1 is "Keyboard-accessible settings nav", 215px, not cut. The pane header no longer repeats it (it keeps the folder and More). A thread with no name still says New thread. The grid headers are unchanged. Composer, Answer, and Start this thread still work.
+
+Tried nothing else. Hiding the header without a real title would have left the thread unnamed.

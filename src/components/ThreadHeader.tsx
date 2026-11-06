@@ -11,6 +11,8 @@ import { usePrs } from "../store/prs";
 import { useUi } from "../store/ui";
 import { crewRuns } from "../lib/crew";
 import { familyOf } from "../lib/threadFamily";
+import { locationTitle } from "../lib/threadTools";
+import { tasksForPane, useTasks } from "../store/tasks";
 import { usePaneAgent } from "./AgentChip";
 import { BranchIcon, GridIcon, PrIcon, SparkIcon, RightPanelIcon, WorktreeIcon } from "./Icons";
 import { AccountSwitch } from "./AccountSwitch";
@@ -49,6 +51,11 @@ export function ThreadHeader() {
   const git = useGit((s) => (dir ? s.info[dir] : undefined));
   const pr = usePrs((s) => (dir ? s.byDir[dir] : undefined));
   const title = useChatTitle(paneId ?? "");
+  const taskTitle = useTasks((s) => {
+    if (!paneId) return undefined;
+    const attached = tasksForPane(s.projects, paneId);
+    return (attached.find((t) => t.status === "doing") ?? attached[0])?.title;
+  });
   const chatStatus = useChat((s) => (paneId ? s.byPane[paneId]?.status : undefined));
   const approvals = useChat((s) => (paneId ? (s.byPane[paneId]?.approvals.length ?? 0) : 0));
   const custom = usePaneAgent(paneId ?? "");
@@ -129,7 +136,18 @@ export function ThreadHeader() {
   const chat = pane?.mode === "chat";
   // PaneView drops the pane header for these, so its tools live here.
   const bare = (chat || !!pane?.launcher) && tabRoot?.type !== "split";
-  const name = title ?? (pane?.launcher || freshChat(pane, chatItems?.length ?? 0) ? "New thread" : pane?.browser ? "Browser" : pane?.editor ? basename(pane.editor.path) : custom?.name ?? (isOpenCode(pane) ? "OpenCode" : pane?.account || agent ? "Claude" : "Terminal"));
+  const name = locationTitle({
+    paneTitle: pane?.title,
+    chatTitle: title,
+    taskTitle,
+    fresh: freshChat(pane, chatItems?.length ?? 0),
+    launcher: !!pane?.launcher,
+    browser: !!pane?.browser,
+    editorName: pane?.editor ? basename(pane.editor.path) : undefined,
+    customName: custom?.name,
+    openCode: isOpenCode(pane),
+    namedAgent: !!(pane?.account || agent),
+  });
   const prTone = pr && (pr.state === "MERGED" ? "merged" : pr.conflicts || pr.checks === "fail" ? "bad" : pr.checks === "pass" ? "ok" : "");
   const prWhat = pr && (pr.state !== "OPEN" ? pr.state.toLowerCase() : pr.conflicts ? "conflicts" : pr.checks === "none" ? (pr.draft ? "draft" : "open") : `checks ${pr.checks}`);
 
