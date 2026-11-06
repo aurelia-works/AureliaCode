@@ -804,6 +804,10 @@ button.primary:disabled,
 .diffstat .add {
   color: var(--s-done);
 }
+/* Light #15803d on a selected row (#ebebeb) is 4.2:1. This green clears 4.5 there and on white. */
+:root[data-theme="light"] .diffstat .add {
+  color: #116e32;
+}
 .diffstat .del {
   color: var(--err);
 }

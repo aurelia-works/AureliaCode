@@ -2360,10 +2360,26 @@ body.resizing-row .rail-grip {
   }
 }
 
-/* At 800px the stage is 512px and the branch/PR chips were leaving the title 34px. */
+/* At 800px the stage is 512px. Chips, the repo, and the tool words give that width to the thread name.
+   The buttons keep their accessible names. A longer title still ellipsizes; the heading's title is the full string. */
 @media (max-width: 860px) {
-  .thread-head .chip {
+  .thread-head .chip,
+  .thread-head .crumb-repo,
+  .thread-head .crumb-sep,
+  .thread-head .ib.labelled > span {
     display: none;
+  }
+  .thread-head {
+    padding-left: 14px;
+    padding-right: 8px;
+  }
+  .thread-head .th-pane {
+    padding-right: 0;
+    border-right: 0;
+  }
+  .thread-head .crumb,
+  .thread-head .crumb h1 {
+    flex: 1 1 auto;
   }
 }
 @media (max-width: 720px) {
@@ -2501,6 +2517,10 @@ body.resizing-row .rail-grip {
   color: var(--accent);
   font-size: var(--fs-title);
   line-height: 1;
+}
+/* #6060dc on the banner's #111 is 3.8:1. Lightened, the same mark clears 4.5 on #111 and on black. */
+:root[data-theme="dark"] .chat-goal-mark {
+  color: color-mix(in srgb, var(--accent) 78%, white);
 }
 .chat-goal.met .chat-goal-mark {
   color: var(--ok, #3fb950);

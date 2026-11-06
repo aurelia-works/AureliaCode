@@ -299,6 +299,7 @@ export function PaneMenu({ paneId }: { paneId: string }) {
         className="ib labelled"
         aria-haspopup="menu"
         aria-expanded={!!pos}
+        aria-label="More"
         title="Dictate, browser, split and close"
         onClick={() => {
           const r = btn.current?.getBoundingClientRect();

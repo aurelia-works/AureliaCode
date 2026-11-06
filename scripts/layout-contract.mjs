@@ -867,6 +867,11 @@ async function pickerMatrix(browser, base) {
 
     await openPick(page, "model");
     const before = await readOpenPick(page, "model");
+    // A short "Model · Effort" stays whole. Anything that is still clipped keeps the full string on the button.
+    if (before.label.includes("·") && before.spanCut) fail(`${label} effort label "${before.label}" is clipped`);
+    if (before.spanCut && (!before.title?.includes(before.label) || !before.aria?.includes(before.label))) {
+      fail(`${label} clipped label "${before.label}" is missing from the button name`);
+    }
     await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
     const first = await page.evaluate(() => document.activeElement?.querySelector(".chat-pick-name")?.textContent?.trim() ?? "");
     await page.keyboard.press("ArrowDown");
@@ -1146,7 +1151,41 @@ async function compressionMatrix(browser, base) {
   }
 }
 
-const report = { viewports: {}, interactions: {}, goalCards: {}, picker: {} };
+const report = { viewports: {}, interactions: {}, goalCards: {}, picker: {}, composerTitle: {} };
+
+async function composerTitle(browser, base) {
+  for (const [w, h] of [[1440, 900], [1100, 700], [800, 900]]) {
+    const context = await browser.newContext({ viewport: { width: w, height: h }, reducedMotion: "reduce", deviceScaleFactor: 1, colorScheme: "dark" });
+    const page = await context.newPage();
+    await prepare(page, base, "view=chat");
+    await page.waitForFunction(
+      () => (document.querySelector(".thread-head h1")?.textContent ?? "").includes("keyboard layout"),
+      null,
+      { timeout: 20_000 },
+    );
+    const box = await page.evaluate(() => {
+      const h1 = document.querySelector(".thread-head h1");
+      const r = h1.getBoundingClientRect();
+      return {
+        text: h1.textContent.trim(),
+        title: h1.getAttribute("title") ?? "",
+        w: Math.round(r.width),
+        client: h1.clientWidth,
+        scroll: h1.scrollWidth,
+        cut: h1.scrollWidth > h1.clientWidth + 1,
+      };
+    });
+    report.composerTitle[`${w}x${h}`] = box;
+    if (checks.has("title")) {
+      if (!box.text) fail(`${w}x${h} composer has no thread title`);
+      if (box.title !== box.text) fail(`${w}x${h} thread title tooltip is "${box.title}" for "${box.text}"`);
+      if (box.w < 240) fail(`${w}x${h} thread title is only ${box.w}px`);
+      // This fixture's title fits at 800 once the header yields. A longer name may still ellipsize; the tooltip is the full string.
+      if ((w === 1440 || w === 800) && box.cut) fail(`${w}x${h} thread title is clipped (${box.client} of ${box.scroll}px)`);
+    }
+    await context.close();
+  }
+}
 
 const base = await serve();
 const browser = await chromium.launch({ headless: !flag("headed") });
@@ -1321,6 +1360,7 @@ try {
   await pickerMatrix(browser, base);
   await narrowMenus(browser, base);
   await compressionMatrix(browser, base);
+  await composerTitle(browser, base);
 } finally {
   await browser.close();
   vite?.kill();
@@ -1344,6 +1384,6 @@ for (const [name, grid] of Object.entries(report.viewports)) {
     panes: grid.panes.map((p) => ({ id: p.id, state: p.state, focused: p.focused, paneH: p.paneH, sideInset: p.sideInset, cardPast: p.cardPast, metaInside: p.metaInside, metaGap: p.metaGap, feedH: p.feedH, feedItems: p.feedItems, dockInside: p.dockInside, dockShown: p.dockShown })),
   };
 }
-console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions, goalCards: report.goalCards, picker: report.picker, compression: report.compression }, null, 2));
+console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions, goalCards: report.goalCards, picker: report.picker, compression: report.compression, composerTitle: report.composerTitle }, null, 2));
 console.log(failures.length ? `layout-contract: ${failures.length} failed` : "layout-contract: ok");
 process.exit(failures.length ? 1 : 0);

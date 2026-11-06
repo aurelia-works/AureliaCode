@@ -66,13 +66,14 @@ export function ThreadHeader() {
 
   const tools = (
     <div className="th-tools">
-      <button className="ib labelled" title="Grid: every thread of this tab at once" aria-pressed={!single || full} onClick={() => ui.set(full ? { mode: "terminals" } : { single: !single })}>
+      <button className="ib labelled" title="Grid: every thread of this tab at once" aria-label="Grid" aria-pressed={!single || full} onClick={() => ui.set(full ? { mode: "terminals" } : { single: !single })}>
         <GridIcon />
         <span>Grid</span>
       </button>
       <button
         className="ib labelled"
         title="This thread's changes (⌘B)"
+        aria-label="Changes"
         aria-pressed={railOpen}
         onClick={() => ui.set(railOpen ? { agentPanelOpen: false } : { agentPanelOpen: true, railTab: "changes" })}
       >
@@ -156,8 +157,8 @@ export function ThreadHeader() {
       <div className="crumb" title={dir}>
         {chat && <StatusGlyph state={agent ? visualOf(agent) : chatIcon(chatStatus, approvals)} />}
         <span className="mono-badge">{repoBadge(repo)}</span>
-        {repo}
-        <span>/</span>
+        <span className="crumb-repo">{repo}</span>
+        <span className="crumb-sep" aria-hidden="true">/</span>
         <h1 title={name}>{name}</h1>
       </div>
       {crew + kids > 0 && (
