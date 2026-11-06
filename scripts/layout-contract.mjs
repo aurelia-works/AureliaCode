@@ -285,6 +285,8 @@ try {
         if (!meta.missing && !meta.inside) fail(`${vp.name} ${pane.id} footer not reachable (${meta.gap}px)`);
         const act = await reach(page, `.pane[data-pane-id="${pane.id}"] .pane-brief-act`);
         if (!act.missing && !act.inside) fail(`${vp.name} ${pane.id} action not reachable`);
+        const goal = await reach(page, `.pane[data-pane-id="${pane.id}"] .pane-brief-goal-acts button`);
+        if (!goal.missing && !goal.inside) fail(`${vp.name} ${pane.id} goal action not reachable`);
       }
     }
     if (vp.name === "1440x900") {

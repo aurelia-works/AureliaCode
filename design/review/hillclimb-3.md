@@ -38,3 +38,32 @@ Hypothesis: the header says New thread because `freshChat` wins before the pane 
 Kept. `threads&single=1` h1 is "Keyboard-accessible settings nav", 215px, not cut. The pane header no longer repeats it (it keeps the folder and More). A thread with no name still says New thread. The grid headers are unchanged. Composer, Answer, and Start this thread still work.
 
 Tried nothing else. Hiding the header without a real title would have left the thread unnamed.
+
+## Checkpoint 3 — a tall card scrolls inside its cell
+
+Hypothesis: the card box can shrink to the pane and scroll, while the steps, the goal, and the footer keep their own height. The last attempt failed because the step list itself shrank to 12px.
+
+Three layouts, same viewports, reduced motion:
+
+| Try | What it did | Result |
+| --- | --- | --- |
+| A | Card box bounded, contents still allowed to shrink | Numbers passed, but the focused goal clipped at 1100×700 and the card was not a reliable scroll of that text. |
+| B | A, plus the footer stuck to the bottom of the card | Numbers passed. Rejected: the stuck footer covered Check now, Stop goal, and Keep going. |
+| C | Header and footer fixed, feed and goal scroll, 48px floor, card overflow hidden | Failed: at 1100×700 the payments footer sat 48px past the pane and could not be scrolled to. |
+
+Kept D. The card is `overflow-y: auto` and `min-height: 0`. Its children are `flex-shrink: 0`. The composer stays outside the card.
+
+At 1440×900 every card ends 12px inside the pane. Step lists stay 76px (3 lines) and 53px (2 lines). Check now, Stop goal, Keep going, and the composer are on screen. At 1100×900 the payments footer starts just past the card edge (`metaInside` false) and scrolls into the pane. At 1100×700 the same is true of the working cards and of Check now on the focused card. The composer stays inside. At 800×900 the grid is one pane and the goal actions are on screen. ArrowDown, typing in the composer, Answer, and Start this thread still work. The sidebar and the single-thread title checks still pass.
+
+Threads grid, this reviewer's score: 6.8 → 7.0.
+
+| Category | Before | After | Why |
+| --- | --- | --- | --- |
+| Typography | 7 | 7 | Unchanged. |
+| Hierarchy | 7 | 7 | The footer still follows the steps. At 700px you scroll the card to reach it. |
+| Contrast | 7 | 7 | No new colors. |
+| Spacing | 6 | 7 | A tall card no longer paints past the cell. Short cells still have an empty middle. |
+| Consistency | 7 | 7 | Unchanged. |
+| Clarity | 7 | 7 | The actions are still there. At 700px Check now is one card-scroll away. The `4.4×` badge is still unexplained. |
+
+Not a 9. A short window shows two sidebar rows. Idle and working card edges are still hairlines. The single-thread body still asks what to do in an empty chat when the thread is a running hook. The `4.4×` badge has no words.
