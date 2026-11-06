@@ -3147,6 +3147,13 @@ button.primary:disabled,
   overflow: hidden;
   font-weight: 600;
 }
+/* Pin, Snooze and Settle sit on the row. While they show, the title keeps their width
+   so a two-line name wraps beside them instead of running underneath. */
+.nav-thread:hover .th-t,
+.nav-thread:focus-within .th-t,
+.nav-thread:has(.nav-thread-actions.open) .th-t {
+  padding-right: 88px;
+}
 .th-m {
   flex-wrap: wrap;
   align-items: baseline;

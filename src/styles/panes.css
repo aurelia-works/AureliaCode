@@ -2945,10 +2945,14 @@ textarea::placeholder {
 .pane-brief-title {
   font-size: var(--fs-title);
 }
-.pane-brief-detail {
+/* The question and the current step are the title. "Not started" and "Done" stay the
+   body line under them, so a status sentence doesn't weigh the same as the thing to do. */
+.pane-brief.working .pane-brief-detail,
+.pane-brief.needs_input .pane-brief-detail {
   font-size: var(--fs-title);
   font-weight: 600;
   line-height: 1.35;
+  color: var(--text);
 }
 .pane-brief-where,
 .pane-brief-state {
@@ -2967,9 +2971,14 @@ textarea::placeholder {
 .pane.focused .chat.brief .pane-brief > * {
   flex-shrink: 0;
 }
-.pane:not(.focused) .pane-brief > .tc-meta {
-  margin-top: auto;
-  padding-top: var(--sp-3);
+/* Steps take the spare height and scroll. The action and the footer stay under them,
+   instead of a margin pushing the footer to the bottom and leaving a hole. */
+.pane:not(.focused) .pane-brief > .pane-brief-feed,
+.pane.focused .chat.brief .pane-brief > .pane-brief-feed {
+  flex: 1 1 auto;
+  flex-shrink: 1;
+  min-height: 0;
+  overflow-y: auto;
 }
 .pane-brief button.tc-family {
   max-width: 100%;
@@ -3161,9 +3170,35 @@ textarea::placeholder {
 .pane-header.one .pane-crumb {
   flex: 1 1 auto;
 }
-/* With the header naming the thread, the card leads with its state and what it's doing. */
-.pane-brief .pane-brief-detail {
-  color: var(--text);
+/* The card footer already names the folder, so the grid header spends that width on the thread. */
+.pane-header.one .pane-crumb:has(.pane-name) .pane-crumb-folder,
+.pane-header.one .pane-crumb:has(.pane-name) > [aria-hidden] {
+  display: none;
+}
+/* A narrow focused composer stays one row. The model name gives up width; send does not. */
+.pane.focused .chat.brief .chat-card-bar {
+  flex-wrap: nowrap;
+}
+.pane.focused .chat.brief .chat-card-end {
+  flex: 1 1 auto;
+  flex-shrink: 1;
+  min-width: 0;
+}
+.pane.focused .chat.brief .chat-card-end > :not(.chat-pick) {
+  flex-shrink: 0;
+}
+.pane.focused .chat.brief .chat-card-end .chat-pick {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+.pane.focused .chat.brief .chat-card-end .chat-pick-btn {
+  max-width: 100%;
+  min-width: 0;
+}
+.pane.focused .chat.brief .chat-card-end .chat-pick-btn > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 /* Grid card activity feed: the agent's last steps, newest last, so a glance says what it has been doing. */
 .pane-brief-feed {
@@ -3174,10 +3209,14 @@ textarea::placeholder {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
   font-size: var(--fs-meta);
   color: var(--text-dim);
 }
 .pane-brief-feed li {
+  flex-shrink: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
