@@ -2827,19 +2827,6 @@ body.pane-dragging .block-overlay {
 .pane:has(.chat.brief) .pane-header .git-chip {
   display: none;
 }
-/* A grid pane with only its card: the composer follows the card instead of sitting a pane away,
-   and outside the focused pane it is one quiet line (its pickers come back when you click in). */
-/* The log is the space above the composer. It stays inside the pane, and the card scrolls inside it. */
-.chat.brief .chat-log {
-  display: flex;
-  flex-direction: column;
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-}
-.chat.brief .chat-dock {
-  margin-top: 0;
-}
 .pane:not(.focused) .chat.brief .chat-card:not(:focus-within) .chat-card-bar {
   display: none;
 }
@@ -2871,20 +2858,71 @@ input::placeholder,
 textarea::placeholder {
   color: var(--text-dim);
 }
-/* Bigger step: in a grid, only the focused pane has a composer and dock; the others are their card. */
+/* Bigger step: in a grid, only the focused pane has a composer and dock; the others are their card.
+   The card scrolls in the space above that composer. Both are ordinary flex children, so the
+   composer stays in the flow. Percentage heights used to size the card to the whole pane,
+   and the dock then painted across the goal and the footer. */
 .pane:not(.focused) .chat.brief .chat-dock {
   display: none;
 }
-.pane:not(.focused) .chat.brief .chat-log {
+.chat.brief .chat-log {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 0%;
   min-height: 0;
-  padding: var(--sp-3);
-}
-.chat.brief .chat-log {
+  overflow: hidden;
+  padding: 12px 16px 8px;
   -webkit-mask-image: none;
   mask-image: none;
+}
+.pane:not(.focused) .chat.brief .chat-log {
+  padding: var(--sp-3);
+}
+/* Full width of the cell. The reading column's 736px cap left a black gap beside a short card. */
+.chat.brief .chat-col {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  margin: 0;
+}
+.chat.brief .pane-brief {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  overflow-y: auto;
+}
+.chat.brief .chat-dock {
+  flex: 0 1 auto;
+  min-height: 0;
+  margin-top: 0;
+}
+/* Typing grows the field, then the field scrolls. The dock stops at 70% of the pane
+   so the card above it keeps a scrollport. Expanding the composer shares the pane
+   instead of removing the card. */
+.pane.focused .chat.brief .chat-log {
+  min-height: 72px;
+}
+.pane.focused .chat.brief .chat-dock {
+  max-height: 70%;
+  overflow-y: auto;
+}
+.pane.focused .chat.brief.composing .chat-log {
+  display: flex;
+}
+.pane.focused .chat.brief.composing .chat-dock {
+  flex: 1 1 0%;
+  max-height: 55%;
+  overflow: hidden;
+}
+.pane.focused .chat.brief.composing .chat-compose,
+.pane.focused .chat.brief.composing .chat-card {
+  flex: 1 1 auto;
+  min-height: 0;
 }
 .pane-brief-goal {
   display: flex;
@@ -2923,37 +2961,6 @@ textarea::placeholder {
 /* A brief pane's card carries the goal (with Check now and Stop), so the dock doesn't repeat it. */
 .chat.brief .chat-dock .chat-goal {
   display: none;
-}
-/* The card fills an unfocused grid pane: the cell is one status surface, not a small
-   card floating on black. The ask and its button stay together at the top; where the
-   thread lives (folder, branch, diff) sits on the bottom edge.
-   .chat-col is a centred reading column (margin: 0 auto, max-width 736px). In a grid
-   that sizes a short card to its text, so the idle cell and a short needs-you cell
-   leave a black gap on each side. A brief card takes the log's width instead. */
-.chat.brief .chat-col {
-  width: 100%;
-  max-width: none;
-  margin-inline: 0;
-  min-width: 0;
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: 100%;
-  height: 100%;
-}
-.pane:not(.focused) .chat.brief .chat-col,
-.pane.focused .chat.brief .chat-col {
-  flex: 1 1 auto;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-}
-.pane:not(.focused) .pane-brief,
-.pane.focused .chat.brief .pane-brief {
-  flex: 1 1 auto;
-  min-height: 0;
-  max-height: 100%;
-  margin: 0;
-  overflow-y: auto;
 }
 /* The card box shrinks to the pane. The steps, the goal, and the footer keep their height and scroll. */
 .pane:not(.focused) .pane-brief > *,
@@ -3068,10 +3075,6 @@ textarea::placeholder {
 .chat-pick-fold .chat-chev {
   display: none;
 }
-/* A grid pane is small: the chat's reading margins would push the card's last line under the composer. */
-.chat.brief .chat-log {
-  padding: 12px 16px 8px;
-}
 /* Grid pane header in the chat header's pattern: state, folder / thread, then More. */
 .pane-header.one .pane-crumb {
   display: flex;
@@ -3100,9 +3103,14 @@ textarea::placeholder {
 .crumb .glyph {
   flex: none;
 }
-/* The focused grid pane's composer starts one line tall, so the card above it fits; it grows as you type. */
+/* The focused grid pane's composer starts one line tall. Past four lines it scrolls
+   inside the field, so growing it never covers the card. */
 .pane.focused .chat.brief .chat-card textarea {
   min-height: 24px;
+  max-height: 4em;
+}
+.pane.focused .chat.brief.composing .chat-card textarea {
+  max-height: none;
 }
 .pane.focused .chat.brief .chat-card {
   padding-top: 10px;

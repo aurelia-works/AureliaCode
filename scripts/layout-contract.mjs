@@ -220,6 +220,137 @@ async function reach(page, selector) {
   }, selector);
 }
 
+async function cardScroll(page) {
+  const sel = ".tab-content:not(.hidden) .pane.focused";
+  const read = () => page.evaluate(() => {
+    const pane = document.querySelector(".tab-content:not(.hidden) .pane.focused");
+    const brief = pane?.querySelector(".pane-brief");
+    const dock = pane?.querySelector(".chat-dock");
+    const goal = [...(pane?.querySelectorAll(".pane-brief-goal-acts button") ?? [])].filter((b) => !b.disabled).at(-1)
+      ?? pane?.querySelector(".pane-brief-goal-acts button");
+    const meta = pane?.querySelector(".tc-meta");
+    const send = pane?.querySelector(".chat-send");
+    const rect = (el) => (el ? el.getBoundingClientRect() : null);
+    const over = (a, b) => (a && b ? Math.round(Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top)) : null);
+    const visibleOver = (el, host, other) => {
+      const a = rect(el);
+      const h = rect(host);
+      const o = rect(other);
+      if (!a || !h || !o) return null;
+      const top = Math.max(a.top, h.top);
+      const bottom = Math.min(a.bottom, h.bottom);
+      if (bottom - top < 1) return 0;
+      return Math.round(Math.min(bottom, o.bottom) - Math.max(top, o.top));
+    };
+    const inside = (el, host) => {
+      const a = rect(el);
+      const h = rect(host);
+      return !!a && !!h && a.height > 8 && a.top >= h.top - 1 && a.bottom <= h.bottom + 1;
+    };
+    const goalRect = rect(goal);
+    const dockRect = rect(dock);
+    return {
+      vw: window.innerWidth,
+      vh: window.innerHeight,
+      sh: brief?.scrollHeight ?? 0,
+      ch: brief?.clientHeight ?? 0,
+      oy: brief ? getComputedStyle(brief).overflowY : "",
+      boxOver: over(rect(brief), dockRect),
+      goalOver: over(goalRect, dockRect),
+      metaOver: over(rect(meta), dockRect),
+      goalVisOver: visibleOver(goal, brief, dock),
+      metaVisOver: visibleOver(meta, brief, dock),
+      goalIn: inside(goal, brief),
+      metaIn: inside(meta, brief),
+      sendIn: inside(send, dock) && inside(send, pane),
+      dockH: dockRect ? Math.round(dockRect.height) : 0,
+      briefH: rect(brief) ? Math.round(rect(brief).height) : 0,
+      goalBottom: goalRect ? Math.round(goalRect.bottom) : null,
+      dockTop: dockRect ? Math.round(dockRect.top) : null,
+    };
+  });
+  const stop = page.locator(`${sel} .pane-brief-goal-acts button`, { hasText: "Stop goal" });
+  const field = page.locator(`${sel} textarea[data-chat-input]`);
+  const rest = await read();
+  await stop.focus();
+  const focused = await read();
+  await page.evaluate(() => {
+    const brief = document.querySelector(".tab-content:not(.hidden) .pane.focused .pane-brief");
+    if (brief) brief.scrollTop = brief.scrollHeight;
+  });
+  const end = await read();
+  await field.fill(`${"steer the running turn\n".repeat(6)}and one more line`);
+  await page.waitForTimeout(60);
+  const grown = await read();
+  await stop.focus();
+  const grownFocus = await read();
+  const expand = page.locator(`${sel} .chat-expand`);
+  await expand.click();
+  await page.waitForTimeout(60);
+  await stop.focus();
+  const expanded = await read();
+  await page.locator(`${sel} .chat-expand`).click();
+  await field.fill("");
+  await page.evaluate(() => {
+    const stage = document.querySelector(".tab-content:not(.hidden)");
+    for (const brief of stage?.querySelectorAll(".pane-brief") ?? []) brief.scrollTop = 0;
+  });
+  const others = await page.evaluate(() => {
+    const stage = document.querySelector(".tab-content:not(.hidden)");
+    return [...stage.querySelectorAll(".pane")].flatMap((pane) => {
+      const brief = pane.querySelector(".pane-brief");
+      if (!brief || pane.getBoundingClientRect().width < 20) return [];
+      const dock = pane.querySelector(".chat-dock");
+      const shown = !!dock && getComputedStyle(dock).display !== "none";
+      const meta = pane.querySelector(".tc-meta");
+      const paneBox = pane.getBoundingClientRect();
+      const card = brief.getBoundingClientRect();
+      const dockBox = shown ? dock.getBoundingClientRect() : null;
+      brief.scrollTop = brief.scrollHeight;
+      const foot = meta?.getBoundingClientRect();
+      const metaIn = !!foot && foot.height > 8 && foot.top >= card.top - 1 && foot.bottom <= card.bottom + 1;
+      const metaOver = dockBox && foot ? Math.round(Math.min(foot.bottom, dockBox.bottom) - Math.max(foot.top, dockBox.top)) : 0;
+      brief.scrollTop = 0;
+      return [{
+        id: pane.dataset.paneId,
+        state: pane.dataset.state ?? "",
+        focused: pane.classList.contains("focused"),
+        oy: getComputedStyle(brief).overflowY,
+        sh: brief.scrollHeight,
+        ch: brief.clientHeight,
+        past: Math.round(card.bottom - paneBox.bottom),
+        boxOver: dockBox ? Math.round(Math.min(card.bottom, dockBox.bottom) - Math.max(card.top, dockBox.top)) : 0,
+        metaIn,
+        metaOver,
+      }];
+    });
+  });
+  return { rest, focused, end, grown, grownFocus, expanded, others };
+}
+
+function assertCardScroll(vp, card) {
+  const { rest, focused, end, grown, grownFocus, expanded, others } = card;
+  if (rest.vw !== vp.width || rest.vh !== vp.height) fail(`${vp.name} viewport is ${rest.vw}x${rest.vh}`);
+  if (rest.oy !== "auto" && rest.oy !== "scroll") fail(`${vp.name} focused card does not scroll (${rest.oy})`);
+  if (rest.boxOver > 1) fail(`${vp.name} composer covers the card by ${rest.boxOver}px`);
+  if (rest.goalVisOver > 1 || rest.metaVisOver > 1) fail(`${vp.name} composer covers visible goal or footer (${rest.goalVisOver}, ${rest.metaVisOver})`);
+  if (rest.briefH < 40 || rest.dockH < 20 || !rest.sendIn) fail(`${vp.name} focused card lost its composer or its scrollport`);
+  if (!focused.goalIn || focused.goalOver > 1) fail(`${vp.name} focusing Stop goal left it under the composer (goal ${focused.goalBottom}, composer ${focused.dockTop})`);
+  if (focused.dockH < 20) fail(`${vp.name} focusing the goal removed the composer`);
+  if (!end.metaIn || end.metaOver > 1) fail(`${vp.name} scrolling the card left the footer under the composer`);
+  if (grown.boxOver > 1 || grown.briefH < 40 || !grown.sendIn) fail(`${vp.name} a taller composer covers the card (${grown.briefH}px card, overlap ${grown.boxOver})`);
+  if (!grownFocus.goalIn || grownFocus.goalOver > 1) fail(`${vp.name} with a taller composer, Stop goal stays under it`);
+  if (expanded.briefH < 40 || expanded.boxOver > 1 || !expanded.goalIn || expanded.goalOver > 1 || !expanded.sendIn) {
+    fail(`${vp.name} expanding the composer covers the goal (card ${expanded.briefH}px, overlap ${expanded.boxOver})`);
+  }
+  for (const pane of others) {
+    if (pane.oy !== "auto" && pane.oy !== "scroll") fail(`${vp.name} ${pane.id} card does not scroll`);
+    if (pane.past > 1) fail(`${vp.name} ${pane.id} card passes the pane by ${pane.past}px`);
+    if (pane.boxOver > 1) fail(`${vp.name} ${pane.id} composer covers the card by ${pane.boxOver}px`);
+    if (!pane.metaIn || pane.metaOver > 1) fail(`${vp.name} ${pane.id} footer is not reachable above the composer`);
+  }
+}
+
 async function shot(page, name) {
   if (!outDir) return;
   mkdirSync(outDir, { recursive: true });
@@ -286,6 +417,18 @@ try {
       }
     }
     if (checks.has("overflow")) {
+      const card = await cardScroll(page);
+      report.cardScroll = report.cardScroll ?? {};
+      report.cardScroll[vp.name] = {
+        viewport: `${card.rest.vw}x${card.rest.vh}`,
+        rest: { sh: card.rest.sh, ch: card.rest.ch, boxOver: card.rest.boxOver, goal: card.rest.goalBottom, dock: card.rest.dockTop },
+        focused: { sh: card.focused.sh, ch: card.focused.ch, goal: card.focused.goalBottom, dock: card.focused.dockTop, goalOver: card.focused.goalOver },
+        end: { sh: card.end.sh, ch: card.end.ch, metaOver: card.end.metaOver },
+        grown: { sh: card.grown.sh, ch: card.grown.ch, briefH: card.grown.briefH, boxOver: card.grown.boxOver },
+        expanded: { sh: card.expanded.sh, ch: card.expanded.ch, briefH: card.expanded.briefH, boxOver: card.expanded.boxOver, goalOver: card.expanded.goalOver },
+        others: card.others.map((p) => ({ id: p.id, state: p.state, sh: p.sh, ch: p.ch, metaIn: p.metaIn })),
+      };
+      assertCardScroll(vp, card);
       assertOverflow(vp.name, grid);
       for (const pane of grid.panes) {
         const meta = await reach(page, `.pane[data-pane-id="${pane.id}"] .tc-meta`);
@@ -441,6 +584,6 @@ for (const [name, grid] of Object.entries(report.viewports)) {
     panes: grid.panes.map((p) => ({ id: p.id, state: p.state, focused: p.focused, paneH: p.paneH, sideInset: p.sideInset, cardPast: p.cardPast, metaInside: p.metaInside, metaGap: p.metaGap, feedH: p.feedH, feedItems: p.feedItems, dockInside: p.dockInside, dockShown: p.dockShown })),
   };
 }
-console.log(JSON.stringify({ brief, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions }, null, 2));
+console.log(JSON.stringify({ brief, cardScroll: report.cardScroll, single: report.single, freshSingle: report.freshSingle, interactions: report.interactions }, null, 2));
 console.log(failures.length ? `layout-contract: ${failures.length} failed` : "layout-contract: ok");
 process.exit(failures.length ? 1 : 0);

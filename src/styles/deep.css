@@ -2731,7 +2731,8 @@ body.resizing-row .rail-grip {
   background: var(--hover);
   color: var(--text);
 }
-.chat.composing .chat-log {
+/* A reading column hides while the composer is expanded. A brief card stays, and scrolls. */
+.chat.composing:not(.brief) .chat-log {
   display: none;
 }
 .chat.composing .chat-dock,
