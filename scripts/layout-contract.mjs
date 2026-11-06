@@ -357,6 +357,10 @@ try {
       const titles = await page.evaluate(() => [...document.querySelectorAll(".thread-head h1, .pane.focused .pane-name")].map((el) => (el.textContent ?? "").trim()).filter(Boolean));
       report.single.titles = titles;
       if (titles.filter((t) => t === "Keyboard-accessible settings nav").length !== 1) fail(`expected one location title, saw ${JSON.stringify(titles)}`);
+      const body = await page.evaluate(() => document.querySelector(".tab-content:not(.hidden) .pane.focused .chat-empty")?.innerText ?? "");
+      report.single.body = body.replace(/\s+/g, " ").trim();
+      if (body.includes("What should")) fail(`a running thread still asks what to do`);
+      if (!body.includes("already running") && !body.includes("Answer in the composer")) fail(`running thread has no guidance: ${body.slice(0, 120)}`);
     }
     await context.close();
   }
